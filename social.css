@@ -1,0 +1,94 @@
+/* ==========================================================================
+   СОЦИАЛЬНАЯ ЧАСТЬ: серия и онлайн в шапке, выбор аватара, лига, друзья, чужой профиль
+   Подключается после profile.css. Использует переменные style.css и profile.css.
+   ========================================================================== */
+
+/* --- Аватары-картинки внутри кружков --- */
+.pf-avatar .av-svg, .sc-av .av-svg, .pf-av-img .av-svg, .pf-av-reward .av-svg { width: 100%; height: 100%; display: block; border-radius: 50%; }
+
+/* --- Шапка: серия и онлайн --- */
+.sc-head { display: flex; align-items: center; gap: 8px; }
+.sc-head:empty { display: none; }
+.sc-chip { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); font-size: var(--fs-sm); font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.sc-streak.on { color: #f97316; border-color: rgba(249, 115, 22, 0.35); background: rgba(249, 115, 22, 0.08); }
+.sc-streak b { font-weight: 800; }
+.sc-online i { width: 8px; height: 8px; border-radius: 50%; background: var(--color-green); box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.18); }
+@media (max-width: 720px) { .sc-online { display: none; } }
+
+/* --- Выбор аватара в профиле --- */
+.pf-av-picker { margin: 4px 0 18px; }
+.pf-av-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 10px; margin-top: 8px; }
+.pf-av-opt { position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 4px 8px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--bg); color: var(--text-main); cursor: pointer; transition: border-color 0.15s, background 0.15s; min-width: 0; }
+.pf-av-opt:hover { background: var(--accent-hover); }
+.pf-av-opt.selected { border-color: var(--text-main); box-shadow: 0 0 0 1px var(--text-main) inset; }
+.pf-av-opt.locked { cursor: not-allowed; }
+.pf-av-opt.locked:hover { background: var(--bg); }
+.pf-av-img { width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center; background: linear-gradient(135deg, #18181b, #3f3f46); color: #fff; font-weight: 700; font-size: 22px; overflow: hidden; }
+.pf-av-opt.locked .pf-av-img { filter: grayscale(1) brightness(0.6) blur(1px); }
+.pf-av-lock { position: absolute; top: 44px; right: calc(50% - 30px); width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; background: var(--text-main); color: var(--bg); box-shadow: 0 0 0 2px var(--bg); }
+.pf-av-name { font-size: var(--fs-xs); font-weight: 600; color: var(--text-muted); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pf-av-reward { width: 34px; height: 34px; flex-shrink: 0; border-radius: 50%; overflow: hidden; }
+.pf-av-reward.locked { filter: grayscale(1) brightness(0.6); opacity: 0.7; }
+
+/* --- Лига и друзья --- */
+.sc-loading { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 40px 0; color: var(--text-muted); font-size: var(--fs-sm); }
+.sc-league-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 14px; }
+.sc-h { display: flex; align-items: center; gap: 8px; font-size: var(--fs-md); font-weight: 700; color: var(--text-main); }
+.sc-muted { font-size: var(--fs-xs); color: var(--text-muted); margin-top: 2px; }
+.sc-me, .sc-xp { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.sc-me b { font-size: 22px; font-weight: 800; }
+.sc-me small, .sc-xp small { font-size: var(--fs-xs); color: var(--text-light); font-weight: 500; }
+.sc-xp b { font-size: var(--fs-md); font-weight: 700; }
+.sc-person { gap: 12px; }
+.sc-person.pickable { cursor: pointer; transition: background 0.15s; }
+.sc-person.pickable:hover, .sc-person.pickable:focus-visible { background: var(--accent-hover); outline: none; }
+.sc-person.me { background: var(--accent-hover); }
+.sc-rank { width: 24px; flex-shrink: 0; text-align: center; font-weight: 800; font-size: var(--fs-sm); color: var(--text-light); font-variant-numeric: tabular-nums; }
+.sc-rank[data-place="1"] { color: #d4a017; }
+.sc-rank[data-place="2"] { color: #9ca3af; }
+.sc-rank[data-place="3"] { color: #b87333; }
+.sc-av { position: relative; width: 38px; height: 38px; flex-shrink: 0; border-radius: 50%; display: grid; place-items: center; background: linear-gradient(135deg, #18181b, #3f3f46); color: #fff; font-weight: 700; font-size: 16px; }
+.sc-av .av-svg { position: absolute; inset: 0; }
+.sc-dot { position: absolute; right: -1px; bottom: -1px; width: 11px; height: 11px; border-radius: 50%; background: var(--pf-offline); box-shadow: 0 0 0 2px var(--bg); }
+.sc-dot[data-status="online"] { background: var(--color-green); }
+.sc-dot[data-status="sleep"] { background: var(--pf-zzz); }
+.sc-name { display: flex; align-items: center; gap: 8px; font-size: var(--fs-base); font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sc-you { font-size: var(--fs-xs); font-weight: 600; color: var(--text-light); }
+.sc-sub { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; }
+.sc-tag { font-size: var(--fs-xs); padding: 2px 9px; }
+.sc-mini-streak { display: inline-flex; align-items: center; gap: 3px; font-size: var(--fs-xs); font-weight: 700; color: #f97316; }
+.sc-rel { font-size: var(--fs-xs); font-weight: 600; color: var(--text-light); }
+.sc-rel.ok { color: var(--color-green); }
+.sc-act { display: inline-flex; align-items: center; justify-content: center; gap: 4px; height: 26px; padding: 0 10px; border-radius: 999px; background: var(--text-main); color: var(--bg); font-size: var(--fs-xs); font-weight: 700; cursor: pointer; }
+.sc-act.ghost { width: 26px; padding: 0; background: transparent; color: var(--text-light); border: 1px solid var(--border); }
+.sc-act.ghost:hover { color: var(--color-red); border-color: var(--color-red); }
+.sc-zone { padding: 6px 16px; font-size: var(--fs-xs); font-weight: 600; color: var(--text-light); border-bottom: 1px dashed var(--border-hover); background: var(--bg); }
+.sc-label { display: block; font-size: var(--fs-sm); font-weight: 600; color: var(--text-muted); margin-bottom: 8px; }
+.sc-add { display: flex; gap: 10px; }
+.sc-add .pf-bio { flex: 1; min-width: 0; }
+.sc-add .pf-bio.input-error { border-color: var(--color-red); }
+.sc-add-btn { flex-shrink: 0; }
+.sc-mynick { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 10px; font-size: var(--fs-sm); color: var(--text-muted); }
+.sc-mynick b { color: var(--text-main); }
+.sc-toggle { display: flex; align-items: flex-start; gap: 10px; font-size: var(--fs-sm); color: var(--text-muted); cursor: pointer; line-height: 1.4; }
+.sc-toggle input { margin-top: 2px; accent-color: var(--text-main); }
+#pfPaneFriends > section, #pfPaneFriends > .sc-toggle { margin-bottom: 22px; }
+
+/* --- Чужой профиль --- */
+.sc-back { display: inline-flex; align-items: center; gap: 4px; margin-bottom: 4px; }
+.sc-pub-hero { padding-top: 12px; }
+.sc-pub-av { --av: 80px; --dot-ring: var(--surface); overflow: visible; }
+.sc-pub-av .av-svg { position: absolute; inset: 0; }
+.sc-pub-stats { grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); margin-top: 0; }
+.sc-bio { margin: 0; font-size: var(--fs-base); color: var(--text-main); line-height: 1.5; }
+.sc-medals { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
+#pfPaneLeague > section, #pfPaneFriends .sc-pub-hero ~ section, #pfPaneLeague .pf-box, #pfPaneFriends .pf-box { margin-bottom: 20px; }
+#pfPaneLeague > section { margin-top: 20px; }
+
+/* --- Пять вкладок профиля в одну строку (на узком экране листаются) --- */
+.pf-tabs { display: flex; overflow-x: auto; scrollbar-width: none; }
+.pf-tabs::-webkit-scrollbar { display: none; }
+.pf-tab { flex: 1 0 auto; padding: 8px 12px; font-size: var(--fs-sm); white-space: nowrap; }
+.sc-pub-hero .pf-chip { align-self: flex-start; }
+.sc-sub .sc-tag { align-self: auto; }
+.sc-pub-stats { border-top: 0; padding-top: 0; }

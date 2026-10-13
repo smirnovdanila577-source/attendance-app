@@ -279,6 +279,7 @@ function resetProfile() {
     database.profileExt = null;
     saveData();
     if (window.Profile) Profile.teardown();
+    if (window.Social) Social.teardown();
     closeSettings();
     switchScreen('authScreen');
     showElegantToast("Выход", "Вы вышли из профиля, данные очищены");
@@ -318,6 +319,7 @@ function startMainApp() {
   if (window.Ispu) Ispu.refreshSettingsButtons(); // подпись кнопки синхронизации и «Сменить группу»
   if (window.Profile) Profile.init(); // профиль, статус, уведомления
   if (window.Report) Report.init(); // еженедельный отчёт
+  if (window.Social) Social.init(); // очки, серия, лига, друзья, онлайн
   startCloudWatch();
 }
 
@@ -365,6 +367,7 @@ function saveData() {
   database._updatedAt = Date.now(); // метка времени: по ней определяем, какая копия новее
   localStorage.setItem("tracker_v12_db", JSON.stringify(database)); 
   if (window.Profile) Profile.onDataSaved(); // профиль: пересчёт достижений и уведомлений
+  if (window.Social) Social.onDataSaved();   // очки, серия и отправка публичного профиля
   
   if (database && database.userProfile && database.userProfile.id) {
       clearTimeout(syncTimeout);

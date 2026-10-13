@@ -56,7 +56,9 @@
     { id: 'strategist', name: 'Стратег',        tone: 'red',    ach: 'important' },
     { id: 'owl',      name: 'Сова',             tone: 'violet', ach: 'night_owl' },
     { id: 'lark',     name: 'Жаворонок',        tone: 'yellow', ach: 'early_bird' },
-    { id: 'person',   name: 'Свой человек',     tone: 'blue',   ach: 'profile_done' }
+    { id: 'person',   name: 'Свой человек',     tone: 'blue',   ach: 'profile_done' },
+    { id: 'ogonek',   name: 'Огонёк',           tone: 'yellow', ach: 'streak_7' },
+    { id: 'champion', name: 'Призёр',           tone: 'violet', ach: 'league_podium' }
   ];
   const tagById = id => TAGS.find(t => t.id === id) || null;
 
@@ -84,15 +86,28 @@
       progress: (s, e) => prog(e.flags.night ? 1 : 0, 1) },
     { id: 'early_bird', title: 'Ранний старт', desc: 'Загляни в трекер до восьми утра', icon: 'sun', tone: 'yellow', tag: 'lark', secret: true,
       progress: (s, e) => prog(e.flags.early ? 1 : 0, 1) },
-    { id: 'profile_done', title: 'Свой человек', desc: 'Добавь фото и расскажи о себе в профиле', icon: 'user', tone: 'blue', tag: 'person',
-      progress: (s, e) => prog((e.avatar ? 1 : 0) + (e.bio && e.bio.trim().length >= 3 ? 1 : 0), 2) }
+    { id: 'profile_done', title: 'Свой человек', desc: 'Выбери аватар и расскажи о себе в профиле', icon: 'user', tone: 'blue', tag: 'person',
+      progress: (s, e) => prog((e.avatarId ? 1 : 0) + (e.bio && e.bio.trim().length >= 3 ? 1 : 0), 2) },
+    // Серия учебных дней и очки — считает social.js
+    { id: 'streak_3', title: 'Разгон', desc: 'Отмечай пары 3 учебных дня подряд', icon: 'flame', tone: 'yellow',
+      progress: s => prog(s.bestDayStreak, 3) },
+    { id: 'streak_7', title: 'Неделя в огне', desc: 'Отмечай пары 7 учебных дней подряд', icon: 'flame', tone: 'yellow', tag: 'ogonek',
+      progress: s => prog(s.bestDayStreak, 7) },
+    { id: 'streak_30', title: 'Месяц без перерыва', desc: 'Отмечай пары 30 учебных дней подряд', icon: 'flame', tone: 'red',
+      progress: s => prog(s.bestDayStreak, 30) },
+    { id: 'xp_1000', title: 'Тысяча очков', desc: 'Набери 1000 очков опыта', icon: 'zap', tone: 'blue',
+      progress: s => prog(s.xpTotal, 1000) },
+    { id: 'league_podium', title: 'Призёр лиги', desc: 'Займи место в тройке лиги недели (от 3 участников)', icon: 'trophy', tone: 'violet', tag: 'champion',
+      progress: (s, e) => prog(e.flags.podium ? 1 : 0, 1) },
+    { id: 'first_friend', title: 'Первый друг', desc: 'Подпишитесь друг на друга с кем-нибудь', icon: 'user', tone: 'green',
+      progress: (s, e) => prog(e.flags.friend ? 1 : 0, 1) }
   ];
   const achById = id => ACH.find(a => a.id === id) || null;
   const isDone = (a, s, e, db) => a.done ? a.done(s, e, db) : (() => { const [c, t] = a.progress(s, e, db); return c >= t; })();
 
   /* ---------- Состояние модуля ---------- */
   let bound = false, lastActive = Date.now(), tickTimer = null, lastShownStatus = null;
-  let evalTimer = null, evaluating = false, activeTab = 'overview', lastHeaderSig = '';
+  let evalTimer = null, evaluating = false, activeTab = 'overview', lastHeaderSig = '', pickerOpen = false;
 
   const $ = id => document.getElementById(id);
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -123,6 +138,9 @@
     if (!e.flags || typeof e.flags !== 'object') e.flags = {};
     if (typeof e.bio !== 'string') e.bio = '';
     if (!Array.isArray(e.notifications)) e.notifications = [];
+    if (e.avatar) delete e.avatar;              // старое загруженное фото: теперь только готовые аватары
+    if (typeof e.avatarId !== 'string') e.avatarId = '';
+    if (typeof e.shareAttendance !== 'boolean') e.shareAttendance = false;
     return e;
   }
 
@@ -148,6 +166,11 @@
     });
     s.total = s.attended + s.missed;
     s.pct = s.total > 0 ? Math.round((s.attended / s.total) * 100) : 0;
+    const so = window.Social ? Social.stats() : null;
+    s.dayStreak = so ? so.streak : 0;
+    s.bestDayStreak = so ? so.bestStreak : 0;
+    s.xpTotal = so ? so.xpTotal : 0;
+    s.weekXp = so ? so.weekXp : 0;
     return s;
   }
 
@@ -230,12 +253,34 @@
   }
 
   /* ---------- Аватар ---------- */
-  const safeImg = src => (typeof src === 'string' && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(src)) ? src : null;
+  // Свой аватар показываем, только если он открыт (на случай, если достижение потерялось)
+  function myAvatarId(e) {
+    const a = window.Avatars && e.avatarId ? Avatars.byId(e.avatarId) : null;
+    return a && Avatars.isUnlocked(a, e.achievements) ? a.id : '';
+  }
   function avatarInner(e) {
     const name = (database.userProfile.name || 'С').trim();
-    const img = safeImg(e.avatar);
-    const face = img ? `<img class="pf-img" src="${img}" alt="">` : esc(name.charAt(0).toUpperCase() || 'С');
+    const face = window.Avatars ? Avatars.html(myAvatarId(e), name) : esc(name.charAt(0).toUpperCase() || 'С');
     return face + '<span class="pf-dot"></span><span class="pf-zzz" aria-hidden="true"><i>z</i><i>z</i><i>z</i></span>';
+  }
+  function avatarPickerHtml(e) {
+    if (!pickerOpen || !window.Avatars) return '';
+    const name = database.userProfile.name || 'С';
+    const cur = myAvatarId(e);
+    const opt = (id, inner, open, title, sub) => `
+      <button type="button" class="pf-av-opt ${cur === id ? 'selected' : ''} ${open ? '' : 'locked'}" data-avatar="${id}" ${open ? '' : 'aria-disabled="true"'} title="${esc(title)}">
+        <span class="pf-av-img">${inner}</span>${open ? '' : `<span class="pf-av-lock">${svg(P.lock, 12, 2.6)}</span>`}
+        <span class="pf-av-name">${esc(sub)}</span>
+      </button>`;
+    const items = [opt('', Avatars.html('', name), true, 'Буква ника', 'Буква')].concat(Avatars.list.map(a => {
+      const open = Avatars.isUnlocked(a, e.achievements);
+      const ach = a.unlock ? achById(a.unlock) : null;
+      const how = ach ? (ach.secret && !open ? 'Скрытое достижение' : `Достижение «${ach.title}»`) : '';
+      return opt(a.id, Avatars.html(a.id), open, open ? a.name : `${a.name}: ${how}`, a.name);
+    }));
+    return `<div class="pf-av-picker"><span class="pf-field-label">Аватар</span>
+      <div class="pf-av-grid">${items.join('')}</div>
+      <p class="pf-tags-note">Закрытые аватары открываются за достижения. Обычные аватары появятся позже.</p></div>`;
   }
 
   /* ---------- Шапка ---------- */
@@ -246,7 +291,7 @@
     const name = database.userProfile.name || 'Студент';
     const av = $('pfHeaderAvatar');
 
-    const sig = [name, e.avatar ? e.avatar.length : 0].join('|');
+    const sig = [name, myAvatarId(e)].join('|');
     if (sig !== lastHeaderSig) { av.innerHTML = avatarInner(e); lastHeaderSig = sig; }
     av.dataset.status = st;
 
@@ -323,7 +368,7 @@
 
     $('pfHero').innerHTML = `
       <div class="pf-hero">
-        <button type="button" class="pf-avatar-edit" data-act="avatar" aria-label="Сменить фото">
+        <button type="button" class="pf-avatar-edit" data-act="avatar" aria-label="Выбрать аватар">
           <span class="pf-avatar" data-status="${st}">${avatarInner(e)}</span>
         </button>
         <div class="pf-hero-info">
@@ -331,11 +376,11 @@
           ${tag ? `<span class="pf-chip" data-tone="${tag.tone}">${esc(tag.name)}</span>` : ''}
           <div class="pf-hero-meta">${esc(meta)}</div>
           <div class="pf-hero-actions">
-            <button type="button" class="pf-link-btn" data-act="avatar">${e.avatar ? 'Заменить фото' : 'Загрузить фото'}</button>
-            ${e.avatar ? '<button type="button" class="pf-link-btn" data-act="avatar-remove">Убрать</button>' : ''}
+            <button type="button" class="pf-link-btn" data-act="avatar">${pickerOpen ? 'Скрыть аватары' : 'Выбрать аватар'}</button>
           </div>
         </div>
       </div>
+      ${avatarPickerHtml(e)}
       <span class="pf-field-label">Статус</span>
       <div class="pf-seg" role="radiogroup" aria-label="Статус">
         ${STATUS_MODES.map(m => `
@@ -351,13 +396,15 @@
     const tabs = [
       { id: 'overview', label: 'Обзор' },
       { id: 'achievements', label: 'Достижения', count: `${got}/${ACH.length}` },
-      { id: 'tags', label: 'Теги', count: `${Object.keys(e.tags).filter(id => tagById(id)).length}/${TAGS.length}` }
+      { id: 'tags', label: 'Теги', count: `${Object.keys(e.tags).filter(id => tagById(id)).length}/${TAGS.length}` },
+      ...(window.Social ? [{ id: 'league', label: 'Лига' }, { id: 'friends', label: 'Друзья' }] : [])
     ];
     $('pfTabs').innerHTML = tabs.map(t => `
       <button type="button" class="pf-tab ${activeTab === t.id ? 'selected' : ''}" data-tab="${t.id}" role="tab" aria-selected="${activeTab === t.id}">
         ${t.label}${t.count ? `<span class="pf-tab-count">${t.count}</span>` : ''}
       </button>`).join('');
     document.querySelectorAll('.pf-pane').forEach(p => p.classList.toggle('active', p.dataset.pane === activeTab));
+    if (window.Social && (activeTab === 'league' || activeTab === 'friends')) Social.renderPane(activeTab);
   }
 
   function medalHtml(a, e) {
@@ -390,6 +437,11 @@
             <div><div class="pf-mini-num">${s.hwDone} / ${s.hwTotal}</div><div class="pf-mini-label">домашек сделано</div></div>
             <div><div class="pf-mini-num">${s.perfectWeeks}</div><div class="pf-mini-label">идеальных недель</div></div>
           </div>
+          ${window.Social ? `<div class="pf-mini-grid">
+            <div><div class="pf-mini-num">${s.dayStreak}</div><div class="pf-mini-label">дней в серии</div></div>
+            <div><div class="pf-mini-num">${s.weekXp}</div><div class="pf-mini-label">очков за неделю</div></div>
+            <div><div class="pf-mini-num">${s.xpTotal}</div><div class="pf-mini-label">очков всего</div></div>
+          </div>` : ''}
         </div>
       </section>
       <section>
@@ -399,6 +451,7 @@
       </section>`;
   }
 
+  const avatarFor = achId => (window.Avatars ? Avatars.list.find(a => a.unlock === achId) : null) || null;
   function renderAchievements() {
     const e = ext(), s = computeStats();
     const got = ACH.filter(a => e.achievements[a.id]).length;
@@ -414,6 +467,7 @@
             <span class="pf-row-meta">Получено ${fmtDate(unlockedAt)}</span>
           </div>
           ${tag ? `<span class="pf-chip pf-reward" data-tone="${tag.tone}">Тег «${esc(tag.name)}»</span>` : ''}
+          ${avatarFor(a.id) ? `<span class="pf-av-reward" title="Открыт аватар «${esc(avatarFor(a.id).name)}»">${Avatars.html(avatarFor(a.id).id)}</span>` : ''}
         </div>`;
       }
       if (a.secret) {
@@ -434,6 +488,7 @@
           <span class="pf-row-meta">${cur} / ${tar}${note ? ', ' + esc(note) : ''}</span>
         </div>
         ${tag ? `<span class="pf-lock" title="Награда: тег «${esc(tag.name)}»">${svg(P.tag, 16)}</span>` : ''}
+        ${avatarFor(a.id) ? `<span class="pf-av-reward locked" title="Награда: аватар «${esc(avatarFor(a.id).name)}»">${Avatars.html(avatarFor(a.id).id)}</span>` : ''}
       </div>`;
     }).join('');
     $('pfPaneAchievements').innerHTML = `
@@ -490,29 +545,6 @@
   }
   function closeProfile() { $('profileBackdrop').classList.remove('open'); }
 
-  /* ---------- Фото профиля ---------- */
-  function handleAvatarFile(file) {
-    if (!file) return;
-    if (!/^image\//.test(file.type)) { showElegantToast('Фото', 'Выбери файл-изображение', 'error'); return; }
-    if (file.size > 8 * 1024 * 1024) { showElegantToast('Фото', 'Файл слишком большой (максимум 8 МБ)', 'error'); return; }
-    const reader = new FileReader();
-    reader.onload = () => {
-      const img = new Image();
-      img.onload = () => {
-        const S = 128, c = document.createElement('canvas');
-        c.width = c.height = S;
-        const m = Math.min(img.width, img.height);
-        c.getContext('2d').drawImage(img, (img.width - m) / 2, (img.height - m) / 2, m, m, 0, 0, S, S);
-        ext().avatar = c.toDataURL('image/jpeg', 0.86);
-        lastHeaderSig = '';
-        saveData(); renderAll();
-      };
-      img.onerror = () => showElegantToast('Фото', 'Не удалось прочитать изображение', 'error');
-      img.src = reader.result;
-    };
-    reader.readAsDataURL(file);
-  }
-
   /* ---------- События ---------- */
   function bind() {
     $('pfOpenBtn').addEventListener('click', () => openProfile());
@@ -539,10 +571,14 @@
     const modal = $('profileBackdrop');
     modal.addEventListener('click', e => {
       if (e.target === modal) { closeProfile(); return; }
-      const t = e.target.closest('[data-act], [data-tab], [data-status], [data-tag]'); if (!t) return;
+      const t = e.target.closest('[data-act], [data-tab], [data-status], [data-tag], [data-avatar]'); if (!t) return;
       if (t.dataset.act === 'close') closeProfile();
-      else if (t.dataset.act === 'avatar') $('pfAvatarInput').click();
-      else if (t.dataset.act === 'avatar-remove') { ext().avatar = null; lastHeaderSig = ''; saveData(); renderAll(); }
+      else if (t.dataset.act === 'avatar') { pickerOpen = !pickerOpen; renderHero(); }
+      else if (t.dataset.avatar !== undefined) {
+        const e2 = ext(), id = t.dataset.avatar, a = id && window.Avatars ? Avatars.byId(id) : null;
+        if (id && !Avatars.isUnlocked(a, e2.achievements)) return;
+        e2.avatarId = id; lastHeaderSig = ''; saveData(); renderAll();
+      }
       else if (t.dataset.tab) { activeTab = t.dataset.tab; renderTabs(); }
       else if (t.dataset.status) setStatus(t.dataset.status);
       else if (t.dataset.tag !== undefined) {
@@ -562,7 +598,6 @@
     modal.addEventListener('keydown', e => {
       if (e.target.id === 'pfBio' && e.key === 'Enter') e.target.blur();
     });
-    $('pfAvatarInput').addEventListener('change', e => { handleAvatarFile(e.target.files[0]); e.target.value = ''; });
 
     document.addEventListener('click', e => {
       // composedPath: после перерисовки панели e.target уже отсоединён от DOM, а путь события сохраняется
@@ -603,8 +638,12 @@
   }
   function teardown() {       // при выходе из аккаунта
     if (!bound) return;
-    closePops(); closeProfile(); lastHeaderSig = ''; activeTab = 'overview';
+    closePops(); closeProfile(); lastHeaderSig = ''; activeTab = 'overview'; pickerOpen = false;
   }
 
-  window.Profile = { init, refresh, teardown, onDataSaved, open: openProfile, notify };
+  // Для social.js: данные профиля, вид достижений и тегов, текущий статус
+  const achInfo = id => { const a = achById(id); return a ? { title: a.title, icon: svg(P[a.icon] || P.star, 18), tone: a.tone } : null; };
+  const tagInfo = id => { const t = tagById(id); return t ? { name: t.name, tone: t.tone } : null; };
+  window.Profile = { init, refresh, teardown, onDataSaved, open: openProfile, notify, ext, computeStats, achInfo, tagInfo,
+    myAvatarId: () => myAvatarId(ext()), status: () => ext().status, rerender: () => renderAll(), activeTab: () => activeTab };
 })();

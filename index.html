@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="profile.css">
   <link rel="stylesheet" href="report.css">
   <link rel="stylesheet" href="ispu.css">
+  <link rel="stylesheet" href="social.css">
 
   
   <style>
@@ -170,6 +171,8 @@
             </div>
           </div>
 <div class="header-right">
+            <!-- Серия учебных дней и общий онлайн (social.js) -->
+            <div class="sc-head" id="scHead"></div>
             <!-- Профиль: овал с аватаркой, ником и тегом. Кружок статуса — отдельная зона клика -->
             <div class="pf-anchor">
               <div class="profile-pill" id="profilePill">
@@ -456,12 +459,13 @@
         <div class="pf-pane" data-pane="overview" id="pfPaneOverview"></div>
         <div class="pf-pane" data-pane="achievements" id="pfPaneAchievements"></div>
         <div class="pf-pane" data-pane="tags" id="pfPaneTags"></div>
+        <div class="pf-pane" data-pane="league" id="pfPaneLeague"></div>
+        <div class="pf-pane" data-pane="friends" id="pfPaneFriends"></div>
       </div>
       <div class="pf-footer">
         <span class="pf-footer-note" id="pfFooterNote"></span>
         <button type="button" class="btn btn-secondary" data-act="close">Закрыть</button>
       </div>
-      <input type="file" id="pfAvatarInput" accept="image/*" style="display: none;">
     </div>
   </div>
 
@@ -480,7 +484,9 @@
   <script src="app.js"></script>
   <script src="ispu_groups.js"></script>
   <script src="ispu.js"></script>
+  <script src="avatars.js"></script>
   <script src="profile.js"></script>
+  <script src="social.js"></script>
   <script src="report.js"></script>
 </body>
 </html>
