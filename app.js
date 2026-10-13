@@ -681,8 +681,9 @@ function getWeekData(weekNum) {
 }
 
 // Пересобирает недели из шаблонов после смены режима или загрузки нового расписания.
-// Всё, что раньше сегодняшнего дня, не трогаем: там уже прошедшие пары с отметками и ДЗ.
-// С сегодняшнего дня берём новое расписание и переносим на него данные старых пар:
+// Прошедший день, где есть отметки или ДЗ, не трогаем: это история. Прошедший день без них
+// (например, до первой синхронизации) и всё с сегодняшнего дня берут новое расписание,
+// а данные старых пар переносятся на него:
 //   1) тот же день, предмет и время — переносим отметку и ДЗ;
 //   2) тот же день и предмет, другое время (пару сдвинули) — тоже переносим;
 //   3) ДЗ переезжает на ближайшую пару этого предмета в ту же неделю;
@@ -696,16 +697,19 @@ function rebuildWeeksFromToday() {
   const last = Math.max(20, nowWeek, ...nums);
   const summary = { moved: 0, cancelled: 0 };
   const hasData = p => (p.attended === true || p.attended === false) || (Array.isArray(p.tasks) && p.tasks.length > 0);
+  const dayHasData = list => (list || []).some(hasData);
   const next = {};
-  nums.filter(n => n < nowWeek).forEach(n => { next[String(n)] = old[String(n)]; });
+  const todo = nums.filter(n => n < nowWeek).sort((a, b) => a - b); // прошедшие недели — только уже созданные
+  for (let w = nowWeek; w <= last; w++) todo.push(w);
 
-  for (let w = nowWeek; w <= last; w++) {
+  for (const w of todo) {
     const fresh = JSON.parse(JSON.stringify(database.templates[getWeekType(w)] || {}));
     const prev = old[String(w)];
     const week = {};
     const rebuilt = []; // дни, которые пересобираем: [день, новые пары, старые пары]
     ALL_DAYS.forEach((day, i) => {
-      if (w === nowWeek && i < nowDay && prev) { week[day] = prev[day] || []; return; } // прошедший день текущей недели
+      const isPast = w < nowWeek || (w === nowWeek && i < nowDay);
+      if (isPast && prev && dayHasData(prev[day])) { week[day] = prev[day]; return; } // история с отметками
       const pairs = (fresh[day] || []).map(p => { p.attended = null; delete p.tasks; return p; });
       week[day] = pairs;
       rebuilt.push([day, pairs, prev ? (prev[day] || []) : []]);
