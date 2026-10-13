@@ -55,3 +55,5 @@ body.dark-theme .pair-type[data-kind="practice"] { --k-bg: rgba(52, 211, 153, 0.
 body.dark-theme .pair-type[data-kind="lab"]      { --k-bg: rgba(244, 114, 182, 0.15); --k-fg: #f472b6; }
 
 @media (prefers-reduced-motion: reduce) { .ip-spin { animation-duration: 2s; } .ip-suggest { transition: none; } }
+/* Подсказка о формате номера группы (под полем, а не внутри него) */
+.ip-format { margin-top: 6px; font-size: var(--fs-xs); color: var(--text-light); line-height: 1.4; }

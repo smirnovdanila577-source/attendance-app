@@ -288,6 +288,7 @@ function resetProfile() {
 let mainTimersStarted = false;
 
 function startMainApp() {
+  clearFutureMarks();
   currentWeek = calculateCurrentSemesterWeek();
   buildTimeSelectOptions();
   initCustomSelects();      
@@ -452,6 +453,7 @@ async function pullFromCloud(opts = {}) {
       cloud.userProfile = profile;
       localStorage.setItem("tracker_v12_db", JSON.stringify(cloud));
       database = loadData();
+      clearFutureMarks();
       buildTimeSelectOptions();
       syncSettingsUI();
       evaluateTheme();
@@ -794,8 +796,8 @@ function jumpToCurrentWeek() {
 
 function markEntireDay(dayName) {
   const week = getWeekData(currentWeek);
-  const pairs = (week[dayName] || []).filter(p => !p.cancelled);
-  if (pairs.length === 0) return;
+  const pairs = (week[dayName] || []).filter(p => !p.cancelled && pairHasEnded(currentWeek, dayName, p.time));
+  if (pairs.length === 0) { showElegantToast("Рано", "В этот день ещё нет закончившихся пар", "error"); return; }
   const allAttended = pairs.every(p => p.attended === true);
   pairs.forEach(p => p.attended = !allAttended);
   saveData(); render();
@@ -883,11 +885,38 @@ function changeWeek(diff) {
   }, 150); 
 }
 
+// Момент окончания пары: дата дня недели + время конца («08:00 - 09:35» → 09:35). Нет времени — конец дня.
+function pairEndDate(weekNum, dayName, timeStr) {
+  const d = getDateForDay(weekNum, dayName);
+  const m = String(timeStr || '').match(/(\d{1,2})[:.](\d{2})\s*$/);
+  if (m) d.setHours(Number(m[1]), Number(m[2]), 0, 0); else d.setHours(23, 59, 59, 0);
+  return d;
+}
+// Отмечать посещение можно только после окончания пары
+function pairHasEnded(weekNum, dayName, timeStr) {
+  return Date.now() >= pairEndDate(weekNum, dayName, timeStr).getTime();
+}
+
+// Убирает отметки с пар, которые ещё не закончились (могли остаться от старой версии или прийти с другого устройства).
+// Пишем напрямую в localStorage без новой метки времени, чтобы не перебить более свежие данные из облака.
+function clearFutureMarks() {
+  let n = 0;
+  Object.keys(database.weeks || {}).forEach(k => {
+    const w = Number(k); if (!(w > 0)) return;
+    ALL_DAYS.forEach(day => (database.weeks[k][day] || []).forEach(p => {
+      if ((p.attended === true || p.attended === false) && !pairHasEnded(w, day, p.time)) { p.attended = null; n++; }
+    }));
+  });
+  if (n) localStorage.setItem("tracker_v12_db", JSON.stringify(database));
+  return n;
+}
+
 function toggleAttendance(pairId) { 
   const week = getWeekData(currentWeek); 
   for (const d of ALL_DAYS) { 
     const p = week[d]?.find(i => i.id === pairId); 
     if (p && p.cancelled) return;
+    if (p && !pairHasEnded(currentWeek, d, p.time)) { showElegantToast("Рано", "Отметить пару можно после её окончания", "error"); return; }
     if (p) { p.attended = p.attended === null ? true : p.attended === true ? false : null; saveData(); render(); return; } 
   } 
 }
@@ -1344,6 +1373,8 @@ function render() {
           stIcn = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>`; 
           stTxt = "Пропуск"; 
         }
+        const notEnded = !p.cancelled && !pairHasEnded(currentWeek, day, p.time);
+        if (notEnded) stCls += " not-yet";
 
         const liveStatus = p.cancelled ? null : checkLiveStatus(day, p.time, currentWeek);
 
@@ -1383,7 +1414,7 @@ function render() {
             </div>
             ${p.cancelled
               ? `<span class="status-pill cancelled-pill" title="Пары больше нет в расписании вуза. Отметка и ДЗ сохранены">Убрана из расписания</span>`
-              : `<button class="${stCls}" onclick="toggleAttendance('${p.id}')">${stIcn} ${stTxt}</button>`}
+              : `<button class="${stCls}" onclick="toggleAttendance('${p.id}')"${notEnded ? ' title="Отметить можно после окончания пары"' : ''}>${stIcn} ${stTxt}</button>`}
             <div style="display: flex; gap: 6px; justify-content: flex-end;">
               ${hwButtonHtml(p)}
               <button class="action-circle-btn" onclick='openModal("${day}", ${JSON.stringify({ id: p.id, subject: p.subject, time: p.time, type: p.type }).replace(/&/g, "&amp;").replace(/'/g, "&apos;")})'>
@@ -1481,7 +1512,7 @@ function importData(e) {
     try {
       const imported = JSON.parse(event.target.result);
       if (imported.templates && imported.weeks) {
-        clearAllUndos(); database = imported; saveData(); syncSettingsUI(); evaluateTheme();
+        clearAllUndos(); database = imported; clearFutureMarks(); saveData(); syncSettingsUI(); evaluateTheme();
         currentWeek = calculateCurrentSemesterWeek(); render(); closeSettings();
         if (window.Profile) Profile.refresh();
         showElegantToast("Восстановление", "Резервная копия успешно загружена");

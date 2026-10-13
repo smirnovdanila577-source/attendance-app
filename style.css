@@ -553,3 +553,7 @@ body.dark-theme #setupBackdrop, body.dark-theme #bellBackdrop { --rp-glass: 24, 
 .pair-card.is-cancelled .pair-title,
 .pair-card.is-cancelled .time-text { text-decoration: line-through; text-decoration-color: var(--text-light); }
 .status-pill.cancelled-pill { cursor: default; border-style: dashed; background: transparent; color: var(--text-light); white-space: nowrap; font-size: var(--fs-xs); }
+
+/* Пара ещё не закончилась: отметить пока нельзя */
+.status-pill.not-yet { cursor: not-allowed; opacity: 0.45; }
+.status-pill.not-yet:hover { background: var(--surface); border-color: var(--border); }

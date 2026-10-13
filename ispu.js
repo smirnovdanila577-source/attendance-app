@@ -49,6 +49,25 @@
   let subs = [];          // подгруппы выбранной группы (если есть)
   let subState = 'idle';  // idle | loading | done
   let subToken = 0;
+  let wantedSub = null;   // подгруппа, дописанная прямо в номер («3-16хх»)
+
+  // Приводим ввод к виду из списка: «ИФФ 3–16», «иф 3 16», «3-16» → «3-16»
+  function queryKey(q) {
+    let s = String(q == null ? '' : q).toLowerCase().replace(/[\u2010-\u2015\u2212_]/g, '-');
+    s = s.replace(/^[^\d]+/, '');              // название факультета в начале не нужно: номера групп не повторяются
+    s = s.replace(/(\d)\s+(?=\d)/g, '$1-');      // «3 16» → «3-16»
+    return norm(s);
+  }
+  // Находит группу по вводу; «хх»/«xx» в конце, если такой группы нет, считается подгруппой
+  function resolveQuery(q) {
+    const k = queryKey(q);
+    if (!k) return { key: k };
+    let entry = groups().find(g => g.key === k);
+    if (entry) return { key: k, entry, sub: null };
+    const m = k.match(/^(.*?)(х{1,3})$/);
+    if (m && (entry = groups().find(g => g.key === m[1]))) return { key: m[1], entry, sub: m[2] };
+    return { key: k };
+  }
 
   /* ======================================================================
      ЭКРАН РЕГИСТРАЦИИ
@@ -78,10 +97,15 @@
 
   /* ---------- Подсказки ---------- */
   function findMatches(q) {
-    const k = norm(q);
+    let k = queryKey(q);
     if (!k) return [];
     const starts = [], inside = [];
     groups().forEach(g => { if (g.key.startsWith(k)) starts.push(g); else if (g.key.includes(k)) inside.push(g); });
+    // Ничего не нашлось (например, «3-19») — показываем ближайшие по началу номера
+    while (!starts.length && !inside.length && k.length > 2) {
+      k = k.slice(0, -1);
+      groups().forEach(g => { if (g.key.startsWith(k)) starts.push(g); });
+    }
     return starts.concat(inside).slice(0, 5);
   }
 
@@ -112,12 +136,13 @@
     matches = findMatches(q);
     active = -1;
     // Точное совпадение выбирается само, нажимать на подсказку не обязательно
-    const exact = groups().find(g => g.key === norm(q));
-    if (exact) { choose(exact, false); return; }
+    const found = resolveQuery(q);
+    if (found.entry) { choose(found.entry, false, found.sub); return; }
     renderSuggest();
   }
 
-  function choose(entry, fillInput = true) {
+  function choose(entry, fillInput = true, sub = null) {
+    wantedSub = sub;
     picked = toPick(entry);
     const input = $('ispuGroupInput');
     if (fillInput && input) input.value = entry.groupName;
@@ -151,7 +176,8 @@
       if (token !== subToken || !picked) return;
       if (res && res.success && (res.subgroups || []).length) {
         subs = res.subgroups;
-        picked.subgroup = res.subgroup && subs.includes(res.subgroup) ? res.subgroup : subs[0];
+        picked.subgroup = wantedSub && subs.includes(wantedSub) ? wantedSub
+          : res.subgroup && subs.includes(res.subgroup) ? res.subgroup : subs[0];
       }
     } catch (e) { /* не страшно: расписание подтянется после регистрации */ }
     if (token !== subToken) return;
@@ -169,8 +195,8 @@
   function state() {
     if (uni === 'ispu' && !picked) {   // на случай автозаполнения браузера
       const input = $('ispuGroupInput');
-      const exact = input && groups().find(g => g.key === norm(input.value));
-      if (exact) picked = toPick(exact);
+      const found = input ? resolveQuery(input.value) : {};
+      if (found.entry) { picked = toPick(found.entry); if (found.sub) picked.subgroup = found.sub; }
     }
     return { uni, ispu: picked };
   }
