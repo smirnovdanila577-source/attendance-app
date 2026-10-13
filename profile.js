@@ -67,25 +67,24 @@
     { id: 'first_mark', title: 'Первая отметка', desc: 'Отметь посещение первой пары', icon: 'star', tone: 'blue',
       progress: s => prog(s.attended, 1) },
     { id: 'attend_10', title: 'Прилежный студент', desc: 'Посети 10 пар', icon: 'cal', tone: 'green', tag: 'diligent',
-      progress: s => prog(s.attended, 10) },
+      progress: s => prog(s.srv.attended || 0, 10) },
     { id: 'attend_100', title: 'Несгибаемая воля', desc: 'Посети 100 пар', icon: 'award', tone: 'blue', tag: 'ironclad',
-      progress: s => prog(s.attended, 100) },
+      progress: s => prog(s.srv.attended || 0, 100) },
     { id: 'streak_10', title: 'Без пропусков', desc: 'Посети 10 пар подряд, не пропустив ни одной', icon: 'flame', tone: 'yellow', tag: 'flow',
-      progress: s => prog(s.streak, 10) },
+      progress: s => prog(s.srv.pair_run || 0, 10) },
     { id: 'perfect_week', title: 'Идеальная неделя', desc: 'Отметь все пары недели (от 3 пар) как посещённые', icon: 'clip', tone: 'green', tag: 'perfect',
-      progress: s => prog(s.perfectWeeks, 1) },
+      progress: s => prog(s.srv.perfect_weeks || 0, 1) },
     { id: 'scholar', title: 'Отличник', desc: 'Держи посещаемость от 80%, когда отмечено хотя бы 30 пар', icon: 'cap', tone: 'violet', tag: 'scholar',
-      progress: s => prog(s.total, 30),
-      done: s => s.total >= 30 && s.pct >= 80,
-      note: s => (s.total >= 30 && s.pct < 80) ? `Сейчас ${s.pct}%, нужно 80%` : '' },
+      progress: s => prog(s.srv.marks || 0, 30),
+      note: s => ((s.srv.marks || 0) >= 30 && (s.srv.pct || 0) < 80) ? `Сейчас ${s.srv.pct || 0}%, нужно 80%` : '' },
     { id: 'hw_10', title: 'Домашний мастер', desc: 'Выполни 10 домашних заданий', icon: 'clip', tone: 'blue', tag: 'hwmaster',
-      progress: s => prog(s.hwDone, 10) },
+      progress: s => prog(s.srv.tasks || 0, 10) },
     { id: 'important', title: 'Стратег', desc: 'Отметь важный предмет закладкой', icon: 'flag', tone: 'red', tag: 'strategist',
       progress: (s, e, db) => prog((db.important_subjects || []).length, 1) },
     { id: 'night_owl', title: 'Ночной режим', desc: 'Загляни в трекер глубокой ночью', icon: 'moon', tone: 'violet', tag: 'owl', secret: true,
-      progress: (s, e) => prog(e.flags.night ? 1 : 0, 1) },
+      progress: s => prog(srvHas('night_owl') ? 1 : 0, 1) },
     { id: 'early_bird', title: 'Ранний старт', desc: 'Загляни в трекер до восьми утра', icon: 'sun', tone: 'yellow', tag: 'lark', secret: true,
-      progress: (s, e) => prog(e.flags.early ? 1 : 0, 1) },
+      progress: s => prog(srvHas('early_bird') ? 1 : 0, 1) },
     { id: 'profile_done', title: 'Свой человек', desc: 'Выбери аватар и расскажи о себе в профиле', icon: 'user', tone: 'blue', tag: 'person',
       progress: (s, e) => prog((e.avatarId ? 1 : 0) + (e.bio && e.bio.trim().length >= 3 ? 1 : 0), 2) },
     // Серия учебных дней и очки — считает social.js
@@ -98,12 +97,19 @@
     { id: 'xp_1000', title: 'Тысяча очков', desc: 'Набери 1000 очков опыта', icon: 'zap', tone: 'blue',
       progress: s => prog(s.xpTotal, 1000) },
     { id: 'league_podium', title: 'Призёр лиги', desc: 'Займи место в тройке лиги недели (от 3 участников)', icon: 'trophy', tone: 'violet', tag: 'champion',
-      progress: (s, e) => prog(e.flags.podium ? 1 : 0, 1) },
+      progress: s => prog(srvHas('league_podium') ? 1 : 0, 1) },
     { id: 'first_friend', title: 'Первый друг', desc: 'Подпишитесь друг на друга с кем-нибудь', icon: 'user', tone: 'green',
-      progress: (s, e) => prog(e.flags.friend ? 1 : 0, 1) }
+      progress: s => prog(srvHas('first_friend') ? 1 : 0, 1) }
   ];
   const achById = id => ACH.find(a => a.id === id) || null;
-  const isDone = (a, s, e, db) => a.done ? a.done(s, e, db) : (() => { const [c, t] = a.progress(s, e, db); return c >= t; })();
+  // Достижения, от которых зависят аватары и теги, выдаёт сервер (его правила против накрутки).
+  // Приложение само отмечает только безобидные: «Первая отметка», «Стратег», «Свой человек».
+  const SERVER_ACH = new Set(['attend_10', 'attend_100', 'streak_10', 'perfect_week', 'scholar', 'hw_10', 'night_owl',
+    'early_bird', 'streak_3', 'streak_7', 'streak_30', 'xp_1000', 'league_podium', 'first_friend']);
+  const srvList = () => (window.Social && Social.serverAch()) || null;
+  const srvHas = id => { const l = srvList(); return !!l && l.includes(id); };
+  const isDone = (a, s, e, db) => SERVER_ACH.has(a.id) ? srvHas(a.id)
+    : a.done ? a.done(s, e, db) : (() => { const [c, t] = a.progress(s, e, db); return c >= t; })();
 
   /* ---------- Состояние модуля ---------- */
   let bound = false, lastActive = Date.now(), tickTimer = null, lastShownStatus = null;
@@ -167,6 +173,7 @@
     s.total = s.attended + s.missed;
     s.pct = s.total > 0 ? Math.round((s.attended / s.total) * 100) : 0;
     const so = window.Social ? Social.stats() : null;
+    s.srv = (so && so.counters) || {};
     s.dayStreak = so ? so.streak : 0;
     s.bestDayStreak = so ? so.bestStreak : 0;
     s.xpTotal = so ? so.xpTotal : 0;
@@ -215,15 +222,30 @@
       let changed = false;
       const fresh = [];
 
-      const h = new Date().getHours();
-      if (h < 5 && !e.flags.night) { e.flags.night = true; changed = true; }
-      else if (h >= 5 && h < 8 && !e.flags.early) { e.flags.early = true; changed = true; }
 
       if (!e.welcomed) {
         e.welcomed = true; changed = true;
         notify('Добро пожаловать в профиль',
           'Здесь собираются достижения и теги. Статус можно сменить вручную: нажми на кружок у аватара.',
           { icon: 'user', tone: 'blue' });
+      }
+
+      // Сервер прислал свой список: снимаем серверные достижения, которых он не подтверждает
+      // (их могли «нафармить» отметками задним числом до новых правил), вместе с их тегами
+      const srv = srvList();
+      if (srv) {
+        let revoked = 0;
+        ACH.forEach(a => {
+          if (!SERVER_ACH.has(a.id) || !e.achievements[a.id] || srv.includes(a.id)) return;
+          delete e.achievements[a.id]; revoked++; changed = true;
+          const tag = a.tag ? tagById(a.tag) : null;
+          if (tag && e.tags[tag.id]) { delete e.tags[tag.id]; if (e.tag === tag.id) e.tag = 'newbie'; }
+        });
+        if (revoked && !e.flags.recounted) {
+          e.flags.recounted = true;
+          notify('Достижения пересчитаны', 'Теперь засчитываются только отметки, сделанные в течение суток после пары. Часть достижений нужно получить заново.',
+            { icon: 'info', tone: 'gray', tab: 'achievements' });
+        }
       }
 
       ACH.forEach(a => {
@@ -250,6 +272,11 @@
     if (!bound) return;
     clearTimeout(evalTimer);
     evalTimer = setTimeout(evaluate, 400);
+  }
+  function onServerState() {
+    if (!bound || !hasUser()) return;
+    onDataSaved();
+    if (modalOpen() && activeTab !== 'league' && activeTab !== 'friends') renderModal();
   }
 
   /* ---------- Аватар ---------- */
@@ -644,6 +671,6 @@
   // Для social.js: данные профиля, вид достижений и тегов, текущий статус
   const achInfo = id => { const a = achById(id); return a ? { title: a.title, icon: svg(P[a.icon] || P.star, 18), tone: a.tone } : null; };
   const tagInfo = id => { const t = tagById(id); return t ? { name: t.name, tone: t.tone } : null; };
-  window.Profile = { init, refresh, teardown, onDataSaved, open: openProfile, notify, ext, computeStats, achInfo, tagInfo,
+  window.Profile = { init, refresh, teardown, onDataSaved, onServerState, open: openProfile, notify, ext, computeStats, achInfo, tagInfo,
     myAvatarId: () => myAvatarId(ext()), status: () => ext().status, rerender: () => renderAll(), activeTab: () => activeTab };
 })();

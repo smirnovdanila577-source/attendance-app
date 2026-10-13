@@ -92,3 +92,9 @@
 .sc-pub-hero .pf-chip { align-self: flex-start; }
 .sc-sub .sc-tag { align-self: auto; }
 .sc-pub-stats { border-top: 0; padding-top: 0; }
+
+/* Вспышка начисленных очков у огонька */
+.sc-streak { position: relative; }
+.sc-gain { position: absolute; left: 50%; top: -4px; transform: translateX(-50%); font-size: var(--fs-xs); font-weight: 800; color: #f97316; pointer-events: none; animation: scGain 1.5s ease-out forwards; }
+@keyframes scGain { from { opacity: 0; transform: translate(-50%, 6px); } 20% { opacity: 1; } to { opacity: 0; transform: translate(-50%, -18px); } }
+@media (prefers-reduced-motion: reduce) { .sc-gain { animation: none; opacity: 0; } }

@@ -4,9 +4,10 @@
    Использует глобальные из app.js: database, API_URL, authHeaders, ALL_DAYS,
    getDateForDay, saveData, showElegantToast, cloudPullDone.
 
-   Очки и серию считаем по своим данным (отметки и ДЗ), на сервер уходит только итог.
-   Правила очков: +10 за отмеченную пару (посещение или пропуск — важна честность),
-   +5 за выполненный пункт ДЗ, +5 за полностью отмеченный учебный день.
+   Очки, серию и достижения считает СЕРВЕР: приложение только сообщает «отметил пару»
+   и «выполнил пункт ДЗ» (очередь событий ниже). Правила очков: +10 за отмеченную пару
+   (посещение или честный пропуск), +5 за пункт ДЗ, +5 за полностью отмеченный день;
+   только за отметки в течение суток после пары, не больше 8 пар и 8 пунктов ДЗ в день.
    ========================================================================== */
 (function () {
   'use strict';
@@ -41,46 +42,95 @@
     return `${y}-W${pad(w)}`;
   }
 
-  /* ---------- Очки и серия ---------- */
-  let cache = null;
+  /* ---------- Прогресс по версии сервера ---------- */
+  // Очки, серию и важные достижения считает сервер (см. progress.py). Здесь только последняя его сводка.
+  let state = null;
+  const STATE_KEY = 'tracker_social_state';
+  try { state = JSON.parse(localStorage.getItem(STATE_KEY) || 'null'); } catch (e) { state = null; }
+  function setState(st) {
+    if (!st || typeof st !== 'object' || st.xp_total === undefined) return;
+    state = st;
+    try { localStorage.setItem(STATE_KEY, JSON.stringify(st)); } catch (e) { /* не страшно */ }
+    renderHead();
+    if (window.Profile) Profile.onServerState(st);
+  }
   function stats() {
-    if (cache) return cache;
-    const res = { weekXp: 0, xpTotal: 0, streak: 0, bestStreak: 0, weekKey: weekKey(new Date()) };
-    if (!hasUser() || !database.weeks) return (cache = res);
-    const act = database.activeDays || ALL_DAYS;
-    const today = dayKey(new Date());
-    const days = [];
-    Object.keys(database.weeks).map(Number).filter(n => n > 0).forEach(w => {
-      const wd = database.weeks[String(w)] || {};
-      ALL_DAYS.forEach(day => {
-        if (!act.includes(day)) return;
-        const list = wd[day] || [];
-        if (!list.length) return;
-        const date = getDateForDay(w, day);
-        const key = dayKey(date);
-        if (key > today) return;                                   // будущее не считаем
-        let pairs = 0, marked = 0, tasks = 0;
-        list.forEach(p => {
-          (p.tasks || []).forEach(t => { if (t.done) tasks++; });
-          if (p.cancelled) return;
-          pairs++;
-          if (p.attended === true || p.attended === false) marked++;
-        });
-        const xp = marked * XP_PAIR + tasks * XP_TASK + (pairs > 0 && marked === pairs ? XP_FULL_DAY : 0);
-        days.push({ key, wk: weekKey(date), pairs, marked, xp });
-      });
+    const s = state || {};
+    return {
+      weekXp: s.week_xp || 0, xpTotal: s.xp_total || 0, streak: s.streak || 0, bestStreak: s.best_streak || 0,
+      weekKey: s.week_key || weekKey(new Date()), counters: s.counters || {}, loaded: !!state
+    };
+  }
+  const serverAch = () => (state && Array.isArray(state.achievements)) ? state.achievements : null;
+
+  /* ---------- Очередь событий: отметки пар и ДЗ ---------- */
+  // Отметку важно отправить сразу: очки даются, только если сервер узнал о ней в течение суток после пары.
+  // Очередь хранится в браузере, поэтому без сети отметки дождутся связи.
+  const QUEUE_KEY = 'tracker_social_queue';
+  let queue = {};
+  try { queue = JSON.parse(localStorage.getItem(QUEUE_KEY) || '{}') || {}; } catch (e) { queue = {}; }
+  const saveQueue = () => { try { localStorage.setItem(QUEUE_KEY, JSON.stringify(queue)); } catch (e) { /* не страшно */ } };
+  let flushTimer = null, flushing = false;
+
+  function queueEvent(key, ev) {
+    queue[key] = ev;                  // по одному событию на ключ: важно последнее состояние
+    saveQueue();
+    clearTimeout(flushTimer);
+    flushTimer = setTimeout(flush, 1500);
+  }
+
+  // Пара отмечена (status: true / false) или отметка снята (null)
+  function queueMark(weekNum, dayName, pair) {
+    if (!pair || pair.cancelled || typeof pairEndDate !== 'function') return;
+    const date = dayKey(getDateForDay(weekNum, dayName));
+    const subj = String(pair.subject || '').trim().toLowerCase().slice(0, 120);
+    const key = `${date}|${String(pair.time || '').replace(/\s+/g, '')}|${subj}`;
+    const dayList = ((database.weeks[String(weekNum)] || {})[dayName] || []).filter(p => !p.cancelled);
+    queueEvent('m:' + key, {
+      type: 'mark', key, date,
+      end: pairEndDate(weekNum, dayName, pair.time).toISOString(),
+      status: pair.attended === true ? true : pair.attended === false ? false : null,
+      day_total: Math.min(dayList.length || 1, 8)
     });
-    days.sort((a, b) => a.key < b.key ? -1 : a.key > b.key ? 1 : 0);
-    let run = 0;
-    days.forEach(d => {
-      res.xpTotal += d.xp;
-      if (d.wk === res.weekKey) res.weekXp += d.xp;
-      if (!d.pairs) return;                                         // день без пар серию не трогает
-      if (d.marked > 0) { run++; if (run > res.bestStreak) res.bestStreak = run; }
-      else if (d.key !== today) run = 0;                            // сегодня ещё можно успеть
-    });
-    res.streak = run;
-    return (cache = res);
+  }
+  // Пункт ДЗ появился (add) или выполнен (done)
+  function queueTask(taskId, kind) {
+    if (!taskId) return;
+    const k = 't:' + taskId;
+    if (kind === 'done') queueEvent(k, { type: 'task_done', key: taskId });
+    else if (!queue[k]) queueEvent(k, { type: 'task_add', key: taskId });
+  }
+
+  async function flush() {
+    clearTimeout(flushTimer); flushTimer = null;
+    const keys = Object.keys(queue);
+    if (!keys.length || flushing) return;
+    if (!canTalk()) { flushTimer = setTimeout(flush, 5000); return; }
+    flushing = true;
+    const batch = keys.slice(0, 150).map(k => queue[k]);
+    try {
+      const st = await api('/api/social/events', { method: 'POST', body: { events: batch } });
+      keys.slice(0, 150).forEach(k => { if (queue[k] === batch[keys.indexOf(k)]) delete queue[k]; });
+      saveQueue();
+      setState(st);
+      if (st.gained > 0) flashGain(st.gained);
+    } catch (e) {
+      if (e.status === 401) { queue = {}; saveQueue(); }      // сессия кончилась — копить бессмысленно
+      else flushTimer = setTimeout(flush, 15000);            // нет сети — повторим
+    } finally {
+      flushing = false;
+      if (Object.keys(queue).length && !flushTimer) flushTimer = setTimeout(flush, 1500);
+    }
+  }
+
+  // Короткая вспышка «+15» у огонька в шапке вместо уведомления на каждую отметку
+  function flashGain(xp) {
+    const chip = document.querySelector('#scHead .sc-streak');
+    if (!chip) return;
+    const b = document.createElement('span');
+    b.className = 'sc-gain'; b.textContent = `+${xp}`;
+    chip.appendChild(b);
+    setTimeout(() => b.remove(), 1600);
   }
 
   /* ---------- Сервер ---------- */
@@ -98,13 +148,11 @@
   let syncTimer = null, pingTimer = null, resyncTimer = null, started = false, online = null, lastSyncSig = '';
   const canTalk = () => hasUser() && localStorage.getItem('tracker_token') && (typeof cloudPullDone === 'undefined' || cloudPullDone);
 
+  // Внешний вид публичного профиля. Цифры прогресса сервер считает сам и отсюда их не берёт.
   function payload() {
     const e = window.Profile ? Profile.ext() : {};
-    const s = stats();
     const ps = window.Profile ? Profile.computeStats() : null;
     return {
-      week_key: s.weekKey, week_xp: s.weekXp, xp_total: s.xpTotal,
-      streak_days: s.streak, streak_best: s.bestStreak,
       achievements: Object.keys(e.achievements || {}),
       tag: e.tag || '', avatar: window.Profile ? Profile.myAvatarId() : '',
       bio: e.bio || '', status_mode: e.status || 'auto',
@@ -119,7 +167,7 @@
     const body = payload();
     const sig = JSON.stringify(body);
     if (!force && sig === lastSyncSig) return;
-    try { await api('/api/social/sync', { method: 'POST', body }); lastSyncSig = sig; }
+    try { const r = await api('/api/social/sync', { method: 'POST', body }); lastSyncSig = sig; if (r.state) setState(r.state); }
     catch (e) { /* нет сети — отправим в следующий раз */ }
   }
 
@@ -132,23 +180,9 @@
     } catch (e) { /* не страшно */ }
   }
 
-  // Достижения, которые зависят от других людей: тройка лиги прошлой недели и первый взаимный друг
-  async function checkFlags() {
-    if (!canTalk() || !window.Profile) return;
-    const e = Profile.ext();
-    let changed = false;
-    try {
-      if (!e.flags.podium) {
-        const prev = await api('/api/league?which=previous');
-        const me = prev.members.find(m => m.id === database.userProfile.id);
-        if (me && me.rank <= 3 && me.week_xp > 0 && prev.size >= 3) { e.flags.podium = true; changed = true; }
-      }
-      if (!e.flags.friend) {
-        const f = await api('/api/friends');
-        if (f.mutual_count > 0) { e.flags.friend = true; changed = true; }
-      }
-    } catch (err) { /* проверим позже */ }
-    if (changed) saveData();
+  async function refreshState() {
+    if (!canTalk()) return;
+    try { setState(await api('/api/social/state')); } catch (e) { /* позже */ }
   }
 
   /* ---------- Шапка: серия и онлайн ---------- */
@@ -185,7 +219,7 @@
       if (tab === 'league') renderLeague(el, await api('/api/league'));
       else renderFriends(el, await api('/api/friends'));
       el.dataset.loaded = '1';
-      if (tab === 'friends') checkFlags();
+      if (tab === 'friends') refreshState();
     } catch (e) {
       el.innerHTML = failed(e.status === 401 ? 'Сессия истекла. Выйди и войди в аккаунт заново' : 'Не удалось связаться с сервером');
     }
@@ -221,7 +255,7 @@
         <div class="sc-me"><b>${s.weekXp}</b><small>твоих очков</small></div>
       </div>
       <div class="pf-list">${rows || '<div class="pf-empty">На этой неделе пока никто не набрал очков</div>'}</div>
-      <p class="pf-tags-note">Очки: +${XP_PAIR} за отмеченную пару, будь то посещение или честный пропуск, +${XP_TASK} за пункт ДЗ, +${XP_FULL_DAY} за полностью отмеченный день. Тройка недели получает достижение «Призёр лиги».</p>`;
+      <p class="pf-tags-note">Очки: +${XP_PAIR} за отмеченную пару, будь то посещение или честный пропуск, +${XP_TASK} за пункт ДЗ, +${XP_FULL_DAY} за полностью отмеченный день. Засчитываются отметки, сделанные в течение суток после пары, до 8 пар и 8 пунктов ДЗ в день. Пункт ДЗ приносит очки, если с его добавления прошло хотя бы 30 минут. Тройка недели получает достижение «Призёр лиги».</p>`;
   }
 
   function renderFriends(el, F) {
@@ -311,7 +345,7 @@
       showElegantToast('Друзья', `Ты подписан на ${name}`);
       if (view[tab]) await openPublic(tab, view[tab].name); else renderPane(tab);
       if (tab !== 'friends') { const f = paneEl('friends'); if (f) delete f.dataset.loaded; }
-      checkFlags();
+      refreshState();
     } catch (e) { showElegantToast('Друзья', e.message, 'error'); }
   }
 
@@ -363,27 +397,28 @@
   function init() {
     if (!hasUser()) return;
     if (!bound) { bound = true; bind(); }
-    cache = null; renderHead();
+    renderHead();
     if (!started) {
       started = true;
       pingTimer = setInterval(ping, PING_EVERY);
       resyncTimer = setInterval(() => sync(true), RESYNC_EVERY);
     }
-    setTimeout(async () => { await sync(true); ping(); checkFlags(); }, 1500);
+    setTimeout(async () => { await flush(); await sync(true); ping(); refreshState(); }, 1500);
   }
   function onDataSaved() {
-    cache = null;
     renderHead();
     clearTimeout(syncTimer);
     syncTimer = setTimeout(sync, SYNC_DELAY);
   }
   function teardown() {
     clearInterval(pingTimer); clearInterval(resyncTimer); clearTimeout(syncTimer);
-    started = false; online = null; lastSyncSig = ''; cache = null;
+    clearTimeout(flushTimer);
+    started = false; online = null; lastSyncSig = ''; state = null; queue = {};
+    try { localStorage.removeItem(STATE_KEY); localStorage.removeItem(QUEUE_KEY); } catch (e) { /* не страшно */ }
     view.league = view.friends = null;
     ['pfPaneLeague', 'pfPaneFriends'].forEach(id => { const el = $(id); if (el) { el.innerHTML = ''; delete el.dataset.loaded; } });
     renderHead();
   }
 
-  window.Social = { init, teardown, onDataSaved, stats, renderPane, weekKey };
+  window.Social = { init, teardown, onDataSaved, stats, serverAch, renderPane, weekKey, queueMark, queueTask, flush };
 })();

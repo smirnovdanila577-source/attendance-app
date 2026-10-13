@@ -806,7 +806,7 @@ function markEntireDay(dayName) {
   const pairs = (week[dayName] || []).filter(p => !p.cancelled && pairHasEnded(currentWeek, dayName, p.time));
   if (pairs.length === 0) { showElegantToast("Рано", "В этот день ещё нет закончившихся пар", "error"); return; }
   const allAttended = pairs.every(p => p.attended === true);
-  pairs.forEach(p => p.attended = !allAttended);
+  pairs.forEach(p => { p.attended = !allAttended; if (window.Social) Social.queueMark(currentWeek, dayName, p); });
   saveData(); render();
 }
 
@@ -924,7 +924,7 @@ function toggleAttendance(pairId) {
     const p = week[d]?.find(i => i.id === pairId); 
     if (p && p.cancelled) return;
     if (p && !pairHasEnded(currentWeek, d, p.time)) { showElegantToast("Рано", "Отметить пару можно после её окончания", "error"); return; }
-    if (p) { p.attended = p.attended === null ? true : p.attended === true ? false : null; saveData(); render(); return; } 
+    if (p) { p.attended = p.attended === null ? true : p.attended === true ? false : null; if (window.Social) Social.queueMark(currentWeek, d, p); saveData(); render(); return; } 
   } 
 }
 
@@ -1154,6 +1154,7 @@ function addHwTask(pairId) {
   if (!Array.isArray(p.tasks)) p.tasks = [];
   const task = { id: 't_' + Math.random().toString(36).substr(2, 9), text, done: false };
   p.tasks.push(task);
+  if (window.Social) Social.queueTask(task.id, 'add'); // сервер запоминает, когда пункт появился
   saveData();
   input.value = '';
   input.parentElement.classList.remove('ready');
@@ -1168,6 +1169,7 @@ function toggleHwTask(pairId, taskId) {
   const t = p && (p.tasks || []).find(x => x.id === taskId);
   if (!t) return;
   t.done = !t.done;
+  if (t.done && window.Social) Social.queueTask(t.id, 'done');
   saveData();
   const row = document.querySelector(`#hwList_${CSS.escape(pairId)} .hw-item[data-task-id="${CSS.escape(taskId)}"]`);
   if (row) row.classList.toggle('done', t.done); // без перерисовки — чтобы сработала плавная анимация
