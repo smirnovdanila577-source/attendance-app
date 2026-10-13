@@ -6,7 +6,7 @@
   "scripts": {
     "start": "electron .",
     "build": "electron-builder --win --dir",
-    "dist": "electron-builder --win portable"
+    "dist": "electron-builder --win nsis"
   },
   "build": {
     "appId": "com.tracker.app",
@@ -26,8 +26,16 @@
       "target": "dir",
       "signAndEditExecutable": false
     },
-    "portable": {
-      "artifactName": "Tracker-${version}.exe"
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Трекер посещаемости",
+      "language": "1049",
+      "installerLanguages": ["ru_RU"],
+      "artifactName": "Tracker-Setup-${version}.exe"
     }
   },
   "devDependencies": {
