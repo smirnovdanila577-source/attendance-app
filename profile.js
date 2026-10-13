@@ -137,6 +137,7 @@
       ALL_DAYS.forEach(day => {
         if (!act.includes(day)) return;
         (wd[day] || []).forEach(p => {
+          if (p.cancelled) { (p.tasks || []).forEach(t => { s.hwTotal++; if (t.done) s.hwDone++; }); return; } // убранная пара: только её ДЗ
           cnt++;
           if (p.attended === true) { s.attended++; run++; if (run > s.streak) s.streak = run; }
           else { allOk = false; if (p.attended === false) { s.missed++; run = 0; } }
@@ -393,7 +394,7 @@
       </section>
       <section>
 <h3 class="pf-section-title"><span>О себе</span><span class="pf-since">В приложении с ${fmtDate(e.createdAt)}</span></h3>
-        <input type="text" id="pfBio" class="pf-bio" maxlength="80" placeholder="Пара слов о себе" value="${esc(e.bio)}">
+        <input type="text" id="pfBio" class="pf-bio" maxlength="80" value="${esc(e.bio)}">
         <div class="pf-bio-count" id="pfBioCount">${e.bio.length} / 80</div>
       </section>`;
   }

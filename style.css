@@ -547,3 +547,9 @@ body.dark-theme #setupBackdrop, body.dark-theme #bellBackdrop { --rp-glass: 24, 
   -webkit-mask-image: linear-gradient(to top, #000 0%, #000 35%, transparent 100%);
   mask-image: linear-gradient(to top, #000 0%, #000 35%, transparent 100%);
 }
+
+/* УБРАННЫЕ ИЗ РАСПИСАНИЯ ПАРЫ (после синхронизации остались, потому что у них была отметка или ДЗ) */
+.pair-card.is-cancelled { opacity: 0.6; }
+.pair-card.is-cancelled .pair-title,
+.pair-card.is-cancelled .time-text { text-decoration: line-through; text-decoration-color: var(--text-light); }
+.status-pill.cancelled-pill { cursor: default; border-style: dashed; background: transparent; color: var(--text-light); white-space: nowrap; font-size: var(--fs-xs); }

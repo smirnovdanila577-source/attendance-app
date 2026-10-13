@@ -224,91 +224,6 @@ function showAuthScreen() {
   switchScreen('authScreen');
 }
 
-async function completeRegistration() {
-  const nameInput = document.getElementById('regNameInput');
-  const passInput = document.getElementById('regPasswordInput');
-  const groupInput = document.getElementById('regGroupInput');
-  const regBtn = document.getElementById('btnRegister');
-
-  const username = nameInput ? nameInput.value.trim() : "";
-  const password = passInput ? passInput.value.trim() : "";
-  const group_name = groupInput ? groupInput.value.trim() : "";
-
-  if (!username) {
-    showElegantToast("Ошибка", "Пожалуйста, введите имя", "error");
-    return;
-  }
-  if (!password) {
-    showElegantToast("Ошибка", "Пожалуйста, введите пароль", "error");
-    return;
-  }
-
-  if (regBtn) {
-    regBtn.disabled = true;
-    regBtn.textContent = "Проверка...";
-  }
-
-  try {
-    const response = await fetch(`${API_URL}/api/auth`, {
-      method: "POST",
-      headers: { 
-        "Content-Type": "application/json",
-        "Accept": "application/json"
-      },
-      body: JSON.stringify({
-        username: username,
-        password: password,
-        group_name: group_name || null
-      })
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.detail || "Неверный логин или пароль");
-    }
-
-    const userData = await response.json();
-    if (userData.token) localStorage.setItem('tracker_token', userData.token);
-
-    try {
-        const cloudRes = await fetch(`${API_URL}/api/schedule/load/${userData.id}`, { headers: authHeaders() });
-        if (cloudRes.ok) {
-            const cloudData = await cloudRes.json();
-            if (Object.keys(cloudData).length > 0) {
-                clearAllUndos(); database = cloudData; 
-            }
-        }
-    } catch(e) {
-        console.error("Не удалось загрузить данные из облака:", e);
-    }
-
-    const rememberMe = document.getElementById('rememberMeCheckbox') ? document.getElementById('rememberMeCheckbox').checked : true;
-    
-    database.userProfile = {
-      id: userData.id,
-      name: userData.username,
-      university: userData.university,
-      group: userData.group_name,
-      registeredAt: new Date().toISOString(),
-      rememberMe: rememberMe
-    };
-    
-    saveData(); 
-
-    switchScreen('mainApp');
-    startMainApp();
-    showElegantToast("Успешно", isRegisterMode ? "Аккаунт успешно создан!" : `С возвращением, ${userData.username}!`);
-  } catch (err) {
-    console.error("Ошибка при входе/регистрации:", err);
-    showElegantToast("Ошибка авторизации", err.message, "error");
-  } finally {
-    if (regBtn) {
-      regBtn.disabled = false;
-      regBtn.textContent = "Войти / Создать";
-    }
-  }
-}
-
 function startMainAppFromWelcome() {
   switchScreen('mainApp');
   startMainApp();
@@ -330,8 +245,8 @@ function showElegantToast(title, desc, type = 'success') {
       ${icon}
     </div>
     <div class="toast-content" style="display: flex; flex-direction: column; gap: 2px; flex: 1;">
-      <div class="toast-title" style="font-size: 14px; font-weight: 700; color: var(--text-main);">${title}</div>
-      <div class="toast-desc" style="font-size: 12px; font-weight: 500; color: var(--text-muted);">${desc}</div>
+      <div class="toast-title" style="font-size: 14px; font-weight: 700; color: var(--text-main);">${escapeHtml(title)}</div>
+      <div class="toast-desc" style="font-size: 12px; font-weight: 500; color: var(--text-muted);">${escapeHtml(desc)}</div>
     </div>
     <div class="toast-progress" style="background: ${colorCls};"></div>
   `;
@@ -370,6 +285,8 @@ function resetProfile() {
   }
 }
 
+let mainTimersStarted = false;
+
 function startMainApp() {
   currentWeek = calculateCurrentSemesterWeek();
   buildTimeSelectOptions();
@@ -377,8 +294,12 @@ function startMainApp() {
   syncSettingsUI();         
   evaluateTheme();          
 
-  setInterval(evaluateTheme, 60000); 
-  setInterval(render, 60000);
+  // Таймеры запускаем один раз: после выхода и повторного входа они не должны дублироваться
+  if (!mainTimersStarted) {
+    mainTimersStarted = true;
+    setInterval(evaluateTheme, 60000);
+    setInterval(render, 60000);
+  }
   render();
 
   const syncBtn = document.getElementById('sync-schedule-btn');
@@ -757,6 +678,88 @@ function getWeekData(weekNum) {
   return database.weeks[key];
 }
 
+// Пересобирает недели из шаблонов после смены режима или загрузки нового расписания.
+// Всё, что раньше сегодняшнего дня, не трогаем: там уже прошедшие пары с отметками и ДЗ.
+// С сегодняшнего дня берём новое расписание и переносим на него данные старых пар:
+//   1) тот же день, предмет и время — переносим отметку и ДЗ;
+//   2) тот же день и предмет, другое время (пару сдвинули) — тоже переносим;
+//   3) ДЗ переезжает на ближайшую пару этого предмета в ту же неделю;
+//   4) если перенести некуда, пара с отметкой или ДЗ остаётся зачёркнутой («Убрана из расписания»).
+// Возвращает { moved, cancelled } — сколько пар с данными перенесено и сколько осталось убранными.
+function rebuildWeeksFromToday() {
+  const old = database.weeks || {};
+  const nums = Object.keys(old).map(Number).filter(n => n > 0);
+  const nowWeek = calculateCurrentSemesterWeek();
+  const nowDay = (new Date().getDay() + 6) % 7; // 0 = понедельник
+  const last = Math.max(20, nowWeek, ...nums);
+  const summary = { moved: 0, cancelled: 0 };
+  const hasData = p => (p.attended === true || p.attended === false) || (Array.isArray(p.tasks) && p.tasks.length > 0);
+  const next = {};
+  nums.filter(n => n < nowWeek).forEach(n => { next[String(n)] = old[String(n)]; });
+
+  for (let w = nowWeek; w <= last; w++) {
+    const fresh = JSON.parse(JSON.stringify(database.templates[getWeekType(w)] || {}));
+    const prev = old[String(w)];
+    const week = {};
+    const rebuilt = []; // дни, которые пересобираем: [день, новые пары, старые пары]
+    ALL_DAYS.forEach((day, i) => {
+      if (w === nowWeek && i < nowDay && prev) { week[day] = prev[day] || []; return; } // прошедший день текущей недели
+      const pairs = (fresh[day] || []).map(p => { p.attended = null; delete p.tasks; return p; });
+      week[day] = pairs;
+      rebuilt.push([day, pairs, prev ? (prev[day] || []) : []]);
+    });
+
+    const left = []; // старые пары, которым не нашлось места в том же дне
+    rebuilt.forEach(([day, pairs, olds]) => {
+      const taken = new Set();
+      const give = (p, o) => {
+        taken.add(p);
+        p.attended = (o.attended === true || o.attended === false) ? o.attended : null;
+        if (Array.isArray(o.tasks) && o.tasks.length) p.tasks = o.tasks;
+      };
+      const rest = [];
+      olds.forEach(o => { // 1) точное совпадение
+        const p = pairs.find(x => !taken.has(x) && x.subject === o.subject && x.time === o.time);
+        if (p) give(p, o); else rest.push(o);
+      });
+      rest.forEach(o => { // 2) тот же предмет в этот день, другое время
+        const p = pairs.find(x => !taken.has(x) && x.subject === o.subject);
+        if (p) { give(p, o); if (hasData(o)) summary.moved++; }
+        else if (hasData(o)) left.push([day, o]);
+      });
+    });
+
+    left.forEach(([day, o]) => { // 3) ДЗ — на ближайшую пару этого предмета в неделе
+      const tasks = Array.isArray(o.tasks) ? o.tasks : [];
+      const attendedMark = o.attended === true || o.attended === false;
+      if (tasks.length && !attendedMark) {
+        const from = ALL_DAYS.indexOf(day);
+        const order = rebuilt.map(r => r[0]).sort((x, y) => Math.abs(ALL_DAYS.indexOf(x) - from) - Math.abs(ALL_DAYS.indexOf(y) - from));
+        for (const d of order) {
+          const p = week[d].find(x => x.subject === o.subject && !x.cancelled);
+          if (p) { p.tasks = (p.tasks || []).concat(tasks); summary.moved++; return; }
+        }
+      }
+      // 4) некуда перенести — оставляем зачёркнутой
+      if (!o.cancelled) summary.cancelled++;
+      week[day].push(Object.assign({}, o, { cancelled: true }));
+    });
+
+    rebuilt.forEach(([day]) => week[day].sort((x, y) => (x.time || '').localeCompare(y.time || '')));
+    next[String(w)] = week;
+  }
+  database.weeks = next;
+  return summary;
+}
+
+// Подпись к уведомлению о синхронизации: что стало с парами, у которых были отметки или ДЗ
+function rebuildSummaryText(sum) {
+  const parts = [];
+  if (sum.moved) parts.push(`перенесено пар с ДЗ или отметками: ${sum.moved}`);
+  if (sum.cancelled) parts.push(`убрано из расписания: ${sum.cancelled} (оставлены зачёркнутыми)`);
+  return parts.length ? `. ${parts.join(', ')}` : '';
+}
+
 function jumpToCurrentWeek() {
   const realWeek = calculateCurrentSemesterWeek();
   const weekChanged = (currentWeek !== realWeek);
@@ -791,7 +794,7 @@ function jumpToCurrentWeek() {
 
 function markEntireDay(dayName) {
   const week = getWeekData(currentWeek);
-  const pairs = week[dayName] || [];
+  const pairs = (week[dayName] || []).filter(p => !p.cancelled);
   if (pairs.length === 0) return;
   const allAttended = pairs.every(p => p.attended === true);
   pairs.forEach(p => p.attended = !allAttended);
@@ -840,11 +843,8 @@ function saveSettings() {
   if (newStartDate) database.semesterStartDate = newStartDate;
 
   if (oldMode !== database.scheduleMode || oldFirstWeek !== database.firstWeekType) {
-    database.weeks = {};
-    for (let w = 1; w <= 20; w++) {
-      const wType = getWeekType(w);
-      database.weeks[String(w)] = JSON.parse(JSON.stringify(database.templates[wType] || {}));
-    }
+    clearAllUndos();
+    rebuildWeeksFromToday();
   }
 
   saveData(); 
@@ -887,6 +887,7 @@ function toggleAttendance(pairId) {
   const week = getWeekData(currentWeek); 
   for (const d of ALL_DAYS) { 
     const p = week[d]?.find(i => i.id === pairId); 
+    if (p && p.cancelled) return;
     if (p) { p.attended = p.attended === null ? true : p.attended === true ? false : null; saveData(); render(); return; } 
   } 
 }
@@ -1027,6 +1028,11 @@ function escapeHtml(str) {
   return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
+// Строка для подстановки в onclick="fn('...')": сначала экранируем для JS, потом для HTML-атрибута
+function jsArg(str) {
+  return escapeHtml(String(str == null ? "" : str).replace(/\\/g, "\\\\").replace(/'/g, "\\'"));
+}
+
 function findWeekPair(weekNum, pairId) {
   const week = getWeekData(weekNum);
   for (const d of ALL_DAYS) {
@@ -1063,7 +1069,7 @@ function hwPanelHtml(p) {
         <div class="hw-list" id="hwList_${p.id}">${tasks.map(t => hwItemHtml(p.id, t)).join('')}</div>
         <div class="hw-add">
           <span class="hw-add-icon">${HW_ICONS.plus}</span>
-          <input type="text" class="hw-input" maxlength="200" autocomplete="off" placeholder="Новый пункт" aria-label="Новый пункт" oninput="this.parentElement.classList.toggle('ready', this.value.trim().length > 0)" onkeydown="if (event.key === 'Enter') { event.preventDefault(); addHwTask('${p.id}'); }">
+          <input type="text" class="hw-input" maxlength="200" autocomplete="off" aria-label="Новый пункт" oninput="this.parentElement.classList.toggle('ready', this.value.trim().length > 0)" onkeydown="if (event.key === 'Enter') { event.preventDefault(); addHwTask('${p.id}'); }">
           <button class="hw-add-submit" onclick="addHwTask('${p.id}')">Добавить ${HW_ICONS.enter}</button>
         </div>
       </div>
@@ -1319,14 +1325,14 @@ function render() {
           u.shown = true; // анимация появления только при первой отрисовке
           html += `
           <div class="${phCls}"${phStyle}>
-            <span class="undo-info">«${item.undo.pair.subject}» удалена</span>
+            <span class="undo-info">«${escapeHtml(item.undo.pair.subject)}» удалена</span>
             <button class="undo-action-btn" onclick="undoSpecificDelete('${item.undo.id}')" id="undoBtn_${item.undo.id}">Отменить (${undoSecondsLeft(item.undo)}с)</button>
           </div>
         `;
           return;
         }
         const p = item.pair;
-        const isImp = isSubjectImportant(p.subject || ""), cln = (p.subject || "").replace(/'/g, "\\'"); 
+        const isImp = isSubjectImportant(p.subject || ""), cln = jsArg(p.subject || ""); 
         let stCls = "status-pill", stTxt = "Отметить";
         let stIcn = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg>`;
         if (p.attended === true) { 
@@ -1339,7 +1345,7 @@ function render() {
           stTxt = "Пропуск"; 
         }
 
-        const liveStatus = checkLiveStatus(day, p.time, currentWeek);
+        const liveStatus = p.cancelled ? null : checkLiveStatus(day, p.time, currentWeek);
 
         // Ищем соответствие времени
         const safePTime = (p.time || "").replace(/\s+/g, '');
@@ -1354,11 +1360,11 @@ function render() {
         // Время пары: начало над концом
         const tParts = (p.time || "").split(" - ");
         const timeHtml = tParts.length === 2
-          ? `<span class="time-text">${tParts[0].trim()}</span><span class="time-text time-end">${tParts[1].trim()}</span>`
-          : `<span class="time-text">${p.time}</span>`;
+          ? `<span class="time-text">${escapeHtml(tParts[0].trim())}</span><span class="time-text time-end">${escapeHtml(tParts[1].trim())}</span>`
+          : `<span class="time-text">${escapeHtml(p.time || "")}</span>`;
 
         html += `
-          <div data-pair-id="${p.id}" class="pair-card ${isImp ? 'is-important' : ''} ${liveStatus ? 'is-live' : ''}">
+          <div data-pair-id="${p.id}" class="pair-card ${isImp ? 'is-important' : ''} ${liveStatus ? 'is-live' : ''} ${p.cancelled ? 'is-cancelled' : ''}">
             <div class="priority-btn ${isImp ? 'active' : ''}" onclick="toggleSubjectPriority('${cln}')">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="${isImp ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/></svg>
             </div>
@@ -1370,12 +1376,14 @@ function render() {
             
             <div class="pair-info">
               <span class="pair-title">
-                ${p.subject}
+                ${escapeHtml(p.subject || "")}
                 ${liveStatus ? `<span class="live-indicator">${liveStatus}</span>` : ''}
               </span>
-              <span class="pair-type" data-kind="${typeKind}">${p.type}</span>
+              <span class="pair-type" data-kind="${typeKind}">${escapeHtml(p.type || "")}</span>
             </div>
-            <button class="${stCls}" onclick="toggleAttendance('${p.id}')">${stIcn} ${stTxt}</button>
+            ${p.cancelled
+              ? `<span class="status-pill cancelled-pill" title="Пары больше нет в расписании вуза. Отметка и ДЗ сохранены">Убрана из расписания</span>`
+              : `<button class="${stCls}" onclick="toggleAttendance('${p.id}')">${stIcn} ${stTxt}</button>`}
             <div style="display: flex; gap: 6px; justify-content: flex-end;">
               ${hwButtonHtml(p)}
               <button class="action-circle-btn" onclick='openModal("${day}", ${JSON.stringify({ id: p.id, subject: p.subject, time: p.time, type: p.type }).replace(/&/g, "&amp;").replace(/'/g, "&apos;")})'>
@@ -1407,7 +1415,7 @@ function renderSubjectStats() {
   Object.values(database.weeks).forEach(w => { 
     (database.activeDays || ALL_DAYS).forEach(day => { 
       (w[day] || []).forEach(p => { 
-        const n = p.subject?.trim(); if (!n) return; 
+        const n = p.subject?.trim(); if (!n || p.cancelled) return; 
         if (!stats[n]) stats[n] = { a: 0, t: 0 }; 
         if (p.attended === true) { stats[n].a++; stats[n].t++; } 
         else if (p.attended === false) { stats[n].t++; } 
@@ -1425,10 +1433,10 @@ function renderSubjectStats() {
     b.innerHTML = `
       <div class="subj-header">
         <div class="subj-name-wrap">
-          <div class="priority-btn ${isImp ? 'active' : ''}" onclick="toggleSubjectPriority('${subj.replace(/'/g, "\\'")}')">
+          <div class="priority-btn ${isImp ? 'active' : ''}" onclick="toggleSubjectPriority('${jsArg(subj)}')">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="${isImp ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/></svg>
           </div>
-          <span class="subj-name">${subj}</span>
+          <span class="subj-name">${escapeHtml(subj)}</span>
         </div>
         <div class="subj-stat" style="color: ${c};"><span style="color: var(--text-muted); font-size: var(--fs-xs); margin-right: 6px;">(${i.a} из ${i.t})</span>${pct}%</div>
       </div>
@@ -1442,6 +1450,7 @@ function renderOverallStats() {
   Object.values(database.weeks).forEach(w => { 
     (database.activeDays || ALL_DAYS).forEach(day => { 
       (w[day] || []).forEach(p => { 
+        if (p.cancelled) return;
         if (p.attended === true) { a++; t++; } 
         else if (p.attended === false) { t++; } 
       });
@@ -1619,13 +1628,9 @@ async function loadUniversitySchedule() {
     }
 
     clearAllUndos();
-    database.weeks = {};
-    for (let w = 1; w <= 20; w++) {
-      const wType = getWeekType(w);
-      database.weeks[String(w)] = JSON.parse(JSON.stringify(database.templates[wType] || {}));
-    }
+    const rebuilt = rebuildWeeksFromToday();
 
-    showElegantToast("Успешно", "Расписание и время звонков синхронизированы", "success");
+    showElegantToast("Успешно", "Расписание и время звонков синхронизированы" + rebuildSummaryText(rebuilt), "success");
 
     saveData();
     syncSettingsUI();

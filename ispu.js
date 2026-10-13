@@ -4,7 +4,7 @@
    Использует глобальные из app.js: database, ALL_DAYS, API_URL, isRegisterMode,
    saveData, render, syncSettingsUI, showElegantToast, clearAllUndos,
    buildTimeSelectOptions, areTemplatesEqual, getWeekType,
-   calculateCurrentSemesterWeek.
+   calculateCurrentSemesterWeek, rebuildWeeksFromToday, rebuildSummaryText.
    ========================================================================== */
 (function () {
   'use strict';
@@ -298,14 +298,11 @@
       }
 
       clearAllUndos();
-      database.weeks = {};
-      for (let n = 1; n <= 20; n++) {
-        database.weeks[String(n)] = JSON.parse(JSON.stringify(database.templates[getWeekType(n)] || {}));
-      }
+      const rebuilt = rebuildWeeksFromToday(); // прошедшие дни с отметками не трогаем
 
       if (res.subgroup) pick.subgroup = res.subgroup;
       const weekNote = database.scheduleMode === 'unified' ? '' : `. Сейчас идёт ${nowIspu === 1 ? 'первая' : 'вторая'} неделя`;
-      showElegantToast('Успешно', `Расписание ИГЭУ и время звонков синхронизированы${weekNote}`, 'success');
+      showElegantToast('Успешно', `Расписание ИГЭУ и время звонков синхронизированы${weekNote}${rebuildSummaryText(rebuilt)}`, 'success');
       saveData();
       syncSettingsUI();
       render();

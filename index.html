@@ -112,7 +112,7 @@
           <div class="input-group" id="ispuPickWrapper" style="margin-top: 16px; display: none;">
             <label>Номер группы (для авторасписания)</label>
             <div class="ip-field">
-              <input type="text" id="ispuGroupInput" class="input-field" style="padding: 14px;" placeholder="Например, 1-40" autocomplete="off" spellcheck="false">
+              <input type="text" id="ispuGroupInput" class="input-field" style="padding: 14px;" autocomplete="off" spellcheck="false">
               <div class="ip-suggest" id="ispuSuggest" role="listbox"></div>
             </div>
             <div id="ispuSub" style="display: none;"></div>
@@ -257,7 +257,7 @@
       
       <div class="input-group">
         <label>Дисциплина</label>
-        <input type="text" id="subjInput" class="input-field" placeholder="Название дисциплины">
+        <input type="text" id="subjInput" class="input-field">
       </div>
       
       <div class="input-group" style="z-index: 100;">
@@ -438,7 +438,7 @@
     <div class="modal-content" style="max-width: 400px; padding: 32px; text-align: center;">
       <h2 class="modal-title" style="margin-bottom: 16px;">Внимание!</h2>
       <p style="font-size: 14px; color: var(--text-muted); margin-bottom: 8px;">Синхронизация загрузит актуальное расписание университета.</p>
-      <p style="font-size: 14px; color: var(--color-red); font-weight: 600; margin-bottom: 24px;">Все ваши личные изменения, пометки и добавленные пары будут безвозвратно удалены.</p>
+      <p style="font-size: 14px; color: var(--color-red); font-weight: 600; margin-bottom: 24px;">Добавленные вручную пары начиная с этой недели заменятся расписанием вуза. Отметки и ДЗ прошедших недель сохранятся, у совпадающих пар — тоже.</p>
       <div style="display: flex; gap: 12px; justify-content: center;">
         <button class="btn btn-secondary" id="cancel-sync-btn" style="flex: 1;">Отмена</button>
         <button class="btn btn-primary" id="confirm-sync-btn" style="flex: 1; background: var(--color-red);">Да, обновить</button>

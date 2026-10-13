@@ -40,6 +40,7 @@
     ALL_DAYS.filter(d => act.includes(d)).forEach(day => {
       const d = { day, a: 0, m: 0, u: 0, total: 0 };
       (wd[day] || []).forEach(p => {
+        if (p.cancelled) { (p.tasks || []).forEach(t => { s.hwTotal++; if (t.done) s.hwDone++; }); return; } // убранная пара: только её ДЗ
         d.total++;
         const key = (p.subject || 'Без названия').trim();
         const sj = s.subjects[key] || (s.subjects[key] = { name: key, a: 0, m: 0, u: 0, total: 0 });
