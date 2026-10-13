@@ -107,28 +107,62 @@ body.dark-theme #reportBackdrop { --rp-glass: 24, 24, 27; }
   content: ""; position: absolute; left: 0; right: var(--rp-sb); z-index: -1; pointer-events: none;
 }
 #rpHead::before { top: 0; bottom: -34px;
-  background: linear-gradient(to bottom, rgba(var(--rp-glass), .86) 0%, rgba(var(--rp-glass), .55) 55%, rgba(var(--rp-glass), 0) 100%);
-  -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px);
-  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 50%, transparent 100%); mask-image: linear-gradient(to bottom, #000 0%, #000 50%, transparent 100%); }
+  background: linear-gradient(to bottom, rgba(var(--rp-glass), .9) 0%, rgba(var(--rp-glass), .82) calc(100% - 34px), rgba(var(--rp-glass), 0) 100%);
+  -webkit-backdrop-filter: blur(22px) saturate(1.6); backdrop-filter: blur(22px) saturate(1.6);
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 34px), transparent 100%); mask-image: linear-gradient(to bottom, #000 calc(100% - 34px), transparent 100%); }
 #rpHead::after { top: 0; bottom: -60px;
   -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
   -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 35%, transparent 100%); mask-image: linear-gradient(to bottom, #000 0%, #000 35%, transparent 100%); }
 
 #reportBackdrop .pf-footer::before { top: -34px; bottom: 0;
-  background: linear-gradient(to top, rgba(var(--rp-glass), .86) 0%, rgba(var(--rp-glass), .55) 55%, rgba(var(--rp-glass), 0) 100%);
-  -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px);
-  -webkit-mask-image: linear-gradient(to top, #000 0%, #000 50%, transparent 100%); mask-image: linear-gradient(to top, #000 0%, #000 50%, transparent 100%); }
+  background: linear-gradient(to top, rgba(var(--rp-glass), .9) 0%, rgba(var(--rp-glass), .82) calc(100% - 34px), rgba(var(--rp-glass), 0) 100%);
+  -webkit-backdrop-filter: blur(22px) saturate(1.6); backdrop-filter: blur(22px) saturate(1.6);
+  -webkit-mask-image: linear-gradient(to top, #000 calc(100% - 34px), transparent 100%); mask-image: linear-gradient(to top, #000 calc(100% - 34px), transparent 100%); }
 #reportBackdrop .pf-footer::after { top: -60px; bottom: 0;
   -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
   -webkit-mask-image: linear-gradient(to top, #000 0%, #000 35%, transparent 100%); mask-image: linear-gradient(to top, #000 0%, #000 35%, transparent 100%); }
 
 .rp-weeknav { background: rgba(var(--rp-glass), .6); }
 
-#rpBody { min-height: 0; padding-top: var(--rp-head-h, 126px); }
+/* Отступ сверху = реальная высота шапки (её меряет report.js), поэтому контент не заезжает под неё при любой высоте */
+#rpBody { min-height: 0; padding-top: var(--rp-head-h, 126px) !important; }
 .rp-body { padding-bottom: calc(var(--rp-foot-h, 70px) + 10px); }
 
 .rp-tiles { grid-template-columns: repeat(3, 1fr); }
 
-.rp-body {
-  padding-top: 142px !important; 
-}
+/* ==========================================================================
+   ДИНАМИКА ЗА СЕМЕСТР: сверху семестр и график, под графиком — отчёт за выбранную неделю
+   ========================================================================== */
+/* Окно шире и постоянной высоты: не «прыгает», когда листаешь пустые недели */
+#reportBackdrop .pf-modal { max-width: 760px !important; height: min(88vh, 940px); }
+.rp-sub { margin: -8px 0 0; font-size: var(--fs-sm); font-weight: 500; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+
+.se-cover { margin-top: 10px; font-size: var(--fs-xs); color: var(--text-muted); font-weight: 500; font-variant-numeric: tabular-nums; }
+.se-hint { margin-top: 12px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--bg); }
+.se-wait { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 140px; color: var(--text-muted); font-size: var(--fs-sm); text-align: center; }
+.se-empty { padding: 32px 20px; }
+
+/* График по неделям */
+.se-chart { position: relative; padding: 18px 12px 8px; }
+.se-svg { width: 100%; height: auto; display: block; overflow: visible; touch-action: pan-y; }
+.se-grid { stroke: var(--border); stroke-width: 1; }
+.se-target { stroke: var(--color-green); stroke-width: 1.5; stroke-dasharray: 5 6; opacity: 0.75; }
+.se-axis { fill: var(--text-light); font-size: 12px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.se-target-lbl { fill: var(--color-green); font-weight: 600; }
+.se-line { fill: none; stroke: var(--text-main); stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
+.se-dot { fill: var(--text-main); stroke: var(--bg); stroke-width: 2.5; }
+.se-col { fill: var(--text-main); opacity: 0; transition: opacity 0.15s; }
+.se-col.hov { opacity: 0.025; }
+.se-col.sel { opacity: 0.045; }
+.se-wnum { fill: var(--text-muted); font-size: 13px; font-weight: 600; }
+.se-wnum.sel { fill: var(--text-main); font-weight: 800; }
+.se-hit { fill: rgba(0, 0, 0, 0); cursor: pointer; }
+.se-tip { position: absolute; top: 6px; z-index: 2; display: flex; flex-direction: column; gap: 2px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); box-shadow: var(--shadow-md); font-size: var(--fs-xs); color: var(--text-muted); white-space: nowrap; pointer-events: none; font-variant-numeric: tabular-nums; }
+.se-tip[hidden] { display: none; }
+.se-tip b { color: var(--text-main); font-size: var(--fs-sm); font-weight: 700; }
+
+/* Отчёт за неделю под графиком */
+.rp-week .rp-weeknav { margin-bottom: 22px; }
+.rp-week-body { display: flex; flex-direction: column; gap: 26px; }
+.rp-week .rp-big { font-size: 44px; }
+.rp-week .rp-empty { padding: 32px 20px; }

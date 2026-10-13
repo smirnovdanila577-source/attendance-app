@@ -1,7 +1,7 @@
 /* ==========================================================================
    АВАТАРЫ
-   Готовые мультяшные аватары (SVG 200×200). Закрытые открываются за достижения:
-   поле unlock — id достижения из profile.js. Обычные (без unlock) появятся позже.
+   Готовые мультяшные аватары (SVG 200×200). Бесплатные (без поля unlock) доступны сразу,
+   закрытые открываются за достижения: unlock — id достижения из profile.js (сервер проверяет то же).
    ========================================================================== */
 (function () {
   'use strict';
@@ -9,6 +9,72 @@ const INK = '#1d1622';
 const S = `stroke="${INK}" stroke-width="3.2" stroke-linejoin="round" stroke-linecap="round"`;
 
 const AVATARS = [
+// --- Бесплатные: доступны всем сразу ---
+{
+  id: 'hedgehog', name: 'Ёж', hint: 'Доступен сразу',
+  svg: `
+  <defs><radialGradient id="hh-bg" cx="35%" cy="25%" r="85%"><stop offset="0" stop-color="#ffd9a0"/><stop offset="1" stop-color="#e0864a"/></radialGradient></defs>
+  <rect width="200" height="200" fill="url(#hh-bg)"/>
+  <path d="M30 210 C32 172 60 158 100 158 C140 158 168 172 170 210Z" fill="#3c6e71" ${S}/>
+  <path d="M84 158 v20 M116 158 v20" stroke="#e8e3d3" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="84" cy="182" r="3" fill="#e8e3d3"/><circle cx="116" cy="182" r="3" fill="#e8e3d3"/>
+  <path d="M40 120 L26 104 L44 98 L30 78 L52 76 L44 54 L66 58 L66 34 L84 46 L92 24 L104 42 L118 26 L122 48 L142 38 L140 60 L162 58 L152 78 L174 82 L158 98 L176 106 L160 120 L166 136 L40 136Z" fill="#6b4a36" ${S}/>
+  <path d="M64 66 l8 12 M84 54 l4 12 M106 50 l-2 12 M128 56 l-6 12 M146 70 l-10 10" stroke="#4a3123" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="62" cy="90" r="11" fill="#e2c19c" ${S}/><circle cx="138" cy="90" r="11" fill="#e2c19c" ${S}/>
+  <circle cx="62" cy="90" r="5" fill="#e79a8a"/><circle cx="138" cy="90" r="5" fill="#e79a8a"/>
+  <path d="M100 82 C130 82 146 100 144 118 C142 134 128 144 116 154 C110 160 106 166 100 172 C94 166 90 160 84 154 C72 144 58 134 56 118 C54 100 70 82 100 82Z" fill="#f1d8b8" ${S}/>
+  <path d="M58 104 L66 86 L74 100 L82 80 L90 98 L100 76 L110 98 L118 80 L126 100 L134 86 L142 104 C128 96 72 96 58 104Z" fill="#6b4a36" ${S}/>
+  <ellipse cx="82" cy="116" rx="5.5" ry="7" fill="${INK}"/><ellipse cx="118" cy="116" rx="5.5" ry="7" fill="${INK}"/>
+  <circle cx="84" cy="113" r="2" fill="#fff"/><circle cx="120" cy="113" r="2" fill="#fff"/>
+  <path d="M74 106 l14 4 M126 106 l-14 4" stroke="${INK}" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="70" cy="134" r="6" fill="#f2a48c" opacity=".5"/><circle cx="130" cy="134" r="6" fill="#f2a48c" opacity=".5"/>
+  <path d="M90 140 C94 150 98 156 100 160 C102 156 106 150 110 140" fill="none" stroke="#d9b48c" stroke-width="2.6" stroke-linecap="round"/>
+  <ellipse cx="100" cy="166" rx="9" ry="7" fill="${INK}"/><circle cx="97" cy="163" r="2.2" fill="#fff" opacity=".7"/>
+  <path d="M46 114 C46 84 70 64 100 64 C130 64 154 84 154 114" fill="none" stroke="#24262e" stroke-width="7" stroke-linecap="round"/>
+  <rect x="38" y="106" width="18" height="30" rx="8" fill="#e85d4a" ${S}/>
+  <rect x="144" y="106" width="18" height="30" rx="8" fill="#e85d4a" ${S}/>`
+},
+{
+  id: 'bear', name: 'Медведь', hint: 'Доступен сразу',
+  svg: `
+  <defs><radialGradient id="br-bg" cx="65%" cy="20%" r="90%"><stop offset="0" stop-color="#9cc8ff"/><stop offset="1" stop-color="#2f4f9e"/></radialGradient></defs>
+  <rect width="200" height="200" fill="url(#br-bg)"/>
+  <path d="M26 210 C28 170 58 154 100 154 C142 154 172 170 174 210Z" fill="#2b2d38" ${S}/>
+  <path d="M60 160 L100 196 L140 160" fill="none" stroke="#f2c230" stroke-width="3"/>
+  <circle cx="58" cy="72" r="18" fill="#8a5a3c" ${S}/><circle cx="142" cy="72" r="18" fill="#8a5a3c" ${S}/>
+  <circle cx="58" cy="72" r="8" fill="#5e3b26"/><circle cx="142" cy="72" r="8" fill="#5e3b26"/>
+  <path d="M100 58 C142 58 160 86 158 114 C156 142 134 160 100 160 C66 160 44 142 42 114 C40 86 58 58 100 58Z" fill="#a06a45" ${S}/>
+  <path d="M56 84 C58 50 80 36 100 36 C120 36 142 50 144 84 C122 76 78 76 56 84Z" fill="#d9483b" ${S}/>
+  <path d="M54 82 C78 72 122 72 146 82 L146 92 C122 84 78 84 54 92Z" fill="#b8352b" ${S}/>
+  <path d="M70 52 v24 M86 44 v32 M100 42 v34 M114 44 v32 M130 52 v24" stroke="#b8352b" stroke-width="3"/>
+  <circle cx="100" cy="30" r="9" fill="#f3efe6" ${S}/>
+  <path d="M100 118 C120 118 132 128 130 142 C128 154 116 158 100 158 C84 158 72 154 70 142 C68 128 80 118 100 118Z" fill="#e6c49a" ${S}/>
+  <path d="M90 128 C90 122 110 122 110 128 C110 134 104 138 100 138 C96 138 90 134 90 128Z" fill="${INK}"/>
+  <path d="M100 138 v6 M88 146 q12 8 24 0" fill="none" stroke="${INK}" stroke-width="2.8" stroke-linecap="round"/>
+  <path d="M68 106 q10 -8 20 0 M112 106 q10 -8 20 0" fill="none" stroke="${INK}" stroke-width="3.6" stroke-linecap="round"/>
+  <circle cx="78" cy="110" r="3.6" fill="${INK}"/><circle cx="122" cy="110" r="3.6" fill="${INK}"/>
+  <path d="M126 100 l10 -6" stroke="${INK}" stroke-width="3" stroke-linecap="round"/>`
+},
+{
+  id: 'penguin', name: 'Пингвин', hint: 'Доступен сразу',
+  svg: `
+  <defs><linearGradient id="pg-bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffc6d9"/><stop offset="1" stop-color="#c8547f"/></linearGradient></defs>
+  <rect width="200" height="200" fill="url(#pg-bg)"/>
+  <g fill="#fff" opacity=".7"><circle cx="30" cy="40" r="3"/><circle cx="168" cy="30" r="2.4"/><circle cx="178" cy="90" r="3"/><circle cx="20" cy="120" r="2.2"/><circle cx="150" cy="60" r="1.8"/></g>
+  <path d="M38 210 C34 150 56 50 100 50 C144 50 166 150 162 210Z" fill="#23252f" ${S}/>
+  <path d="M60 210 C58 168 72 92 100 92 C128 92 142 168 140 210Z" fill="#f5f2ea" ${S}/>
+  <path d="M70 92 C70 76 84 66 100 66 C116 66 130 76 130 92 C130 112 116 122 100 122 C84 122 70 112 70 92Z" fill="#f5f2ea" ${S}/>
+  <circle cx="86" cy="94" r="12" fill="#fff" ${S} stroke-width="2.6"/><circle cx="114" cy="94" r="12" fill="#fff" ${S} stroke-width="2.6"/>
+  <circle cx="88" cy="96" r="5" fill="${INK}"/><circle cx="116" cy="96" r="5" fill="${INK}"/>
+  <circle cx="90" cy="94" r="1.6" fill="#fff"/><circle cx="118" cy="94" r="1.6" fill="#fff"/>
+  <path d="M74 86 l22 4 M126 86 l-22 4" stroke="${INK}" stroke-width="3.2" stroke-linecap="round"/>
+  <path d="M90 108 L110 108 L100 122Z" fill="#f2a33a" ${S}/>
+  <path d="M52 134 C70 146 130 146 148 134 L150 152 C130 164 70 164 50 152Z" fill="#3a8fd6" ${S}/>
+  <path d="M120 150 L134 196 L118 198 L110 154Z" fill="#3a8fd6" ${S}/>
+  <path d="M64 142 v10 M80 146 v12 M96 148 v12 M112 148 v12 M128 146 v10" stroke="#2a6fae" stroke-width="3"/>
+  <path d="M124 180 l10 -2 M122 172 l9 -2" stroke="#2a6fae" stroke-width="3"/>`
+},
+// --- Закрытые: открываются за достижения ---
 {
   id: 'owl', unlock: 'night_owl', name: 'Полуночник', ach: 'Ночной режим', hint: 'Загляни в трекер глубокой ночью',
   svg: `

@@ -62,8 +62,8 @@
     const out = [];
     if (cur.pct !== null && prev && prev.pct !== null) {
       const d = cur.pct - prev.pct;
-      if (d > 0) out.push({ icon: 'up', tone: 'green', text: `Посещаемость выросла на ${d} п. п. по сравнению с прошлой неделей.` });
-      else if (d < 0) out.push({ icon: 'down', tone: 'red', text: `Посещаемость снизилась на ${-d} п. п. по сравнению с прошлой неделей.` });
+      if (d > 0) out.push({ icon: 'up', tone: 'green', text: `Посещаемость выросла на ${d}% по сравнению с прошлой неделей.` });
+      else if (d < 0) out.push({ icon: 'down', tone: 'red', text: `Посещаемость снизилась на ${-d}% по сравнению с прошлой неделей.` });
       else out.push({ icon: 'chart', tone: 'gray', text: 'Посещаемость на уровне прошлой недели.' });
     }
     if (cur.m > 0) {
@@ -81,17 +81,138 @@
     return out;
   }
 
-  /* ---------- Отрисовка ---------- */
+  /* ==========================================================================
+     ДИНАМИКА ЗА СЕМЕСТР: посещаемость по неделям, по предметам и по дням недели.
+     Считаем по всем своим отметкам (это личная статистика, не очки).
+     ========================================================================== */
+  const MONTHS_SHORT = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+  const pctOf = (a, n) => n > 0 ? Math.round(a / n * 100) : null;
+
+  function semesterStats() {
+    const cw = calculateCurrentSemesterWeek();
+    const weeks = [], subjects = {}, days = {};
+    const act = database.activeDays || ALL_DAYS;
+    ALL_DAYS.filter(d => act.includes(d)).forEach(d => { days[d] = { day: d, a: 0, m: 0 }; });
+    let a = 0, m = 0, past = 0, startW = 0;
+    const ended = (w, day, p) => typeof pairHasEnded === 'function' ? pairHasEnded(w, day, p.time) : w < cw;
+    for (let w = 1; w <= cw; w++) {
+      const s = weekStats(w);
+      if (!startW && s.marked > 0) startW = w;   // учёт начинается с первой недели, где есть отметки
+      if (startW) {
+        const wd = (database.weeks || {})[String(w)] || {};
+        s.days.forEach(d => (wd[d.day] || []).forEach(p => { if (!p.cancelled && ended(w, d.day, p)) past++; }));
+      }
+      weeks.push({ week: w, a: s.a, m: s.m, marked: s.marked, pct: s.pct });
+      a += s.a; m += s.m;
+      Object.values(s.subjects).forEach(sj => {
+        const t = subjects[sj.name] || (subjects[sj.name] = { name: sj.name, a: 0, m: 0 });
+        t.a += sj.a; t.m += sj.m;
+      });
+      s.days.forEach(d => { if (days[d.day]) { days[d.day].a += d.a; days[d.day].m += d.m; } });
+    }
+    const subj = Object.values(subjects).filter(x => x.a + x.m > 0)
+      .map(x => ({ ...x, n: x.a + x.m, pct: pctOf(x.a, x.a + x.m) }))
+      .sort((x, y) => x.pct - y.pct || y.m - x.m || x.name.localeCompare(y.name));
+    const dayList = Object.values(days).map(d => ({ ...d, n: d.a + d.m, pct: pctOf(d.a, d.a + d.m) }));
+    return { cw, weeks, subj, days: dayList, a, m, marked: a + m, pct: pctOf(a, a + m),
+      startW: startW || 1, past: Math.max(past, a + m), markedWeeks: weeks.filter(w => w.marked > 0).length };
+  }
+
+  function weekRangeShort(w) {
+    const mon = getDateForDay(w, 'Понедельник'), sun = getDateForDay(w, 'Воскресенье');
+    const f = d => `${d.getDate()} ${MONTHS_SHORT[d.getMonth()]}`;
+    return `${f(mon)} – ${f(sun)}`;
+  }
+
+  // Линия «посещаемость по неделям». Минимум подписей: 0 / 50 / 100 %, пунктир цели 80 %, номера недель.
+  // Выбранная неделя подсвечена столбцом; её подробный отчёт — ниже графика.
+  function trendSvg(weeks, W, sel) {
+    const H = W < 500 ? 220 : 270, L = 46, R = 14, T = 16, B = 34;
+    const pw = W - L - R, ph = H - T - B, n = weeks.length;
+    const gap = n > 1 ? pw / (n - 1) : pw;
+    const x = i => L + (n === 1 ? pw / 2 : i * gap);
+    const y = v => T + ph - v / 100 * ph;
+    const grid = [0, 50, 100].map(v => `
+      <line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" class="se-grid"/>
+      <text x="${L - 12}" y="${y(v) + 4}" class="se-axis" text-anchor="end">${v}%</text>`).join('');
+    const target = `<line x1="${L}" x2="${W - R}" y1="${y(80)}" y2="${y(80)}" class="se-target"/>
+      <text x="${L - 12}" y="${y(80) + 4}" class="se-axis se-target-lbl" text-anchor="end">80%<title>Цель — 80% посещаемости</title></text>`;
+    const colW = Math.min(n > 1 ? gap * 0.8 : 46, 46);
+    const cols = weeks.map((w, i) =>
+      `<rect x="${x(i) - colW / 2}" y="${T - 8}" width="${colW}" height="${H - T + 4}" rx="12" class="se-col ${w.week === sel ? 'sel' : ''}" data-i="${i}"/>`).join('');
+    const step = n > (W < 500 ? 10 : 18) ? 2 : 1;
+    const labels = weeks.map((w, i) => (i % step === 0 || i === n - 1 || w.week === sel)
+      ? `<text x="${x(i)}" y="${H - 10}" class="se-axis se-wnum ${w.week === sel ? 'sel' : ''}" text-anchor="middle">${w.week}</text>` : '').join('');
+    // Линия рвётся на неделях без отметок
+    let path = '', open = false;
+    weeks.forEach((w, i) => {
+      if (w.pct === null) { open = false; return; }
+      path += `${open ? 'L' : 'M'}${x(i).toFixed(1)} ${y(w.pct).toFixed(1)} `;
+      open = true;
+    });
+    const dots = weeks.map((w, i) => w.pct === null ? '' :
+      `<circle cx="${x(i)}" cy="${y(w.pct)}" r="${w.week === sel ? 7 : 5}" class="se-dot ${w.week === sel ? 'sel' : ''}"/>`).join('');
+    const hit = weeks.map((w, i) =>
+      `<rect x="${x(i) - gap / 2}" y="0" width="${gap}" height="${H}" class="se-hit" data-i="${i}" data-week="${w.week}"/>`).join('');
+    return `<svg viewBox="0 0 ${W} ${H}" data-w="${W}" class="se-svg" role="img" aria-label="Посещаемость по неделям семестра">
+      ${cols}${grid}${target}<path d="${path}" class="se-line"/>${dots}${labels}${hit}</svg>`;
+  }
+
+  function chartWidth() {
+    const w = ($('rpBody') && $('rpBody').clientWidth) || 700;
+    return Math.round(Math.max(320, Math.min(720, w - 96)));
+  }
+
+  /* ---------- Окно: семестр сверху, под графиком — отчёт за выбранную неделю ---------- */
+  let semWeeks = null;
+
   function render() {
     if (!hasUser()) return;
+    const S = semesterStats();
+    semWeeks = S.weeks;
+    viewWeek = Math.min(Math.max(1, viewWeek), S.cw);
+    const range = `${weekRangeShort(1).split(' – ')[0]} – ${weekRangeShort(S.cw).split(' – ')[1]}`;
+    $('rpHead').innerHTML = `
+      <h2 class="rp-title">Динамика за семестр</h2>
+      <div class="rp-sub">${S.cw === 1 ? 'Неделя 1' : `Недели 1–${S.cw}`} · ${esc(range)}</div>`;
+
+    const hint = S.startW > 1
+      ? (S.startW === 2 ? 'Неделя 1 не отмечена' : `Недели 1–${S.startW - 1} не отмечены`) + ' и в статистику не входят. Отметь их, чтобы картина была полной.'
+      : S.marked < S.past / 2 ? 'Отмечено меньше половины прошедших пар. Отметь остальные, чтобы статистика была точнее.' : '';
+    const semester = !S.marked
+      ? `<section><div class="rp-empty se-empty">${svg(I.chart, 26, 1.8)}<span>Пока нет отмеченных пар. Отмечай посещения, и здесь появится картина за семестр.</span></div></section>`
+      : `<section>
+          <div class="rp-hero">
+            <div><div class="rp-big">${S.pct}%</div><div class="rp-big-sub">посещено ${S.a} из ${S.marked} отмеченных пар</div></div>
+            <span class="rp-delta">пропусков: ${S.m}</span>
+          </div>
+          <div class="prog-track rp-hero-track"><div class="prog-fill" style="width:${S.pct}%; background:${colorFor(S.pct)}"></div></div>
+          <div class="se-cover">Отмечено ${S.marked} из ${S.past} прошедших ${plural(S.past, ['пары', 'пар', 'пар'])}${S.startW > 1 ? ` · учёт с ${S.startW}-й недели` : ''}</div>
+          ${hint ? `<div class="rp-ins se-hint" data-tone="yellow"><span class="rp-ins-ico">${svg(I.alert, 16)}</span><span>${hint}</span></div>` : ''}
+        </section>
+        <section>
+          <h3 class="pf-section-title"><span>Посещаемость по неделям</span></h3>
+          ${S.markedWeeks >= 2
+            ? `<div class="pf-box se-chart" id="seTrend">${trendSvg(S.weeks, chartWidth(), viewWeek)}<div class="se-tip" id="seTip" hidden></div></div>`
+            : `<div class="pf-box se-wait">${svg(I.chart, 22, 1.8)}<span>График появится, когда будут отметки хотя бы за 2 недели.</span></div>`}
+        </section>`;
+
+    $('rpBody').innerHTML = `<div class="rp-body">${semester}<section class="rp-week" id="rpWeek"></section></div>`;
+    renderWeek();
+    bindTrend();
+  }
+
+  // Отчёт за неделю viewWeek (перерисовывается сам по себе при смене недели)
+  function renderWeek() {
+    const box = $('rpWeek');
+    if (!box) return;
     const cw = calculateCurrentSemesterWeek();
-    viewWeek = Math.min(Math.max(1, viewWeek), cw);
     const isCur = viewWeek === cw;
     const cur = weekStats(viewWeek);
     const prev = viewWeek > 1 ? weekStats(viewWeek - 1) : null;
 
-    $('rpHead').innerHTML = `
-      <h2 class="rp-title">Отчёт за неделю</h2>
+    const nav = `
+      <h3 class="pf-section-title"><span>Отчёт за неделю</span></h3>
       <div class="rp-weeknav">
         <button type="button" class="rp-nav-btn" data-nav="-1" aria-label="Предыдущая неделя" ${viewWeek <= 1 ? 'disabled' : ''}>${svg(I.left, 18, 2.5)}</button>
         <div class="rp-weeklabel"><b>Неделя ${viewWeek}</b><span>${esc(getWeekDatesString(viewWeek))}${isCur ? ', идёт сейчас' : ''}</span></div>
@@ -99,7 +220,7 @@
       </div>`;
 
     if (cur.total === 0) {
-      $('rpBody').innerHTML = `<div class="rp-empty">${svg(I.chart, 30, 1.8)}<span>На этой неделе нет пар, отчёт пуст.</span></div>`;
+      box.innerHTML = nav + `<div class="rp-empty">${svg(I.chart, 30, 1.8)}<span>На этой неделе нет пар.</span></div>`;
       return;
     }
 
@@ -109,7 +230,7 @@
       const d = cur.pct - prev.pct;
       delta = d === 0
         ? `<span class="rp-delta">Как на прошлой неделе</span>`
-        : `<span class="rp-delta ${d > 0 ? 'up' : 'down'}">${svg(d > 0 ? I.up : I.down, 14, 2.5)}${d > 0 ? '+' : '−'}${Math.abs(d)} п. п. к прошлой неделе</span>`;
+        : `<span class="rp-delta ${d > 0 ? 'up' : 'down'}">${svg(d > 0 ? I.up : I.down, 14, 2.5)}${Math.abs(d)}% по сравнению с прошлой неделей</span>`;
     }
     const heroSub = cur.pct === null ? 'Отметь посещение, чтобы увидеть процент' : `${cur.a} из ${cur.marked} отмеченных пар`;
 
@@ -137,8 +258,8 @@
 
     const insights = buildInsights(cur, prev, isCur);
 
-    $('rpBody').innerHTML = `
-      <div class="rp-body">
+    box.innerHTML = nav + `
+      <div class="rp-week-body">
         <section>
           <div class="rp-hero">
             <div>
@@ -181,9 +302,45 @@
       </div>`;
 
     // Столбики «вырастают» после появления: ответ на действие пользователя (открытие или смена недели)
-    const body = $('rpBody');
-    body.classList.remove('rp-ready');
-    requestAnimationFrame(() => requestAnimationFrame(() => body.classList.add('rp-ready')));
+    box.classList.remove('rp-ready');
+    requestAnimationFrame(() => requestAnimationFrame(() => box.classList.add('rp-ready')));
+  }
+
+  // Выбор недели: с графика (плавно прокручиваем к её отчёту) или стрелками (остаёмся на месте)
+  function selectWeek(w, scroll) {
+    viewWeek = Math.min(Math.max(1, w), calculateCurrentSemesterWeek());
+    renderWeek();
+    const s = $('seTrend') && $('seTrend').querySelector('svg');
+    if (s && semWeeks) s.outerHTML = trendSvg(semWeeks, Number(s.dataset.w), viewWeek);
+    if (scroll) scrollToWeek(true);
+  }
+  function scrollToWeek(smooth) {
+    const body = $('rpBody'), sec = $('rpWeek');
+    if (!body || !sec) return;
+    const headH = $('rpHead') ? $('rpHead').offsetHeight : 0;
+    const top = body.scrollTop + sec.getBoundingClientRect().top - body.getBoundingClientRect().top - headH - 26;
+    const reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    body.scrollTo({ top: Math.max(0, top), behavior: smooth && !reduce ? 'smooth' : 'auto' });
+  }
+
+  // Наведение на неделю графика: подсветка столбца и короткая подсказка
+  function bindTrend() {
+    const box = $('seTrend'), tip = $('seTip');
+    if (!box || !tip) return;
+    const clear = () => box.querySelectorAll('.se-col.hov').forEach(c => c.classList.remove('hov'));
+    const show = i => {
+      const w = semWeeks && semWeeks[i]; if (!w) return;
+      const svgEl = box.querySelector('svg'), col = box.querySelector(`.se-col[data-i="${i}"]`);
+      clear(); if (col) col.classList.add('hov');
+      tip.innerHTML = `<b>Неделя ${w.week} · ${w.pct === null ? 'нет отметок' : w.pct + '%'}</b><span>${esc(weekRangeShort(w.week))}</span>`;
+      tip.hidden = false;
+      const cx = Number(col.getAttribute('x')) + Number(col.getAttribute('width')) / 2;
+      const r = svgEl.getBoundingClientRect(), br = box.getBoundingClientRect();
+      const px = r.left - br.left + cx / Number(svgEl.dataset.w || 600) * r.width;
+      tip.style.left = Math.min(Math.max(px - tip.offsetWidth / 2, 8), br.width - tip.offsetWidth - 8) + 'px';
+    };
+    box.addEventListener('pointermove', e => { const h = e.target.closest('.se-hit'); if (h) show(Number(h.dataset.i)); });
+    box.addEventListener('pointerleave', () => { tip.hidden = true; clear(); });
   }
 
   /* Высоты стеклянных шапки и подвала: контент прокручивается под ними */
@@ -208,6 +365,7 @@
     $('reportBackdrop').classList.add('open');
     syncGlassInsets();
     const sc = $('rpBody'); if (sc) sc.scrollTop = 0;
+    if (week) requestAnimationFrame(() => scrollToWeek(false));   // из уведомления «отчёт готов» — сразу к нужной неделе
   }
   function close() { $('reportBackdrop').classList.remove('open'); }
 
@@ -217,15 +375,17 @@
     const m = $('reportBackdrop');
     m.addEventListener('click', e => {
       if (e.target === m) { close(); return; }
+      const wk = e.target.closest('[data-week]');
+      if (wk) { selectWeek(Number(wk.dataset.week), true); return; }
       const nav = e.target.closest('[data-nav]');
-      if (nav) { viewWeek += Number(nav.dataset.nav); render(); $('rpBody').scrollTop = 0; return; }
+      if (nav) { selectWeek(viewWeek + Number(nav.dataset.nav), false); return; }
       if (e.target.closest('[data-act="close"]')) close();
     });
     document.addEventListener('keydown', e => {
       if (!m.classList.contains('open')) return;
       if (e.key === 'Escape') close();
-      else if (e.key === 'ArrowLeft' && viewWeek > 1) { viewWeek--; render(); }
-      else if (e.key === 'ArrowRight' && viewWeek < calculateCurrentSemesterWeek()) { viewWeek++; render(); }
+      else if (e.key === 'ArrowLeft' && viewWeek > 1) selectWeek(viewWeek - 1, false);
+      else if (e.key === 'ArrowRight' && viewWeek < calculateCurrentSemesterWeek()) selectWeek(viewWeek + 1, false);
     });
   }
 

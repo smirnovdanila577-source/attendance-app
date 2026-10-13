@@ -307,7 +307,7 @@
     }));
     return `<div class="pf-av-picker"><span class="pf-field-label">Аватар</span>
       <div class="pf-av-grid">${items.join('')}</div>
-      <p class="pf-tags-note">Закрытые аватары открываются за достижения. Обычные аватары появятся позже.</p></div>`;
+      <p class="pf-tags-note">Закрытые аватары открываются за достижения.</p></div>`;
   }
 
   /* ---------- Шапка ---------- */
