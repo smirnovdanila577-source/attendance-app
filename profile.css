@@ -1,0 +1,286 @@
+/* ==========================================================================
+   ПРОФИЛЬ, СТАТУС И УВЕДОМЛЕНИЯ
+   Подключается после style.css. Использует его переменные и тему.
+   ========================================================================== */
+
+:root {
+  --pf-green: #059669;
+  --pf-blue: #2563eb;
+  --pf-yellow: #b45309;
+  --pf-red: #dc2626;
+  --pf-violet: #7c3aed;
+  --pf-zzz: #8b5cf6;
+  --pf-offline: #a1a1aa;
+}
+body.dark-theme {
+  --pf-green: #34d399;
+  --pf-blue: #60a5fa;
+  --pf-yellow: #fbbf24;
+  --pf-red: #f87171;
+  --pf-violet: #a78bfa;
+  --pf-zzz: #a78bfa;
+  --pf-offline: #71717a;
+}
+
+/* --- Правая часть шапки: овал профиля, колокольчик, настройки --- */
+.header-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.pf-anchor { position: relative; display: flex; }
+
+/* --- Овал профиля --- */
+.profile-pill {
+  position: relative; display: flex; align-items: center; height: 40px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 999px;
+  box-sizing: border-box; transition: background 0.2s, border-color 0.2s;
+}
+.profile-pill:hover { background: var(--accent-hover); border-color: var(--border-hover); }
+.pf-open {
+  display: flex; align-items: center; gap: 10px; height: 100%; min-width: 0;
+  padding: 0 16px 0 4px; background: transparent; border: 0; border-radius: 999px;
+  cursor: pointer; text-align: left; color: var(--text-main);
+}
+.pf-open:focus-visible, .pf-statusbtn:focus-visible, .settings-btn:focus-visible,
+.pf-seg button:focus-visible, .pf-tab:focus-visible, .pf-row:focus-visible {
+  outline: 2px solid var(--text-main); outline-offset: 2px;
+}
+.pf-text { display: flex; flex-direction: column; justify-content: center; min-width: 0; line-height: 1.15; }
+.pf-name { font-size: var(--fs-sm); font-weight: 700; letter-spacing: -0.01em; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pf-tag { font-size: var(--fs-xs); font-weight: 600; color: var(--pf-tone, var(--text-muted)); max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pf-tag[data-tone="green"]  { --pf-tone: var(--pf-green); }
+.pf-tag[data-tone="blue"]   { --pf-tone: var(--pf-blue); }
+.pf-tag[data-tone="yellow"] { --pf-tone: var(--pf-yellow); }
+.pf-tag[data-tone="red"]    { --pf-tone: var(--pf-red); }
+.pf-tag[data-tone="violet"] { --pf-tone: var(--pf-violet); }
+.pf-tag[data-tone="gray"]   { --pf-tone: var(--text-muted); }
+
+/* --- Аватар со статусом (размер задаётся через --av) --- */
+.pf-avatar {
+  --av: 30px; position: relative; flex-shrink: 0; width: var(--av); height: var(--av);
+  border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, #18181b, #27272a); color: #fff;
+  font-weight: 700; font-size: calc(var(--av) * 0.42); line-height: 1; letter-spacing: -0.02em;
+}
+body.dark-theme .pf-avatar { background: linear-gradient(135deg, #27272a, #3f3f46); }
+.pf-avatar > img.pf-img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; display: block; }
+
+.pf-dot {
+  position: absolute; right: calc(var(--av) * -0.02); bottom: calc(var(--av) * -0.02);
+  width: clamp(9px, calc(var(--av) * 0.3), 20px); height: clamp(9px, calc(var(--av) * 0.3), 20px);
+  border-radius: 50%; box-sizing: border-box;
+  border: clamp(2px, calc(var(--av) * 0.05), 3px) solid var(--dot-ring, var(--surface));
+  background: var(--pf-offline); transition: background 0.3s;
+}
+.profile-pill:hover { --dot-ring: var(--accent-hover); }
+.pf-avatar[data-status="online"] .pf-dot { background: var(--color-green); }
+.pf-avatar[data-status="offline"] .pf-dot { background: var(--pf-offline); }
+.pf-avatar[data-status="sleep"] .pf-dot { display: none; }
+
+/* Спящий: вместо кружка — фиолетовые «zzz» над плечом аватара */
+.pf-zzz {
+  display: none; position: absolute; top: calc(var(--av) * -0.3); right: calc(var(--av) * -0.28);
+  align-items: flex-end; gap: 0; font-weight: 800; color: var(--pf-zzz); line-height: 1; pointer-events: none;
+  font-family: 'Inter', sans-serif; font-style: normal;
+}
+.pf-avatar[data-status="sleep"] .pf-zzz { display: flex; }
+.pf-zzz i { font-style: normal; display: block; animation: pfZ 3.2s ease-in-out infinite both; }
+.pf-zzz i:nth-child(1) { font-size: clamp(8px, calc(var(--av) * 0.25), 15px); animation-delay: 0s; }
+.pf-zzz i:nth-child(2) { font-size: clamp(10px, calc(var(--av) * 0.32), 20px); margin-bottom: calc(var(--av) * 0.1); animation-delay: 0.45s; }
+.pf-zzz i:nth-child(3) { font-size: clamp(12px, calc(var(--av) * 0.4), 26px); margin-bottom: calc(var(--av) * 0.2); animation-delay: 0.9s; }
+@keyframes pfZ { 0%, 12% { opacity: 0.15; } 40%, 78% { opacity: 1; } 100% { opacity: 0.15; } }
+
+/* Невидимая зона клика по статусу (рядом с кружком) — отдельная кнопка, чтобы не вкладывать кнопку в кнопку */
+.pf-statusbtn { position: absolute; left: 22px; bottom: 1px; width: 20px; height: 20px; padding: 0; border: 0; border-radius: 50%; background: transparent; cursor: pointer; }
+
+/* --- Колокольчик --- */
+.bell-btn { position: relative; }
+.bell-dot {
+  position: absolute; top: 8px; right: 9px; width: 10px; height: 10px; border-radius: 50%;
+  background: var(--color-red); border: 2px solid var(--surface); box-sizing: border-box;
+  transform: scale(0); opacity: 0; transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.2s;
+}
+.bell-btn:hover .bell-dot { border-color: var(--accent-hover); }
+.bell-btn.has-unread .bell-dot { transform: scale(1); opacity: 1; }
+.bell-btn.open { background: var(--accent-hover); color: var(--text-main); border-color: var(--border-hover); }
+
+/* --- Всплывающие панели (уведомления и меню статуса) --- */
+.pf-popover {
+  position: absolute; top: calc(100% + 10px); z-index: 300;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2); overflow: hidden;
+  opacity: 0; transform: translateY(-8px); pointer-events: none; visibility: hidden;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.pf-popover.open { opacity: 1; transform: translateY(0); pointer-events: auto; visibility: visible; }
+.pf-notif { right: 0; width: 350px; max-width: calc(100vw - 48px); }
+.pf-status-menu { left: 0; width: 236px; padding: 6px; }
+
+.pf-pop-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px 12px; border-bottom: 1px solid var(--border); }
+.pf-pop-title { font-size: var(--fs-md); font-weight: 700; }
+.pf-link-btn { background: none; border: 0; padding: 4px 6px; margin: -4px -6px; border-radius: 6px; font-size: var(--fs-sm); font-weight: 600; color: var(--text-muted); cursor: pointer; transition: color 0.15s, background 0.15s; }
+.pf-link-btn:hover:not(:disabled) { color: var(--text-main); background: var(--accent-hover); }
+.pf-link-btn:disabled { opacity: 0.4; cursor: default; }
+
+.pf-notif-list { max-height: 340px; overflow-y: auto; }
+.pf-notif-item { display: flex; gap: 12px; align-items: flex-start; width: 100%; padding: 12px 16px; background: transparent; border: 0; border-bottom: 1px solid var(--border); text-align: left; cursor: pointer; transition: background 0.15s; }
+.pf-notif-item:last-child { border-bottom: 0; }
+.pf-notif-item:hover { background: var(--accent-hover); }
+.pf-notif-ico { width: 34px; height: 34px; flex-shrink: 0; border-radius: 10px; display: flex; align-items: center; justify-content: center; background: var(--tone-bg, var(--accent-hover)); color: var(--tone-fg, var(--text-muted)); }
+.pf-notif-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.pf-notif-title { font-size: var(--fs-base); font-weight: 600; color: var(--text-main); }
+.pf-notif-text { font-size: var(--fs-sm); color: var(--text-muted); line-height: 1.4; }
+.pf-notif-time { font-size: var(--fs-xs); color: var(--text-light); margin-top: 2px; }
+.pf-notif-item:not(.unread) .pf-notif-title { font-weight: 500; color: var(--text-muted); }
+.pf-unread-mark { width: 8px; height: 8px; border-radius: 50%; background: var(--color-red); flex-shrink: 0; margin-top: 6px; visibility: hidden; }
+.pf-notif-item.unread .pf-unread-mark { visibility: visible; }
+.pf-empty { padding: 36px 20px; text-align: center; color: var(--text-light); font-size: var(--fs-sm); display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.pf-empty svg { opacity: 0.6; }
+
+/* Тона иконок: те же цвета, что у карточек на стартовом экране */
+[data-tone="blue"]   { --tone-fg: #3b82f6; --tone-bg: rgba(59, 130, 246, 0.1); }
+[data-tone="yellow"] { --tone-fg: #f59e0b; --tone-bg: rgba(245, 158, 11, 0.1); }
+[data-tone="green"]  { --tone-fg: #10b981; --tone-bg: rgba(16, 185, 129, 0.1); }
+[data-tone="red"]    { --tone-fg: #ef4444; --tone-bg: rgba(239, 68, 68, 0.1); }
+[data-tone="violet"] { --tone-fg: #8b5cf6; --tone-bg: rgba(139, 92, 246, 0.1); }
+[data-tone="gray"]   { --tone-fg: var(--text-muted); --tone-bg: var(--accent-hover); }
+
+/* --- Меню статуса --- */
+.pf-status-opt { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 12px; background: transparent; border: 0; border-radius: 8px; font-size: var(--fs-base); font-weight: 500; color: var(--text-main); cursor: pointer; text-align: left; transition: background 0.15s; }
+.pf-status-opt:hover { background: var(--accent-hover); }
+.pf-status-opt.selected { background: var(--text-main); color: var(--bg); }
+.pf-status-opt small { display: block; font-size: var(--fs-xs); font-weight: 500; opacity: 0.6; margin-top: 1px; }
+.pf-st-ico { width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.pf-st-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--pf-offline); }
+.pf-st-dot.online { background: var(--color-green); }
+.pf-st-z { font-size: 11px; font-weight: 800; color: var(--pf-zzz); letter-spacing: -0.04em; line-height: 1; }
+.pf-status-opt.selected .pf-st-z { color: #c4b5fd; }
+.pf-st-auto { color: var(--text-muted); }
+.pf-status-opt.selected .pf-st-auto { color: var(--bg); }
+
+/* --- Окно профиля --- */
+.pf-modal { max-width: 600px !important; padding: 0 !important; overflow: hidden; display: flex; flex-direction: column; }
+.pf-scroll { padding: 0 32px 20px !important; min-height: 0; }
+.pf-hero { display: flex; gap: 22px; align-items: center; padding: 28px 0 18px; }
+.pf-hero .pf-avatar { --av: 80px; --dot-ring: var(--surface); }
+.pf-avatar-edit { position: relative; flex-shrink: 0; border: 0; padding: 0; background: none; border-radius: 50%; cursor: pointer; }
+.pf-avatar-edit::after {
+  content: ""; position: absolute; inset: 0; border-radius: 50%; background: rgba(0, 0, 0, 0.45) center / 24px no-repeat;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z'/%3E%3Ccircle cx='12' cy='13' r='3'/%3E%3C/svg%3E");
+  opacity: 0; transition: opacity 0.2s;
+}
+.pf-avatar-edit:hover::after, .pf-avatar-edit:focus-visible::after { opacity: 1; }
+.pf-hero-info { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.pf-hero-name { font-size: var(--fs-lg); font-weight: 700; letter-spacing: -0.02em; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pf-hero-meta { font-size: var(--fs-sm); color: var(--text-muted); font-weight: 500; }
+.pf-hero-actions { display: flex; gap: 14px; margin-top: 2px; }
+.pf-chip { display: inline-flex; align-self: flex-start; align-items: center; gap: 7px; padding: 4px 12px; border-radius: 999px; font-size: var(--fs-sm); font-weight: 600; background: var(--tone-bg, var(--accent-hover)); color: var(--pf-tone, var(--text-muted)); }
+.pf-chip[data-tone="green"]  { --pf-tone: var(--pf-green); }
+.pf-chip[data-tone="blue"]   { --pf-tone: var(--pf-blue); }
+.pf-chip[data-tone="yellow"] { --pf-tone: var(--pf-yellow); }
+.pf-chip[data-tone="red"]    { --pf-tone: var(--pf-red); }
+.pf-chip[data-tone="violet"] { --pf-tone: var(--pf-violet); }
+.pf-chip[data-tone="gray"]   { --pf-tone: var(--text-muted); }
+
+/* Сегментный переключатель статуса — по образцу week-bar */
+.pf-field-label { font-size: var(--fs-sm); font-weight: 600; color: var(--text-muted); margin: 0 0 8px; display: block; }
+.pf-seg { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; padding: 4px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); }
+.pf-seg button { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 8px 6px; border: 0; border-radius: 999px; background: transparent; font-size: var(--fs-sm); font-weight: 600; color: var(--text-muted); cursor: pointer; transition: background 0.2s, color 0.2s; white-space: nowrap; }
+.pf-seg button:hover { color: var(--text-main); background: var(--accent-hover); }
+.pf-seg button.selected { background: var(--text-main); color: var(--bg); }
+.pf-seg button.selected .pf-st-z { color: #c4b5fd; }
+.pf-seg button.selected .pf-st-auto { color: var(--bg); }
+.pf-status-hint { font-size: var(--fs-xs); color: var(--text-light); margin: 8px 4px 0; min-height: 15px; }
+
+/* Вкладки: липкая стеклянная полоса, как шапки окна настроек */
+.pf-tabbar { position: sticky; top: 0; z-index: 20; margin: 8px -32px 20px; padding: 12px 32px; background: var(--surface-blur); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.pf-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 4px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); }
+.pf-tab { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 8px 10px; border: 0; border-radius: 999px; background: transparent; font-size: var(--fs-base); font-weight: 600; color: var(--text-muted); cursor: pointer; transition: background 0.2s, color 0.2s; }
+.pf-tab:hover { color: var(--text-main); background: var(--accent-hover); }
+.pf-tab.selected { background: var(--text-main); color: var(--bg); }
+.pf-tab-count { font-size: var(--fs-xs); font-weight: 600; opacity: 0.6; font-variant-numeric: tabular-nums; }
+
+.pf-pane { display: none; flex-direction: column; gap: 20px; }
+.pf-pane.active { display: flex; }
+.pf-section-title { font-size: var(--fs-sm); font-weight: 600; text-transform: uppercase; color: var(--text-light); margin: 0 0 12px; display: flex; align-items: center; justify-content: space-between; }
+
+/* Витрина: три последних достижения */
+.pf-showcase { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.pf-medal { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 18px 10px 14px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--bg); text-align: center; min-width: 0; }
+.pf-medal .pf-ico { width: 44px; height: 44px; border-radius: 14px; }
+.pf-medal-title { font-size: var(--fs-sm); font-weight: 600; line-height: 1.25; }
+.pf-medal.empty { border-style: dashed; background: transparent; color: var(--text-light); justify-content: center; min-height: 112px; font-size: var(--fs-xs); font-weight: 500; }
+.pf-ico { width: 40px; height: 40px; flex-shrink: 0; border-radius: 12px; display: flex; align-items: center; justify-content: center; background: var(--tone-bg, var(--accent-hover)); color: var(--tone-fg, var(--text-muted)); }
+
+/* Статистика */
+.pf-box { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 20px; }
+.pf-big { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 12px; }
+.pf-big-num { font-size: var(--fs-xl); font-weight: 700; line-height: 1; }
+.pf-big-sub { font-size: var(--fs-base); font-weight: 500; color: var(--text-muted); }
+.pf-mini-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--border); }
+.pf-mini-num { font-size: var(--fs-md); font-weight: 700; font-variant-numeric: tabular-nums; }
+.pf-mini-label { font-size: var(--fs-xs); color: var(--text-muted); font-weight: 500; margin-top: 2px; }
+.pf-bio { width: 100%; box-sizing: border-box; padding: 12px 16px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--text-main); font-size: var(--fs-base); font-weight: 500; outline: none; user-select: text; transition: border-color 0.2s; }
+.pf-bio:focus { border-color: var(--border-hover); }
+.pf-bio::placeholder { color: var(--text-light); }
+.pf-bio-count { font-size: var(--fs-xs); color: var(--text-light); text-align: right; margin-top: 6px; font-variant-numeric: tabular-nums; }
+
+/* Списки достижений и тегов — одна рамка, строки разделены линиями */
+.pf-list { border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--bg); overflow: hidden; }
+.pf-row { display: flex; align-items: center; gap: 14px; padding: 14px 16px; width: 100%; box-sizing: border-box; background: transparent; border: 0; border-bottom: 1px solid var(--border); text-align: left; color: var(--text-main); }
+.pf-row:last-child { border-bottom: 0; }
+.pf-row-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.pf-row-title { font-size: var(--fs-base); font-weight: 600; }
+.pf-row-desc { font-size: var(--fs-sm); color: var(--text-muted); line-height: 1.4; }
+.pf-row-meta { font-size: var(--fs-xs); color: var(--text-light); font-variant-numeric: tabular-nums; }
+.pf-row .prog-track { margin-top: 6px; height: 5px; }
+.pf-row .prog-fill { background: var(--tone-fg, var(--text-muted)); }
+.pf-row.locked .pf-ico { filter: grayscale(1); opacity: 0.55; }
+.pf-row.locked .pf-row-title { color: var(--text-muted); }
+.pf-lock { color: var(--text-light); display: flex; flex-shrink: 0; }
+.pf-reward { flex-shrink: 0; align-self: center; }
+
+button.pf-row { cursor: default; }
+button.pf-row.pickable { cursor: pointer; transition: background 0.15s; }
+button.pf-row.pickable:hover { background: var(--accent-hover); }
+.pf-radio { width: 20px; height: 20px; flex-shrink: 0; border-radius: 50%; border: 1.5px solid var(--border-hover); display: flex; align-items: center; justify-content: center; color: transparent; transition: all 0.2s; }
+.pf-row.equipped .pf-radio { background: var(--text-main); border-color: var(--text-main); color: var(--bg); }
+.pf-row.locked .pf-radio { border-style: dashed; }
+.pf-tags-note { font-size: var(--fs-sm); color: var(--text-muted); margin: 0; line-height: 1.5; }
+
+.pf-footer { flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 32px; border-top: 1px solid var(--border); background: var(--surface); }
+.pf-footer-note { font-size: var(--fs-xs); color: var(--text-light); }
+
+@media (prefers-reduced-motion: reduce) {
+  .pf-zzz i { animation: none; opacity: 1; }
+  .bell-dot, .pf-popover { transition: none; }
+}
+@media (max-width: 720px) {
+  .pf-name, .pf-tag { max-width: 84px; }
+  .pf-hero { flex-direction: column; text-align: center; }
+  .pf-hero-info { align-items: center; }
+  .pf-chip { align-self: center; }
+  .pf-seg { grid-template-columns: repeat(2, 1fr); border-radius: var(--radius-md); }
+  .pf-showcase { grid-template-columns: 1fr; }
+}
+
+/* ===== Профиль: цвет текста в тёмной теме, статус над кружком загрузки, стеклянный нижний бар ===== */
+.pf-modal, .pf-popover { color: var(--text-main); }
+
+.pf-avatar-edit::after { z-index: 1; }
+.pf-avatar .pf-dot, .pf-avatar .pf-zzz { z-index: 3; }
+.pf-hero { gap: 26px; }
+.pf-hero .pf-zzz { top: -20px; right: -4px; }
+
+.pf-since { text-transform: none; letter-spacing: 0; font-size: var(--fs-xs); font-weight: 500; color: var(--text-light); }
+
+#profileBackdrop { --rp-glass: 255, 255, 255; --rp-sb: var(--sb-gutter); }
+body.dark-theme #profileBackdrop { --rp-glass: 24, 24, 27; }
+#profileBackdrop .pf-scroll { padding-bottom: 96px !important; }
+#profileBackdrop .pf-footer { position: absolute; left: 0; right: 0; bottom: 0; z-index: 3; background: transparent; border: 0; justify-content: flex-end; }
+#profileBackdrop .pf-footer-note { display: none; }
+#profileBackdrop .pf-footer::before, #profileBackdrop .pf-footer::after { content: ""; position: absolute; left: 0; right: var(--rp-sb); z-index: -1; pointer-events: none; }
+#profileBackdrop .pf-footer::before { top: -34px; bottom: 0;
+  background: linear-gradient(to top, rgba(var(--rp-glass), .86) 0%, rgba(var(--rp-glass), .55) 55%, rgba(var(--rp-glass), 0) 100%);
+  -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px);
+  -webkit-mask-image: linear-gradient(to top, #000 0%, #000 50%, transparent 100%); mask-image: linear-gradient(to top, #000 0%, #000 50%, transparent 100%); }
+#profileBackdrop .pf-footer::after { top: -60px; bottom: 0;
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  -webkit-mask-image: linear-gradient(to top, #000 0%, #000 35%, transparent 100%); mask-image: linear-gradient(to top, #000 0%, #000 35%, transparent 100%); }

@@ -1,0 +1,10 @@
+# Зависимости Electron (ставятся заново командой npm install)
+node_modules/
+dist/
+
+# Бэкенд живёт в своём репозитории attendance-backend
+backend/
+
+# Старые резервные копии: теперь история версий хранится в git
+*.txt
+.editorconfig (1)

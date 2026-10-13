@@ -1,0 +1,57 @@
+/* ==========================================================================
+   ИГЭУ: выбор вуза при регистрации, поле группы с подсказками, время пары
+   Подключается после style.css. Использует его переменные и тему.
+   ========================================================================== */
+
+/* --- Переключатель вуза на экране регистрации --- */
+.uni-seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 4px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); }
+.uni-seg button { padding: 9px 6px; border: 0; border-radius: 999px; background: transparent; font-size: var(--fs-sm); font-weight: 600; color: var(--text-muted); cursor: pointer; transition: background 0.2s, color 0.2s; white-space: nowrap; }
+.uni-seg button:hover { color: var(--text-main); background: var(--accent-hover); }
+.uni-seg button.selected { background: var(--text-main); color: var(--bg); }
+.uni-hint { margin: 8px 4px 0; font-size: var(--fs-xs); color: var(--text-light); line-height: 1.4; }
+
+/* --- Поле группы ИГЭУ с подсказками --- */
+.ip-field { position: relative; }
+.ip-suggest { position: absolute; left: 0; right: 0; top: calc(100% + 6px); z-index: 60; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2); padding: 6px; opacity: 0; transform: translateY(-6px); pointer-events: none; visibility: hidden; transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1); }
+.ip-suggest.open { opacity: 1; transform: none; pointer-events: auto; visibility: visible; }
+.ip-s-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; padding: 10px 12px; border: 0; border-radius: 8px; background: transparent; color: var(--text-main); font-size: var(--fs-base); text-align: left; cursor: pointer; transition: background 0.15s; }
+.ip-s-item:hover, .ip-s-item.active { background: var(--accent-hover); }
+.ip-s-name { font-weight: 700; font-variant-numeric: tabular-nums; }
+.ip-s-meta { font-size: var(--fs-sm); color: var(--text-light); font-weight: 500; }
+
+.ip-picked { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: var(--fs-sm); font-weight: 600; color: var(--text-muted); }
+.ip-picked-ico { width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: rgba(16, 185, 129, 0.12); color: #10b981; }
+.ip-spin { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--border-hover); border-top-color: var(--text-main); animation: ipSpin 0.8s linear infinite; }
+@keyframes ipSpin { to { transform: rotate(360deg); } }
+.ip-sub-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
+.ip-sub-label { font-size: var(--fs-sm); font-weight: 600; color: var(--text-muted); margin-right: 2px; }
+.ip-chip { padding: 6px 16px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); color: var(--text-main); font-size: var(--fs-sm); font-weight: 600; cursor: pointer; transition: all 0.2s; }
+.ip-chip:hover { border-color: var(--border-hover); background: var(--accent-hover); }
+.ip-chip.selected { background: var(--text-main); border-color: var(--text-main); color: var(--bg); }
+
+.uni-seg button:focus-visible, .ip-chip:focus-visible, .ip-s-item:focus-visible { outline: 2px solid var(--text-main); outline-offset: 2px; }
+
+/* --- Подсказка про долгую первую загрузку --- */
+.ip-wait { display: flex; align-items: flex-start; gap: 10px; margin-top: 12px; padding: 10px 12px; border-radius: var(--radius-sm); background: var(--accent-hover); color: var(--text-muted); font-size: var(--fs-xs); line-height: 1.5; }
+.ip-wait svg { flex-shrink: 0; margin-top: 1px; color: var(--text-light); }
+
+/* --- Время пары: начало строго над концом; тире «висит» слева и не сдвигает цифры --- */
+.time-block .time-text { line-height: 1.3; }
+.time-block .time-text + .time-text { color: var(--text-light); }
+.time-block .time-end { position: relative; }
+.time-block .time-end::before { content: "–"; position: absolute; left: -0.95em; top: 0; color: var(--text-light); }
+
+/* --- Название пары и плитка типа: воздух между ними, высота блока равна высоте блока времени --- */
+.pair-info { gap: 10px; }
+.pair-title { line-height: 1.25; }
+
+/* --- Тип занятия: плитка в цвете сайта ИГЭУ (лекция жёлтая, практика зелёная, лабораторная розовая) --- */
+.pair-type { --k-bg: var(--accent-hover); --k-fg: var(--text-muted); display: inline-flex; align-items: center; align-self: flex-start; width: fit-content; padding: 4px 12px; border-radius: 999px; background: var(--k-bg); color: var(--k-fg); font-size: var(--fs-xs); font-weight: 600; letter-spacing: 0.01em; }
+.pair-type[data-kind="lecture"]  { --k-bg: rgba(245, 158, 11, 0.15); --k-fg: #b45309; }
+.pair-type[data-kind="practice"] { --k-bg: rgba(16, 185, 129, 0.14); --k-fg: #047857; }
+.pair-type[data-kind="lab"]      { --k-bg: rgba(236, 72, 153, 0.13); --k-fg: #be185d; }
+body.dark-theme .pair-type[data-kind="lecture"]  { --k-bg: rgba(251, 191, 36, 0.14); --k-fg: #fbbf24; }
+body.dark-theme .pair-type[data-kind="practice"] { --k-bg: rgba(52, 211, 153, 0.14); --k-fg: #34d399; }
+body.dark-theme .pair-type[data-kind="lab"]      { --k-bg: rgba(244, 114, 182, 0.15); --k-fg: #f472b6; }
+
+@media (prefers-reduced-motion: reduce) { .ip-spin { animation-duration: 2s; } .ip-suggest { transition: none; } }

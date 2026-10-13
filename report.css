@@ -1,0 +1,134 @@
+/* ==========================================================================
+   ЕЖЕНЕДЕЛЬНЫЙ ОТЧЁТ (по мотивам «Экранного времени»)
+   Подключается после style.css и profile.css (использует pf-footer, pf-box,
+   pf-link-btn, pf-section-title, pf-modal, pf-scroll из profile.css).
+   ========================================================================== */
+
+/* Кнопка в боковой панели статистики */
+.report-open-btn {
+  width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;
+  margin-top: 4px; padding: 10px 16px; border-radius: 999px; cursor: pointer;
+  background: var(--surface); border: 1px solid var(--border); color: var(--text-main);
+  font-size: var(--fs-sm); font-weight: 600; transition: all 0.2s;
+}
+.report-open-btn:hover { background: var(--accent-hover); border-color: var(--border-hover); }
+.report-open-btn:focus-visible, .rp-nav-btn:focus-visible { outline: 2px solid var(--text-main); outline-offset: 2px; }
+
+/* Шапка окна: заголовок и переключатель недель */
+.rp-head { flex-shrink: 0; padding: 26px 32px 16px; border-bottom: 1px solid var(--border); background: var(--surface); }
+.rp-title { margin: 0 0 14px; font-size: var(--fs-lg); font-weight: 700; letter-spacing: -0.02em; }
+.rp-weeknav { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); }
+.rp-nav-btn { width: 34px; height: 34px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; border: 0; border-radius: 50%; background: transparent; color: var(--text-main); cursor: pointer; transition: background 0.2s; }
+.rp-nav-btn:hover:not(:disabled) { background: var(--accent-hover); }
+.rp-nav-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.rp-weeklabel { display: flex; flex-direction: column; align-items: center; line-height: 1.2; }
+.rp-weeklabel b { font-size: var(--fs-md); font-weight: 600; }
+.rp-weeklabel span { font-size: var(--fs-xs); color: var(--text-muted); font-weight: 500; }
+
+.rp-body { display: flex; flex-direction: column; gap: 26px; padding-top: 22px; }
+
+/* Главная цифра */
+.rp-hero { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; }
+.rp-big { font-size: 56px; font-weight: 700; letter-spacing: -0.04em; line-height: 1; font-variant-numeric: tabular-nums; }
+.rp-big-sub { margin-top: 8px; font-size: var(--fs-base); font-weight: 500; color: var(--text-muted); }
+.rp-delta { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; font-size: var(--fs-sm); font-weight: 600; white-space: nowrap; background: var(--accent-hover); color: var(--text-muted); }
+.rp-delta.up { background: var(--color-green-bg); color: var(--pf-green, var(--color-green)); }
+.rp-delta.down { background: var(--color-red-bg); color: var(--pf-red, var(--color-red)); }
+.rp-hero-track { margin-top: 16px; }
+
+/* Столбики по дням */
+.rp-chart { display: grid; gap: 10px; }
+.rp-col { display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 0; }
+.rp-val { height: 14px; font-size: var(--fs-xs); font-weight: 600; color: var(--text-light); font-variant-numeric: tabular-nums; }
+.rp-track { width: 100%; height: 120px; display: flex; align-items: flex-end; justify-content: center; border-bottom: 1px solid var(--border); }
+.rp-stack { width: 100%; max-width: 38px; height: 0; border-radius: 8px 8px 3px 3px; overflow: hidden; display: flex; flex-direction: column-reverse; transition: height 0.7s cubic-bezier(0.16, 1, 0.3, 1); }
+.rp-ready .rp-stack { height: var(--h); }
+.rp-seg-a { background: var(--color-green); }
+.rp-seg-m { background: var(--color-red); }
+.rp-seg-u { background: var(--border-hover); }
+.rp-nobar { width: 100%; max-width: 38px; height: 3px; border-radius: 2px; background: var(--border); }
+.rp-day { font-size: var(--fs-sm); font-weight: 600; color: var(--text-muted); padding: 2px 8px; border-radius: 999px; }
+.rp-col.today .rp-day { background: var(--text-main); color: var(--bg); }
+.rp-legend { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 14px; font-size: var(--fs-xs); font-weight: 500; color: var(--text-muted); }
+.rp-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.rp-legend i { width: 8px; height: 8px; border-radius: 50%; display: block; }
+
+/* Сводка */
+.rp-tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.rp-tile-num { font-size: var(--fs-lg); font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.rp-tile-label { margin-top: 4px; font-size: var(--fs-xs); font-weight: 500; color: var(--text-muted); }
+.rp-tile-num.g { color: var(--color-green); }
+.rp-tile-num.r { color: var(--color-red); }
+.rp-tile-num.m { color: var(--text-light); }
+
+/* По предметам */
+.rp-subjects { display: flex; flex-direction: column; gap: 16px; }
+.rp-subj-top { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+.rp-subj-name { font-size: var(--fs-base); font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rp-subj-stat { font-size: var(--fs-sm); font-weight: 600; color: var(--text-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rp-bar { display: flex; height: 6px; border-radius: 999px; overflow: hidden; background: var(--accent-hover); gap: 2px; }
+.rp-bar > i { display: block; height: 100%; }
+
+/* Выводы */
+.rp-insights { border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--bg); overflow: hidden; }
+.rp-ins { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--border); font-size: var(--fs-base); line-height: 1.45; color: var(--text-main); }
+.rp-ins:last-child { border-bottom: 0; }
+.rp-ins-ico { width: 30px; height: 30px; flex-shrink: 0; border-radius: 9px; display: flex; align-items: center; justify-content: center; background: var(--tone-bg, var(--accent-hover)); color: var(--tone-fg, var(--text-muted)); }
+
+.rp-empty { padding: 48px 20px; text-align: center; color: var(--text-light); font-size: var(--fs-base); display: flex; flex-direction: column; align-items: center; gap: 12px; }
+
+@media (prefers-reduced-motion: reduce) { .rp-stack { transition: none; } }
+@media (max-width: 720px) {
+  .rp-big { font-size: 44px; }
+  .rp-hero { flex-direction: column; align-items: flex-start; }
+  .rp-tiles { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* ==========================================================================
+   Плавное стекло шапки и подвала (затухающее размытие, как в iOS / Telegram)
+   Панели остаются в потоке, содержимое прокручивается под ними.
+   ========================================================================== */
+.rp-tiles { grid-template-columns: repeat(3, 1fr); }
+#reportBackdrop { --rp-glass: 255, 255, 255; --rp-sb: var(--sb-gutter); }
+body.dark-theme #reportBackdrop { --rp-glass: 24, 24, 27; }
+#reportBackdrop .modal-content { color: var(--text-main); }
+
+#rpHead, #reportBackdrop .pf-footer {
+  position: relative; z-index: 3; flex-shrink: 0;
+  background: transparent; border: 0; backdrop-filter: none; -webkit-backdrop-filter: none;
+}
+#rpHead { margin-bottom: calc(-1 * var(--rp-head-h, 126px)); }
+#reportBackdrop .pf-footer { margin-top: calc(-1 * var(--rp-foot-h, 70px)); justify-content: flex-end; }
+#reportBackdrop .pf-footer-note { display: none; }
+
+/* Два слоя размытия с разной силой и длиной затухания; справа оставлено место под полосу прокрутки */
+#rpHead::before, #rpHead::after,
+#reportBackdrop .pf-footer::before, #reportBackdrop .pf-footer::after {
+  content: ""; position: absolute; left: 0; right: var(--rp-sb); z-index: -1; pointer-events: none;
+}
+#rpHead::before { top: 0; bottom: -34px;
+  background: linear-gradient(to bottom, rgba(var(--rp-glass), .86) 0%, rgba(var(--rp-glass), .55) 55%, rgba(var(--rp-glass), 0) 100%);
+  -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px);
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 50%, transparent 100%); mask-image: linear-gradient(to bottom, #000 0%, #000 50%, transparent 100%); }
+#rpHead::after { top: 0; bottom: -60px;
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 35%, transparent 100%); mask-image: linear-gradient(to bottom, #000 0%, #000 35%, transparent 100%); }
+
+#reportBackdrop .pf-footer::before { top: -34px; bottom: 0;
+  background: linear-gradient(to top, rgba(var(--rp-glass), .86) 0%, rgba(var(--rp-glass), .55) 55%, rgba(var(--rp-glass), 0) 100%);
+  -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px);
+  -webkit-mask-image: linear-gradient(to top, #000 0%, #000 50%, transparent 100%); mask-image: linear-gradient(to top, #000 0%, #000 50%, transparent 100%); }
+#reportBackdrop .pf-footer::after { top: -60px; bottom: 0;
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  -webkit-mask-image: linear-gradient(to top, #000 0%, #000 35%, transparent 100%); mask-image: linear-gradient(to top, #000 0%, #000 35%, transparent 100%); }
+
+.rp-weeknav { background: rgba(var(--rp-glass), .6); }
+
+#rpBody { min-height: 0; padding-top: var(--rp-head-h, 126px); }
+.rp-body { padding-bottom: calc(var(--rp-foot-h, 70px) + 10px); }
+
+.rp-tiles { grid-template-columns: repeat(3, 1fr); }
+
+.rp-body {
+  padding-top: 142px !important; 
+}
