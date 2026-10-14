@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, screen } = require('electron');
 const path = require('path');
 
 function createWindow () {
@@ -25,6 +25,19 @@ function createWindow () {
     else win.maximize();
   });
   ipcMain.on('window-close', () => win.close());
+
+  // Окно подрастает по высоте, чтобы список предметов был виден целиком (только увеличиваем, не больше экрана)
+  ipcMain.on('window-fit', (e, delta) => {
+    delta = Math.round(Number(delta) || 0);
+    if (delta <= 0 || win.isMaximized() || win.isFullScreen()) return;
+    const b = win.getBounds();
+    const wa = screen.getDisplayMatching(b).workArea;
+    const height = Math.min(b.height + delta, wa.height);
+    if (height <= b.height) return;
+    let y = b.y;
+    if (y + height > wa.y + wa.height) y = Math.max(wa.y, wa.y + wa.height - height);
+    win.setBounds({ x: b.x, y, width: b.width, height }, true);
+  });
 }
 
 app.whenReady().then(createWindow);

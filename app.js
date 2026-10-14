@@ -269,8 +269,11 @@ function showElegantToast(title, desc, type = 'success') {
   }, 4000);
 }
 
-function resetProfile() {
-  if (confirm("Вы уверены, что хотите выйти из аккаунта?")) {
+async function resetProfile() {
+  const sure = window.LGDialog
+    ? await LGDialog.confirm({ title: "Выйти из аккаунта?", text: "Данные на этом устройстве очистятся. В облаке они сохранятся, и после входа всё вернётся.", ok: "Выйти", danger: true, icon: "exit" })
+    : confirm("Вы уверены, что хотите выйти из аккаунта?");
+  if (sure) {
     clearAllUndos();
     localStorage.removeItem('tracker_token');
     cloudPullDone = false;
@@ -338,6 +341,8 @@ function loadData() {
       if (!parsed.semesterStartDate) parsed.semesterStartDate = "2026-09-01";
       if (!parsed.themeMode) parsed.themeMode = "light";
       if (!parsed.fontSize) parsed.fontSize = "normal";
+      if (!parsed.typeStyle) parsed.typeStyle = "pill";
+      if (!parsed.glassFx) parsed.glassFx = "full";
       if (!parsed.scheduleMode) parsed.scheduleMode = "alternate";
       if (!parsed.firstWeekType) parsed.firstWeekType = "left";
       if (!parsed.bellSchedule) parsed.bellSchedule = JSON.parse(JSON.stringify(DEFAULT_BELLS));
@@ -347,7 +352,7 @@ function loadData() {
   }
   return { 
     userProfile: null,
-    themeMode: "light", fontSize: "normal", scheduleMode: "alternate", 
+    themeMode: "light", fontSize: "normal", typeStyle: "pill", glassFx: "full", scheduleMode: "alternate", 
     semesterStartDate: "2026-09-01", firstWeekType: "left",
     bellSchedule: JSON.parse(JSON.stringify(DEFAULT_BELLS)),
     activeDays: ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота"], important_subjects: [], 
@@ -518,6 +523,8 @@ function initCustomSelects() {
           
           if (hiddenInput.id === 'scheduleModeSelect') updateScheduleModeVisibility(hiddenInput.value);
           if (hiddenInput.id === 'themeSelectInput') applyLiveTheme(hiddenInput.value);
+          if (hiddenInput.id === 'typeStyleInput') document.body.classList.toggle('type-dot', hiddenInput.value === 'dot'); // предпросмотр
+          if (hiddenInput.id === 'glassFxInput') document.body.classList.toggle('glass-lite', hiddenInput.value === 'lite');
         }); 
       });
     }
@@ -580,11 +587,15 @@ function evaluateTheme() {
   applyLiveTheme(database.themeMode);
   if (database.fontSize === "large") document.body.classList.add('text-large');
   else document.body.classList.remove('text-large');
+  document.body.classList.toggle('type-dot', database.typeStyle === 'dot');
+  document.body.classList.toggle('glass-lite', database.glassFx === 'lite');
 }
 
 function syncSettingsUI() {
   setCustomSelectValue('themeSelectInput', database.themeMode);
   setCustomSelectValue('fontSelectInput', database.fontSize);
+  setCustomSelectValue('typeStyleInput', database.typeStyle || 'pill');
+  setCustomSelectValue('glassFxInput', database.glassFx || 'full');
   setCustomSelectValue('scheduleModeSelect', database.scheduleMode);
   setCustomSelectValue('firstWeekInput', database.firstWeekType);
   updateScheduleModeVisibility(database.scheduleMode);
@@ -793,14 +804,15 @@ function jumpToCurrentWeek() {
 
     if (!target) return;
 
-    // Прокручивается вся страница; стеклянная верхняя панель лежит поверх, поэтому отступаем на её высоту
+    // Прокручиваются только дни (колонка расписания)
     const container = document.getElementById('mainScroll') || target.closest('.scroll-container');
     if (!container) return;
 
     const containerRect = container.getBoundingClientRect();
     const targetRect = target.getBoundingClientRect();
-    const bar = document.querySelector('#mainApp .lg-topbar');
-    const offset = (bar ? bar.offsetHeight : 0) + 12;
+    // Над днями лежит стеклянная капсула недель: останавливаемся чуть ниже неё
+    const bar = document.querySelector('#mainApp .lg-weekbar');
+    const offset = (bar ? bar.offsetHeight : 0) + 18;
 
     const targetScrollTop = (targetRect.top - containerRect.top) + container.scrollTop - offset;
 
@@ -855,6 +867,8 @@ function saveSettings() {
 
   database.themeMode = document.getElementById("themeSelectInput").value;
   database.fontSize = document.getElementById("fontSelectInput").value;
+  database.typeStyle = document.getElementById("typeStyleInput").value === "dot" ? "dot" : "pill";
+  database.glassFx = document.getElementById("glassFxInput").value === "lite" ? "lite" : "full";
   database.scheduleMode = document.getElementById("scheduleModeSelect").value;
   database.firstWeekType = document.getElementById("firstWeekInput").value;
   
@@ -1437,7 +1451,7 @@ function render() {
             </div>
 
             <div class="pair-info" onclick="PairMenu.rowTap(this, '${day}', '${p.id}')">
-              <span class="pair-title">${escapeHtml(p.subject || "")}</span>
+              <span class="pair-title"><span class="pair-dot" data-kind="${typeKind}" title="${escapeHtml(p.type || "")}"></span>${escapeHtml(p.subject || "")}</span>
               <span class="pair-meta">
                 <span class="pair-type" data-kind="${typeKind}">${escapeHtml(p.type || "")}</span>
                 ${isImp ? `<span class="pair-flag" title="Важный предмет"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" fill="currentColor"/><path d="M4 22v-7"/></svg>Важный</span>` : ''}
@@ -1516,7 +1530,7 @@ function renderSubjectStats() {
     const i = stats[subj], isImp = isSubjectImportant(subj), pct = i.t > 0 ? Math.round((i.a / i.t) * 100) : 0;
     let c = pct < 60 ? "var(--color-red)" : pct < 80 ? "var(--color-yellow)" : "var(--color-green)";
     if (i.t === 0) c = "var(--text-light)";
-    const b = document.createElement("div"); b.className = "subject-item" + (isImp ? " is-important" : "") + (lastImpChange && lastImpChange.subj === subj ? (lastImpChange.on ? " imp-in" : " imp-out") : ""); b.title = `${subj}: посещено ${i.a} из ${i.t}`;
+    const b = document.createElement("div"); b.className = "subject-item" + (isImp ? " is-important" : "") + (lastImpChange && lastImpChange.subj === subj ? (lastImpChange.on ? " imp-in" : " imp-out") : ""); b.setAttribute('aria-label', `${subj}: посещено ${i.a} из ${i.t}`);
     b.innerHTML = `
       <div class="subj-header">
         <div class="subj-name-wrap">
@@ -1581,7 +1595,7 @@ function importData(e) {
         if (window.Profile) Profile.refresh();
         showElegantToast("Восстановление", "Резервная копия успешно загружена");
       }
-    } catch (err) { alert("Ошибка чтения файла JSON"); }
+    } catch (err) { showElegantToast("Восстановление", "Не удалось прочитать файл JSON", "error"); }
   };
   reader.readAsText(file);
 }

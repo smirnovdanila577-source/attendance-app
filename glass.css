@@ -13,10 +13,18 @@
      снизу появляется панель вкладок, окна становятся листами снизу.
    ========================================================================== */
 
+/* ---------- 0. Шрифт: Inter, вариативный (все начертания и оптические размеры в одном файле) ---------- */
+@font-face {
+  font-family: "Inter";
+  src: url("fonts/InterVariable.woff2") format("woff2");
+  font-weight: 100 900; font-style: normal; font-display: swap;
+}
+
 /* ---------- 1. Токены ---------- */
 :root {
-  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
-  --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter Display", "Inter", "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+  /* Inter — первым: системные имена Apple в Windows и Android превращаются в системный шрифт (Segoe UI и т.п.) */
+  --font: "Inter", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --font-display: "Inter", "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
   --ts: 1;                                  /* масштаб текста (крупный шрифт в настройках) */
 
   /* Системные цвета Apple */
@@ -35,28 +43,32 @@
   --fill-3: rgba(120, 120, 128, 0.22);
 
   /* Поверхности */
-  --base: #eef0f6;
-  --card: rgba(255, 255, 255, 0.78);
+  --base: #f4f4f7;
+  --card: #ffffff;
   --card-solid: #ffffff;
-  --card-shadow: 0 0 0 0.5px rgba(30, 40, 70, 0.06), 0 1px 2px rgba(30, 40, 70, 0.04), 0 12px 32px -18px rgba(30, 40, 70, 0.22);
-  --sheet: rgba(244, 245, 250, 0.84);
-  --sheet-card: rgba(255, 255, 255, 0.92);
+  --card-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.03), 0 8px 24px -16px rgba(0, 0, 0, 0.16);
+  --sheet: rgba(246, 246, 248, 0.86);
+  --sheet-card: #ffffff;
   --thumb: #ffffff;
   --thumb-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.04), 0 3px 8px rgba(0, 0, 0, 0.12), 0 3px 1px rgba(0, 0, 0, 0.04);
   --dim: rgba(16, 20, 34, 0.24);
   --frame-edge: rgba(20, 30, 60, 0.16);
 
   /* Жидкое стекло */
-  --glass: rgba(255, 255, 255, 0.5);
-  --glass-strong: rgba(250, 250, 253, 0.8);
+  --glass: rgba(255, 255, 255, 0.56);
+  --glass-strong: rgba(252, 252, 254, 0.76);
+  --glass-pop: rgba(250, 250, 252, 0.64);
   --glass-blur: 12px;
   --glass-sat: 1.9;
-  --glass-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.05), 0 2px 6px -1px rgba(20, 30, 60, 0.08), 0 14px 34px -12px rgba(20, 30, 60, 0.26);
-  --glass-inner: inset 0 0 14px rgba(255, 255, 255, 0.35);
+  --glass-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.05), 0 12px 32px -12px rgba(0, 0, 0, 0.2);
+  /* Толщина стекла: светлая кромка сверху, отражение снизу, мягкое свечение внутри */
+  --glass-inner: inset 0 1px 1px rgba(255, 255, 255, 0.95), inset 0 -1px 1.5px rgba(255, 255, 255, 0.4), inset 0 0 18px rgba(255, 255, 255, 0.38);
+  --rim-hi: rgba(255, 255, 255, 1);
+  --spec: rgba(255, 255, 255, 0.6);
   --glass-rim: linear-gradient(155deg, rgba(255, 255, 255, 0.98) 0%, rgba(255, 255, 255, 0.4) 28%, rgba(255, 255, 255, 0.05) 52%, rgba(255, 255, 255, 0.28) 78%, rgba(255, 255, 255, 0.85) 100%);
 
   /* Обои: мягкое сияние */
-  --wall-1: #c4d8ff; --wall-2: #e4d6ff; --wall-3: #ffdfcc; --wall-4: #c9efe3;
+  --wall-1: #dfe7f6; --wall-2: #ece7f6; --wall-3: #f6ebe3; --wall-4: #e2f0ea;
 
   /* Движение */
   --spring: cubic-bezier(0.34, 1.42, 0.64, 1);
@@ -64,8 +76,10 @@
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
 
   /* Геометрия */
-  --r-card: 22px; --r-sheet: 30px; --r-menu: 20px;
-  --topbar-h: 72px;
+  --r-card: 16px; --r-row: 11px; --r-sheet: 24px; --r-menu: 14px; --r-group: 14px;
+  --titlebar-h: 0px;                        /* полоса со светофором (только в приложении для ПК) */
+  --bar-h: 64px;                            /* ряд верхней панели */
+  --topbar-h: calc(var(--titlebar-h) + var(--bar-h));
   --gutter: 28px;
   --content-max: 1180px;
 
@@ -84,6 +98,12 @@
   --fs-xs: 12px; --fs-sm: 13px; --fs-base: 15px; --fs-md: 16px; --fs-lg: 22px; --fs-xl: 34px;
 }
 
+/* На Mac и iPhone — родной San Francisco (класс ставит glass.js) */
+html.is-apple {
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", system-ui, sans-serif;
+  --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", system-ui, sans-serif;
+}
+
 body.dark-theme {
   --tint: #0a84ff;
   --green: #30d158; --red: #ff453a; --orange: #ff9f0a; --yellow: #ffd60a;
@@ -98,24 +118,27 @@ body.dark-theme {
   --fill-2: rgba(118, 118, 128, 0.16);
   --fill-3: rgba(118, 118, 128, 0.36);
 
-  --base: #07080b;
-  --card: rgba(30, 30, 34, 0.7);
+  --base: #0b0b0d;
+  --card: #1c1c1e;
   --card-solid: #1c1c1e;
-  --card-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.07), 0 12px 32px -18px rgba(0, 0, 0, 0.8);
-  --sheet: rgba(28, 28, 32, 0.8);
-  --sheet-card: rgba(58, 58, 64, 0.5);
+  --card-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.06);
+  --sheet: rgba(30, 30, 33, 0.86);
+  --sheet-card: #2c2c2e;
   --thumb: #636366;
   --thumb-shadow: 0 3px 8px rgba(0, 0, 0, 0.3), 0 0 0 0.5px rgba(255, 255, 255, 0.06);
   --dim: rgba(0, 0, 0, 0.5);
   --frame-edge: rgba(255, 255, 255, 0.1);
 
-  --glass: rgba(40, 40, 46, 0.46);
-  --glass-strong: rgba(38, 38, 44, 0.82);
+  --glass: rgba(46, 46, 50, 0.5);
+  --glass-strong: rgba(40, 40, 44, 0.8);
+  --glass-pop: rgba(44, 44, 48, 0.66);
   --glass-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.5), 0 14px 34px -12px rgba(0, 0, 0, 0.75);
-  --glass-inner: inset 0 0 14px rgba(255, 255, 255, 0.04);
+  --glass-inner: inset 0 1px 1px rgba(255, 255, 255, 0.16), inset 0 -1px 1px rgba(255, 255, 255, 0.05), inset 0 0 16px rgba(255, 255, 255, 0.04);
+  --rim-hi: rgba(255, 255, 255, 0.5);
+  --spec: rgba(255, 255, 255, 0.14);
   --glass-rim: linear-gradient(155deg, rgba(255, 255, 255, 0.4) 0%, rgba(255, 255, 255, 0.1) 28%, rgba(255, 255, 255, 0.02) 52%, rgba(255, 255, 255, 0.06) 78%, rgba(255, 255, 255, 0.24) 100%);
 
-  --wall-1: #15306e; --wall-2: #3a1d63; --wall-3: #4a2234; --wall-4: #0c4547;
+  --wall-1: #131b2c; --wall-2: #1a1628; --wall-3: #1f1815; --wall-4: #101d1c;
 
   --bg: var(--base); --surface: var(--card-solid);
   --text-main: var(--label); --text-muted: var(--label-2); --text-light: var(--label-3);
@@ -196,6 +219,9 @@ body.dark-theme .lg-wallpaper i { opacity: 0.85; }
 .scroll-container, .modal-scroll { scrollbar-width: thin; scrollbar-color: var(--fill-3) transparent; }
 
 /* ---------- 3. Материал «жидкое стекло» ---------- */
+@property --la { syntax: "<angle>"; inherits: true; initial-value: 155deg; }
+@property --ft { syntax: "<length>"; inherits: false; initial-value: 0px; }
+@property --fb { syntax: "<length>"; inherits: false; initial-value: 0px; }
 .lg-glass {
   position: relative;
   background: var(--glass);
@@ -203,31 +229,71 @@ body.dark-theme .lg-wallpaper i { opacity: 0.85; }
   backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
   box-shadow: var(--glass-shadow), var(--glass-inner);
   border: 0;
+  transition: transform 0.55s var(--spring), --la 0.7s var(--ease);
 }
-/* Световая кромка: свет ложится на верхний левый и нижний правый край */
-.lg-glass::after {
+.pf-popover.lg-glass { position: absolute; }
+/* Световая кромка: самая яркая сторона повёрнута к курсору (угол --la ставит glass.js) */
+.lg-glass::after, .lg-circle::after {
   content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
-  padding: 1px; background: var(--glass-rim);
+  padding: 1px;
+  background: linear-gradient(var(--la), var(--rim-hi) 0%, color-mix(in srgb, var(--rim-hi) 32%, transparent) 24%, transparent 50%, color-mix(in srgb, var(--rim-hi) 18%, transparent) 76%, color-mix(in srgb, var(--rim-hi) 78%, transparent) 100%);
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
   mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
 }
+/* Блик: мягкое пятно света под курсором скользит по стеклу (лежит под текстом) */
+.lg-glass::before {
+  content: ""; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none;
+  background: radial-gradient(140px circle at var(--lx, 50%) var(--ly, 0%), var(--spec), transparent 70%);
+  opacity: 0; transition: opacity 0.45s ease;
+}
+.lg-glass.is-lit::before { opacity: 1; }
+/* Нажатие: капля стекла чуть «набухает» */
+.lg-glass.is-press { transform: scale(1.035); }
 /* Преломление у края (glass.js строит карту для каждого элемента; только Chromium) */
 .lg-glass.lg-refract {
   -webkit-backdrop-filter: var(--lg-lens) blur(var(--glass-blur)) saturate(var(--glass-sat)) !important;
   backdrop-filter: var(--lg-lens) blur(var(--glass-blur)) saturate(var(--glass-sat)) !important;
 }
 
-/* Сегментный переключатель: подложка выбранного пункта (координаты ставит glass.js) */
+/* Сегментный переключатель: «капля» под выбранным пунктом. Её двигает пружина в glass.js:
+   при щелчке капля перетекает, вытягиваясь по ходу движения; выбранный пункт можно тянуть.
+   Под пальцем или курсором капля становится прозрачной линзой с бликом. */
 .lg-thumb { position: relative; isolation: isolate; }
-.lg-thumb::before {
-  content: ""; position: absolute; z-index: 0; pointer-events: none;
-  left: var(--tx); top: var(--ty); width: var(--tw); height: var(--th);
+.lg-thumb > :not(.lg-knob) { position: relative; z-index: 1; }
+.lg-thumb > .selected { touch-action: none; cursor: grab; }
+.lg-thumb.is-drag, .lg-thumb.is-drag * { cursor: grabbing !important; }
+.lg-knob {
+  position: absolute; left: 0; top: 0; z-index: 0; pointer-events: none;
   border-radius: 999px; background: var(--thumb); box-shadow: var(--thumb-shadow);
-  transition: left 0.5s var(--spring), top 0.5s var(--spring), width 0.5s var(--spring), height 0.5s var(--spring);
+  transform-origin: 50% 50%; will-change: transform;
+  transition: background 0.3s ease, box-shadow 0.3s ease;
 }
-.lg-thumb-still::before { transition: none !important; }
-.lg-thumb > * { position: relative; z-index: 1; }
+.lg-knob > i { position: absolute; inset: 0; border-radius: inherit; overflow: hidden; }
+.lg-knob > i::before {
+  content: ""; position: absolute; inset: 0; opacity: 0; transition: opacity 0.3s;
+  background: radial-gradient(45% 70% at var(--hx, 50%) 0%, rgba(255, 255, 255, 0.75), transparent 75%);
+}
+.lg-knob > i::after {
+  content: ""; position: absolute; top: -20%; bottom: -20%; left: -60%; width: 46%; opacity: 0;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.9) 50%, transparent);
+  transform: skewX(-12deg);
+}
+.lg-knob.glint > i::after { animation: lgGlint 0.8s var(--ease); }
+@keyframes lgGlint { 0% { left: -60%; opacity: 0; } 18% { opacity: 1; } 100% { left: 120%; opacity: 0; } }
+/* Нажатая капля — прозрачная линза поверх подписей: текст виден сквозь неё и изгибается у края */
+.lg-thumb > .lg-knob.is-press { z-index: 2; }
+.lg-knob.is-press {
+  background: rgba(255, 255, 255, 0.06);
+  -webkit-backdrop-filter: var(--knob-lens, blur(0px)) saturate(1.7) contrast(1.05);
+  backdrop-filter: var(--knob-lens, blur(0px)) saturate(1.7) contrast(1.05);
+  box-shadow: 0 10px 26px -10px rgba(0, 0, 0, 0.3), 0 2px 6px -2px rgba(0, 0, 0, 0.12), 0 0 0 0.5px rgba(0, 0, 0, 0.1),
+    inset 0 1.5px 1px rgba(255, 255, 255, 1), inset 0 -1.5px 1.5px rgba(255, 255, 255, 0.7),
+    inset 1.5px 0 1px rgba(255, 255, 255, 0.55), inset -1.5px 0 1px rgba(255, 255, 255, 0.55), inset 0 0 6px rgba(255, 255, 255, 0.25);
+}
+.lg-knob.is-press > i::before { opacity: 1; }
+body.dark-theme .lg-knob.is-press { background: rgba(255, 255, 255, 0.1); box-shadow: 0 12px 30px -10px rgba(0, 0, 0, 0.6), inset 0 1px 1px rgba(255, 255, 255, 0.35), inset 0 0 14px rgba(255, 255, 255, 0.08); }
+body.dark-theme .lg-knob > i::before { background: radial-gradient(70% 130% at var(--hx, 50%) 0%, rgba(255, 255, 255, 0.35), transparent 72%); }
 
 /* Кнопки */
 .btn {
@@ -248,13 +314,14 @@ body.dark-theme .lg-wallpaper i { opacity: 0.85; }
 .btn-danger { background: var(--red) !important; box-shadow: 0 8px 20px -10px color-mix(in srgb, var(--red) 85%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.28) !important; }
 
 /* ---------- 4. Полоса окна (Electron) ---------- */
+html.is-electron { --titlebar-h: 40px; }
 .app-titlebar {
-  position: absolute; top: 0; left: 0; right: 0; height: var(--topbar-h); padding: 0;
+  position: absolute; top: 0; left: 0; right: 0; height: var(--titlebar-h); padding: 0;
   z-index: 1000; display: block; pointer-events: none;
 }
 .app-titlebar .drag-area { position: absolute; inset: 0; height: auto; -webkit-app-region: drag; }
 .titlebar-controls {
-  position: absolute; left: 22px; top: 50%; transform: translateY(-50%);
+  position: absolute; right: 18px; top: 50%; transform: translateY(-50%);
   display: flex; gap: 8px; pointer-events: auto; -webkit-app-region: no-drag;
 }
 .mac-btn { position: relative; width: 12px; height: 12px; padding: 0; border: 0; border-radius: 50%; cursor: default; box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.16); transition: filter 0.15s; }
@@ -262,11 +329,6 @@ body.dark-theme .lg-wallpaper i { opacity: 0.85; }
 .mac-close { background: #ff5f57; }
 .mac-min { background: #febc2e; }
 .mac-max { background: #28c840; }
-.mac-btn::after { content: ""; position: absolute; inset: 0; opacity: 0; transition: opacity 0.12s; background: rgba(0, 0, 0, 0.55); -webkit-mask: var(--glyph) center / 8px no-repeat; mask: var(--glyph) center / 8px no-repeat; }
-.mac-close { --glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3E%3Cpath d='M1.5 1.5l5 5M6.5 1.5l-5 5' stroke='black' stroke-width='1.3' stroke-linecap='round'/%3E%3C/svg%3E"); }
-.mac-min { --glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3E%3Cpath d='M1.2 4h5.6' stroke='black' stroke-width='1.3' stroke-linecap='round'/%3E%3C/svg%3E"); }
-.mac-max { --glyph: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3E%3Cpath d='M1.4 2.6v4h4zM6.6 5.4v-4h-4z' fill='black'/%3E%3C/svg%3E"); }
-.titlebar-controls:hover .mac-btn::after { opacity: 1; }
 .is-web .app-titlebar { display: none; }
 
 /* ---------- 5. Приветствие, вход, регистрация ---------- */
@@ -283,15 +345,16 @@ body.dark-theme .lg-wallpaper i { opacity: 0.85; }
   position: relative; overflow: hidden; flex-shrink: 0;
   width: 96px; height: 96px; margin: 0 auto 26px; border-radius: 26px;
   display: grid; place-items: center; color: #fff;
-  background: linear-gradient(160deg, #6fd3ff 0%, #0a84ff 50%, #5e5ce6 100%);
-  box-shadow: 0 22px 44px -18px rgba(10, 100, 255, 0.65), 0 2px 6px rgba(10, 60, 160, 0.18),
-    inset 0 1.5px 1px rgba(255, 255, 255, 0.55), inset 0 -3px 8px rgba(30, 0, 120, 0.18);
+  background: linear-gradient(180deg, #3a3a3e 0%, #1c1c1e 100%);
+  box-shadow: 0 18px 36px -18px rgba(0, 0, 0, 0.55), 0 1px 3px rgba(0, 0, 0, 0.12),
+    inset 0 1px 0.5px rgba(255, 255, 255, 0.28), inset 0 -2px 6px rgba(0, 0, 0, 0.25);
 }
 .lg-appicon::after {
   content: ""; position: absolute; inset: 0; pointer-events: none;
-  background: radial-gradient(120% 70% at 30% 0%, rgba(255, 255, 255, 0.45), transparent 55%);
+  background: radial-gradient(120% 60% at 50% 0%, rgba(255, 255, 255, 0.16), transparent 60%);
 }
-.lg-appicon svg { width: 54%; height: 54%; filter: drop-shadow(0 2px 3px rgba(0, 20, 80, 0.25)); position: relative; z-index: 1; }
+.lg-appicon svg { width: 52%; height: 52%; position: relative; z-index: 1; }
+body.dark-theme .lg-appicon { background: linear-gradient(180deg, #48484c 0%, #2c2c2e 100%); }
 .lg-appicon.sm { width: 72px; height: 72px; border-radius: 20px; margin-bottom: 20px; }
 
 .lg-onb-title {
@@ -301,7 +364,7 @@ body.dark-theme .lg-wallpaper i { opacity: 0.85; }
 .lg-onb-sub { margin: 0 0 36px; font-size: calc(17px * var(--ts)); line-height: 1.45; color: var(--label-2); text-wrap: balance; }
 .lg-features { list-style: none; margin: 0 0 10px; padding: 0; width: 100%; display: flex; flex-direction: column; gap: 24px; text-align: left; }
 .lg-features li { display: grid; grid-template-columns: 46px 1fr; gap: 16px; align-items: start; }
-.lg-f-ico { width: 46px; height: 46px; display: grid; place-items: center; color: var(--tone-fg); }
+.lg-f-ico { width: 46px; height: 46px; display: grid; place-items: center; color: var(--tint); }
 .lg-f-ico svg { width: 34px; height: 34px; }
 .lg-features b { display: block; font-size: calc(16px * var(--ts)); font-weight: 600; letter-spacing: -0.01em; }
 .lg-features li > div > span { display: block; margin-top: 3px; font-size: calc(15px * var(--ts)); line-height: 1.42; color: var(--label-2); }
@@ -321,7 +384,7 @@ body.dark-theme .lg-wallpaper i { opacity: 0.85; }
 .lg-auth-switch button:hover { background: color-mix(in srgb, var(--tint) 10%, transparent); }
 
 /* Сгруппированные поля: подпись внутри поля, без подсказок-примеров */
-.lg-form-group { position: relative; background: var(--sheet-card); border-radius: 18px; overflow: hidden; }
+.lg-form-group { position: relative; background: var(--sheet-card); border-radius: var(--r-group); overflow: hidden; }
 .lg-auth .lg-form-group { background: var(--card); box-shadow: var(--card-shadow); }
 .lg-field { position: relative; display: flex; flex-direction: column; gap: 3px; margin: 0; padding: 10px 16px 9px; cursor: text; transition: background 0.2s; }
 .lg-field + .lg-field::before { content: ""; position: absolute; top: 0; left: 16px; right: 0; height: 1px; background: var(--sep); }
@@ -370,7 +433,7 @@ body.dark-theme .lg-wallpaper i { opacity: 0.85; }
 /* «Запомнить меня» — переключатель iOS */
 .custom-checkbox-wrapper {
   display: flex; align-items: center; justify-content: space-between; gap: 14px;
-  margin: 0; padding: 10px 12px 10px 16px; border-radius: 18px;
+  margin: 0; padding: 10px 12px 10px 16px; border-radius: var(--r-group);
   background: var(--card); box-shadow: var(--card-shadow); cursor: pointer;
 }
 .lg-switch-text { order: 0; flex: 1; font-size: calc(15px * var(--ts)); color: var(--label); }
@@ -379,14 +442,21 @@ body.dark-theme .lg-wallpaper i { opacity: 0.85; }
   border: 0; border-radius: 999px; background: var(--fill-3); transition: background 0.3s;
 }
 .custom-checkbox-box::after, .sc-toggle input::after {
-  content: ""; position: absolute; top: 2px; left: 2px; width: 27px; height: 27px; border-radius: 50%;
+  content: ""; position: absolute; top: 2px; left: 2px; width: 27px; height: 27px; border-radius: 999px;
   background: #fff; box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15), 0 3px 1px rgba(0, 0, 0, 0.06);
-  transition: transform 0.4s var(--spring);
+  transform: translateX(var(--kx, 0px));
+  transition: transform 0.5s var(--spring), width 0.35s var(--spring), left 0.35s var(--spring), background 0.25s, box-shadow 0.25s;
 }
 .custom-checkbox-wrapper input[type="checkbox"]:checked + .custom-checkbox-box,
-.sc-toggle input:checked { background: var(--green); border-color: transparent; }
-.custom-checkbox-wrapper input[type="checkbox"]:checked + .custom-checkbox-box::after,
-.sc-toggle input:checked::after { transform: translateX(20px); }
+.sc-toggle input:checked { background: var(--green); border-color: transparent; --kx: 20px; }
+/* Нажали — капля вытягивается и становится прозрачной линзой; тянется за пальцем (glass.js) */
+.custom-checkbox-box.is-press::after, .sc-toggle input.is-press::after {
+  width: 36px; left: -2.5px; background: rgba(255, 255, 255, 0.42);
+  -webkit-backdrop-filter: blur(1px) saturate(1.8); backdrop-filter: blur(1px) saturate(1.8);
+  box-shadow: 0 6px 16px -4px rgba(0, 0, 0, 0.25), inset 0 1px 1px rgba(255, 255, 255, 1), inset 0 0 0 0.5px rgba(255, 255, 255, 0.8), inset 0 0 10px rgba(255, 255, 255, 0.5);
+}
+.custom-checkbox-wrapper input:checked + .custom-checkbox-box.is-press, .sc-toggle input:checked.is-press { --kx: 15px; }
+.custom-checkbox-box.is-drag::after, .sc-toggle input.is-drag::after { transition: width 0.35s var(--spring), left 0.35s var(--spring), background 0.25s, box-shadow 0.25s; }
 .custom-checkbox-wrapper:hover .custom-checkbox-box { border-color: transparent; }
 .custom-checkbox-box svg { display: none; }
 
@@ -394,45 +464,39 @@ body.dark-theme .lg-wallpaper i { opacity: 0.85; }
 .welcome-avatar {
   width: 116px; height: 116px; margin-bottom: 28px; border-radius: 50%; overflow: hidden;
   display: grid; place-items: center; color: #fff;
-  font: 700 46px/1 var(--font-display); letter-spacing: -0.02em;
-  background: linear-gradient(160deg, #6fd3ff, #0a84ff 52%, #5e5ce6);
-  box-shadow: 0 0 0 6px color-mix(in srgb, var(--card-solid) 70%, transparent), 0 24px 48px -20px rgba(10, 60, 180, 0.6);
+  font: 600 46px/1 var(--font-display); letter-spacing: -0.02em;
+  background: linear-gradient(180deg, #a1a1a6, #7c7c80);
+  box-shadow: 0 0 0 5px var(--card-solid), 0 20px 40px -20px rgba(0, 0, 0, 0.4);
 }
 .welcome-avatar .av-svg { width: 100%; height: 100%; display: block; }
 .welcome-title { margin: 0 0 10px; font: 700 calc(34px * var(--ts))/1.1 var(--font-display); letter-spacing: -0.026em; }
 .welcome-subtitle { margin: 0 0 6px; font-size: calc(17px * var(--ts)); color: var(--label-2); }
 
 /* ---------- 6. Главный экран: верхняя панель ---------- */
+/* Экран не прокручивается: верхняя панель, заголовок недели и колонка статистики стоят на месте,
+   прокручиваются только дни. Над панелью — пустая полоса со светофором (за неё можно тянуть окно). */
 #mainApp { position: relative; }
 #mainApp .lg-topbar, .lg-topbar {
-  position: absolute; top: 0; left: 0; right: 0; z-index: 50;
-  height: var(--topbar-h); margin: 0; padding: 0 var(--gutter);
+  position: relative; top: auto; z-index: 50; flex-shrink: 0;
+  height: var(--bar-h); margin: var(--titlebar-h) 0 0; padding: 0 var(--gutter);
   display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 16px;
   background: transparent !important; border: 0 !important; box-shadow: none !important;
+  -webkit-app-region: drag;
 }
-/* Край прокрутки: контент под панелью мягко растворяется */
-.lg-topbar::before {
-  content: ""; position: absolute; inset: 0 0 -26px 0; z-index: -1; pointer-events: none;
-  opacity: 0; transition: opacity 0.35s ease;
-  background: linear-gradient(to bottom, color-mix(in srgb, var(--base) 94%, transparent) 0%, color-mix(in srgb, var(--base) 78%, transparent) 55%, transparent 100%);
-  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
-  -webkit-mask-image: linear-gradient(to bottom, #000 58%, transparent); mask-image: linear-gradient(to bottom, #000 58%, transparent);
-}
-#mainApp.is-scrolled .lg-topbar::before { opacity: 1; }
+#mainApp .lg-topbar::before { content: none; }
 .lg-tb-left { display: flex; align-items: center; justify-content: flex-start; min-width: 0; }
 .lg-tb-center { position: relative; display: flex; align-items: center; justify-content: center; }
 .lg-tb-right { position: relative; display: flex; align-items: center; justify-content: flex-end; gap: 10px; min-width: 0; }
-.is-electron .lg-tb-left { padding-left: 62px; }
 .lg-topbar .pf-anchor, .lg-topbar .lg-glass, .lg-topbar button, .pf-popover { -webkit-app-region: no-drag; }
-.lg-tb-title { display: none; font: 600 calc(17px * var(--ts)) var(--font-display); letter-spacing: -0.01em; }
 
 /* Профиль: стеклянная капсула */
 .profile-pill { height: 44px; border: 0 !important; border-radius: 999px; background: var(--glass); transition: transform 0.35s var(--spring); }
 .profile-pill:hover { background: var(--glass); border-color: transparent; }
 .profile-pill:active { transform: scale(0.97); }
 .pf-open { gap: 10px; padding: 0 18px 0 5px; color: var(--label); }
-.pf-avatar { --av: 34px; background: linear-gradient(160deg, #6fd3ff, #0a84ff 55%, #5e5ce6); --dot-ring: var(--card-solid); }
-body.dark-theme .pf-avatar { background: linear-gradient(160deg, #4cb8ff, #0a6fe0 55%, #4b49c8); }
+.pf-avatar, .sc-av, .pf-av-img { background: linear-gradient(180deg, #a1a1a6, #7c7c80); }
+.pf-avatar { --av: 34px; --dot-ring: var(--card-solid); }
+body.dark-theme .pf-avatar, body.dark-theme .sc-av, body.dark-theme .pf-av-img { background: linear-gradient(180deg, #636366, #48484a); }
 .pf-name { font-size: calc(14px * var(--ts)); font-weight: 600; letter-spacing: -0.01em; max-width: 130px; }
 .pf-tag { font-size: calc(12px * var(--ts)); font-weight: 600; max-width: 130px; }
 .pf-dot { border-color: var(--dot-ring, var(--card-solid)); }
@@ -457,12 +521,12 @@ body.dark-theme .pf-avatar { background: linear-gradient(160deg, #4cb8ff, #0a6fe
   transition: background 0.2s, transform 0.35s var(--spring), color 0.2s;
 }
 .lg-today.is-current { color: var(--label); }
+.lg-today-t, .lg-today-w { display: block; white-space: nowrap; transition: opacity 0.25s ease, transform 0.5s var(--spring); }
+.lg-today-w { position: absolute; inset: 0; display: grid; place-items: center; opacity: 0; transform: translateY(10px); color: var(--label); }
+#mainApp.is-compact .lg-today-t { opacity: 0; transform: translateY(-10px); }
+#mainApp.is-compact .lg-today-w { opacity: 1; transform: none; }
 .lg-today:hover { background: var(--fill-2); }
 .lg-today:active { transform: scale(0.95); }
-.lg-today-t, .lg-today-w { display: block; white-space: nowrap; transition: opacity 0.25s ease, transform 0.45s var(--spring); }
-.lg-today-w { position: absolute; inset: 0; display: grid; place-items: center; opacity: 0; transform: translateY(10px); }
-#mainApp.is-scrolled .lg-today-t { opacity: 0; transform: translateY(-10px); }
-#mainApp.is-scrolled .lg-today-w { opacity: 1; transform: none; }
 
 /* Группа справа: уведомления и настройки */
 .lg-group { display: flex; align-items: center; gap: 2px; height: 44px; padding: 4px; border-radius: 999px; }
@@ -473,33 +537,49 @@ body.dark-theme .pf-avatar { background: linear-gradient(160deg, #4cb8ff, #0a6fe
 .bell-btn:hover .bell-dot { border-color: transparent; }
 
 /* ---------- 7. Главный экран: заголовок и колонки ---------- */
-#mainApp #mainScroll {
-  flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden;
-  padding: calc(var(--topbar-h) + 2px) var(--gutter) 44px;
-  scrollbar-gutter: stable both-edges;
-}
-#mainScroll::-webkit-scrollbar-track { margin-top: var(--topbar-h); }
-.lg-hero, .layout-grid { max-width: var(--content-max); margin-left: auto; margin-right: auto; }
-.lg-hero { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; padding: 10px 6px 24px; }
+.lg-hero, .layout-grid { width: 100%; max-width: var(--content-max); margin-left: auto; margin-right: auto; box-sizing: border-box; }
+.lg-hero { flex-shrink: 0; display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; padding: 4px calc(var(--gutter) + 6px) 18px; }
 .lg-hero-text { min-width: 0; }
-.lg-hero-title { margin: 0; font: 700 calc(34px * var(--ts))/1.08 var(--font-display); letter-spacing: -0.026em; }
-.lg-hero-sub { display: block; margin-top: 6px; font-size: calc(15px * var(--ts)); font-weight: 500; color: var(--label-2); font-variant-numeric: tabular-nums; }
+.lg-legend { display: none; flex-wrap: wrap; gap: 4px 14px; margin-top: 7px; font: 400 calc(13px * var(--ts)) var(--font); color: var(--label-2); }
+.lg-legend > span { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.lg-legend i { width: 7px; height: 7px; border-radius: 50%; background: var(--k); }
+body.type-dot .lg-legend { display: flex; }
+.lg-hero-title { margin: 0; font: 650 calc(30px * var(--ts))/1.1 var(--font-display); letter-spacing: -0.024em; }
+.lg-hero-sub { display: block; margin-top: 5px; font-size: calc(15px * var(--ts)); font-weight: 400; color: var(--label-2); font-variant-numeric: tabular-nums; }
 
-/* Серия дней и онлайн */
+/* Серия дней и онлайн — спокойные капсулы, цвет только у значков */
 .sc-head { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 .sc-chip {
-  height: 32px; padding: 0 12px; gap: 6px; border: 0; border-radius: 999px;
+  height: 30px; padding: 0 12px; gap: 6px; border: 0; border-radius: 999px;
   background: var(--card); box-shadow: var(--card-shadow); color: var(--label-2);
-  font: 600 calc(13px * var(--ts)) var(--font);
+  font: 500 calc(13px * var(--ts)) var(--font);
 }
-.sc-streak.on { color: var(--orange); background: color-mix(in srgb, var(--orange) 12%, var(--card)); border-color: transparent; }
+.sc-streak.on { color: var(--label); background: var(--card); border-color: transparent; }
+.sc-streak.on svg { color: var(--orange); }
+.sc-streak b { font-weight: 600; }
 .sc-online { color: var(--label-2); }
-.sc-online i { width: 8px; height: 8px; background: var(--green); box-shadow: 0 0 0 3px color-mix(in srgb, var(--green) 22%, transparent); }
+.sc-online i { width: 7px; height: 7px; background: var(--green); box-shadow: none; }
 .sc-gain { color: var(--orange); }
 
-.layout-grid { display: grid; grid-template-columns: minmax(0, 1fr) 324px; gap: 28px; align-items: start; }
-.schedule-col { min-width: 0; display: flex; flex-direction: column; }
+.layout-grid {
+  position: relative; flex: 1; min-height: 0;
+  display: grid; grid-template-columns: minmax(0, 1fr) 316px; grid-template-rows: minmax(0, 1fr); gap: 34px; align-items: stretch;
+  padding: 0 var(--gutter) 22px;
+}
+/* Колонка дней: своя прокрутка. Края растворяются, только когда за ними есть что прокрутить */
+#mainScroll.schedule-col {
+  min-width: 0; min-height: 0; display: block; overflow-y: auto; overflow-x: hidden;
+  margin: 0 -14px; padding: 2px 14px 56px;
+  overscroll-behavior: contain; scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 var(--ft), #000 calc(100% - var(--fb)), transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 var(--ft), #000 calc(100% - var(--fb)), transparent 100%);
+}
+#mainScroll::-webkit-scrollbar { display: none; }
+
+.lg-sched-inner { transform-origin: 50% 0; }
 .schedule-mask { overflow-x: clip; overflow-y: visible; padding: 0 8px 4px; margin: 0 -8px -4px; }
+/* Пока дни едут, строки не реагируют на курсор: ничего не мигает */
+#mainScroll.lg-scrolling .lg-sched-inner { pointer-events: none; }
 
 /* Смена недели: страница уезжает, растворяясь, и новая въезжает с другой стороны */
 #scheduleAnimationWrapper { display: flex; flex-direction: column; gap: 30px; transition: opacity 0.2s ease, transform 0.26s var(--ease), filter 0.2s ease; }
@@ -521,19 +601,19 @@ body.dark-theme .pf-avatar { background: linear-gradient(160deg, #4cb8ff, #0a6fe
 
 /* ---------- 8. День и пары ---------- */
 .day-group { display: flex; flex-direction: column; gap: 10px; }
-.day-header { display: flex; align-items: center; justify-content: space-between; min-height: 32px; padding: 0 6px 0 18px; border: 0; }
+.day-header { display: flex; align-items: center; justify-content: space-between; min-height: 32px; padding: 0 4px 0 16px; border: 0; }
 .day-title-wrap { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
-.day-name { width: auto; font: 600 calc(20px * var(--ts))/1.2 var(--font-display); letter-spacing: -0.02em; text-transform: none; }
-.day-date { display: inline; font-size: calc(15px * var(--ts)); font-weight: 500; color: var(--label-2); text-transform: none; }
-.day-group.is-today .day-name { color: var(--tint); }
+.day-name { width: auto; font: 600 calc(18px * var(--ts))/1.2 var(--font-display); letter-spacing: -0.018em; text-transform: none; }
+.day-date { display: inline; font-size: calc(15px * var(--ts)); font-weight: 400; color: var(--label-2); text-transform: none; }
+/* «Сегодня» — короткая подпись акцентным цветом, без заливки */
 .today-badge, body.dark-theme .today-badge {
-  align-self: center; padding: 4px 9px; border-radius: 999px; background: var(--tint); color: #fff;
-  font: 600 calc(12px * var(--ts))/1.1 var(--font); letter-spacing: 0; text-transform: none;
+  align-self: baseline; padding: 0; border-radius: 0; background: none; color: var(--tint);
+  font: 600 calc(13px * var(--ts))/1.1 var(--font); letter-spacing: 0; text-transform: none;
 }
 .day-actions { display: flex; align-items: center; gap: 2px; transition: opacity 0.2s; }
 
 .day-card {
-  display: flex; flex-direction: column; padding: 5px;
+  display: flex; flex-direction: column; padding: 4px;
   background: var(--card); border-radius: var(--r-card); box-shadow: var(--card-shadow);
 }
 
@@ -551,59 +631,66 @@ body.dark-theme .pf-avatar { background: linear-gradient(160deg, #4cb8ff, #0a6fe
 .pair-card {
   position: relative; display: grid;
   grid-template-columns: 54px minmax(0, 1fr) auto 32px; column-gap: 14px; row-gap: 0; align-items: center;
-  min-height: 64px; padding: 12px 10px 12px 14px; box-sizing: border-box;
-  border: 0; border-radius: calc(var(--r-card) - 5px); background: transparent; box-shadow: none;
-  color: var(--label); transition: background 0.2s;
+  min-height: 62px; padding: 11px 10px 11px 14px; box-sizing: border-box;
+  border: 0; border-radius: var(--r-row); background: transparent; box-shadow: none;
+  color: var(--label); transition: background 0.25s ease;
 }
 .pair-card + .pair-card::before, .pair-card + .undo-placeholder-card::before, .undo-placeholder-card + .pair-card::before {
   content: ""; position: absolute; top: 0; left: 82px; right: 14px; height: 1px; background: var(--sep); transition: opacity 0.2s;
 }
+/* Подсветка при наведении появляется с задержкой: курсор, проезжающий по строкам, ничего не зажигает */
 @media (hover: hover) {
-  .pair-card:hover { background: var(--fill-2); }
-  .pair-card:hover::before, .pair-card:hover + .pair-card::before { opacity: 0; }
+  .pair-card:hover { background: var(--fill-2); transition-delay: 0.12s; }
+  .pair-card:hover::before, .pair-card:hover + .pair-card::before { opacity: 0; transition-delay: 0.12s; }
 }
 .pair-card.menu-open { background: var(--fill-2); }
 .pair-card.menu-open::before, .pair-card.menu-open + .pair-card::before { opacity: 0; }
 .pair-card.is-important { border-left: 0; }
 
 .time-block { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
-.time-text { font: 600 calc(15px * var(--ts))/1.25 var(--font); color: var(--label); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
-.time-text.time-end, .time-block .time-text + .time-text { font-size: calc(13px * var(--ts)); font-weight: 500; color: var(--label-3); }
+.time-text { font: 500 calc(15px * var(--ts))/1.25 var(--font); color: var(--label); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+.time-text.time-end, .time-block .time-text + .time-text { font-size: calc(13px * var(--ts)); font-weight: 400; color: var(--label-3); }
 .time-block .time-end::before { content: none; }
 
 .pair-info { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .pair-title {
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
-  font: 600 calc(16px * var(--ts))/1.3 var(--font); letter-spacing: -0.012em; color: var(--label);
+  font: 500 calc(15.5px * var(--ts))/1.3 var(--font); letter-spacing: -0.012em; color: var(--label);
 }
 .pair-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; min-width: 0; }
 
-/* Тип занятия: капсула с цветной точкой (лекция — оранжевая, практика — зелёная, лабораторная — розовая) */
+/* Тип занятия. Режим «Подпись»: серая капсула с цветной точкой. Режим «Точка» (настройки):
+   только цветная точка перед названием предмета. Лекция — оранжевая, практика — зелёная, лабораторная — розовая */
+.pair-type, .pair-dot { --k: #8e8e93; }
 .pair-type {
-  --k: #8e8e93; display: inline-flex; align-items: center; gap: 6px; align-self: auto; width: auto;
-  padding: 3px 9px 3px 8px; border-radius: 999px; letter-spacing: 0;
-  font: 600 calc(12px * var(--ts))/1.25 var(--font);
-  background: color-mix(in srgb, var(--k) 13%, transparent);
-  color: color-mix(in srgb, var(--k) 72%, var(--label));
+  display: inline-flex; align-items: center; gap: 6px; align-self: auto; width: auto;
+  padding: 2px 8px 2px 7px; border-radius: 7px; letter-spacing: 0;
+  font: 500 calc(12px * var(--ts))/1.3 var(--font);
+  background: var(--fill-2); color: var(--label-2);
   box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none;
 }
 .pair-type::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--k); flex-shrink: 0; }
 .pair-type:empty { display: none; }
-.pair-type[data-kind="lecture"]  { --k: var(--orange); }
-.pair-type[data-kind="practice"] { --k: var(--green); }
-.pair-type[data-kind="lab"]      { --k: var(--pink); }
-body.dark-theme .pair-type { color: color-mix(in srgb, var(--k) 78%, #fff); background: color-mix(in srgb, var(--k) 18%, transparent); }
-.pair-flag { display: inline-flex; align-items: center; gap: 4px; font: 600 calc(12px * var(--ts)) var(--font); color: var(--red); }
+body.dark-theme .pair-type { color: var(--label-2); background: var(--fill-2); }
+[data-kind="lecture"]  { --k: var(--orange); }
+[data-kind="practice"] { --k: var(--green); }
+[data-kind="lab"]      { --k: var(--pink); }
+.pair-dot { display: none; width: 8px; height: 8px; margin: 0 9px 0 1px; border-radius: 50%; background: var(--k); vertical-align: 1px; }
+body.type-dot .pair-dot { display: inline-block; }
+body.type-dot .pair-type { display: none; }
+body.type-dot .pair-meta:not(:has(.pair-flag, .live-indicator, .cancelled-note)) { display: none; }
+.pair-flag { display: inline-flex; align-items: center; gap: 4px; font: 500 calc(12px * var(--ts)) var(--font); color: var(--label-2); }
+.pair-flag svg { color: var(--red); }
 .cancelled-note { font-size: calc(13px * var(--ts)); color: var(--label-3); }
 
 /* Идёт сейчас: строка заливается по ходу пары, рядом пульсирует точка */
 .pair-card.is-live {
   border: 0;
-  background: linear-gradient(90deg, color-mix(in srgb, var(--tint) 14%, transparent) var(--live, 0%), color-mix(in srgb, var(--tint) 5%, transparent) var(--live, 0%));
-  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--tint) 32%, transparent);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--tint) 8%, transparent) var(--live, 0%), color-mix(in srgb, var(--tint) 3%, transparent) var(--live, 0%));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tint) 18%, transparent);
 }
 .pair-card.is-live::before, .pair-card.is-live + .pair-card::before { opacity: 0; }
-.live-indicator { display: inline-flex; align-items: center; gap: 6px; padding: 0; background: none; white-space: nowrap; color: var(--tint); font: 600 calc(12px * var(--ts)) var(--font); }
+.live-indicator { display: inline-flex; align-items: center; gap: 6px; padding: 0; background: none; white-space: nowrap; color: var(--tint); font: 500 calc(12px * var(--ts)) var(--font); }
 .live-indicator::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--tint); animation: lgPulse 2s ease-in-out infinite; }
 @keyframes lgPulse { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--tint) 55%, transparent); } 50% { box-shadow: 0 0 0 5px transparent; } }
 
@@ -617,16 +704,15 @@ body.dark-theme .pair-type { color: color-mix(in srgb, var(--k) 78%, #fff); back
   background: var(--tint); color: #fff; font-size: 11px; font-weight: 700;
   box-shadow: 0 0 0 2px var(--card-solid);
 }
+.pair-actions .hw-btn { color: var(--label-3); }
 @media (hover: hover) {
-  .pair-card .lg-more, .pair-card .hw-btn:not(.active):not(.all-done):not(:has(.hw-badge)) { opacity: 0; }
-  .pair-card:hover .lg-more, .pair-card:focus-within .lg-more, .pair-card.menu-open .lg-more,
-  .pair-card:hover .hw-btn, .pair-card:focus-within .hw-btn { opacity: 1; }
+  .pair-card .lg-more { opacity: 0; transition: opacity 0.2s ease 0s, background 0.2s, color 0.2s; }
+  .pair-card:hover .lg-more, .pair-card:focus-within .lg-more, .pair-card.menu-open .lg-more { opacity: 1; transition-delay: 0.12s, 0s, 0s; }
   .day-actions { opacity: 0.55; }
   .day-group:hover .day-actions, .day-actions:focus-within, .day-actions:has(.active) { opacity: 1; }
 }
 @media (hover: none) {
   .pair-actions .lg-more { display: none; }
-  .pair-actions .hw-btn:not(.active):not(.all-done):not(:has(.hw-badge)) { display: none; }
   .pair-info { cursor: pointer; }
 }
 
@@ -634,14 +720,14 @@ body.dark-theme .pair-type { color: color-mix(in srgb, var(--k) 78%, #fff); back
 .lg-status {
   position: relative; justify-self: end; width: 30px; height: 30px; padding: 0;
   display: grid; place-items: center; border-radius: 50%;
-  border: 2px solid var(--label-3); background: transparent; color: #fff; cursor: pointer;
+  border: 1.5px solid var(--label-3); background: transparent; color: #fff; cursor: pointer;
   transition: border-color 0.2s, background 0.25s, box-shadow 0.25s, transform 0.4s var(--spring);
 }
 .lg-status::before { content: ""; position: absolute; inset: -7px; border-radius: 50%; }
 .lg-status:hover { border-color: var(--green); background: color-mix(in srgb, var(--green) 12%, transparent); }
 .lg-status:active { transform: scale(0.84); }
-.lg-status.attended { background: var(--green); border-color: var(--green); box-shadow: 0 4px 12px -4px color-mix(in srgb, var(--green) 70%, transparent); }
-.lg-status.missed { background: var(--red); border-color: var(--red); box-shadow: 0 4px 12px -4px color-mix(in srgb, var(--red) 70%, transparent); }
+.lg-status.attended { background: var(--green); border-color: var(--green); }
+.lg-status.missed { background: var(--red); border-color: var(--red); }
 .lg-status.attended:hover, .lg-status.missed:hover { filter: brightness(1.06); }
 .lg-status.not-yet { border-style: dashed; opacity: 0.45; cursor: default; }
 .lg-status.not-yet:hover { border-color: var(--label-3); background: transparent; }
@@ -666,7 +752,7 @@ body.dark-theme .pair-type { color: color-mix(in srgb, var(--k) 78%, #fff); back
 /* Удалённая пара с отменой */
 .undo-placeholder-card {
   position: relative; display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  min-height: 64px; padding: 0 10px 0 16px; border: 0; border-radius: calc(var(--r-card) - 5px); background: transparent;
+  min-height: 62px; padding: 0 10px 0 16px; border: 0; border-radius: var(--r-row); background: transparent;
 }
 .undo-info { font-size: calc(15px * var(--ts)); font-weight: 500; color: var(--label-2); }
 .undo-action-btn {
@@ -694,11 +780,11 @@ body.dark-theme .pair-type { color: color-mix(in srgb, var(--k) 78%, #fff); back
 .hw-add.ready .hw-add-submit { background: var(--tint); border-color: var(--tint); color: #fff; }
 
 /* Добавить учебный день */
-#addDayBtnContainer { display: flex; justify-content: center; padding-top: 26px; }
+#addDayBtnContainer { display: flex; justify-content: center; padding-top: 24px; }
 .lg-add-day {
   display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 18px 0 14px; border: 0; border-radius: 999px;
   background: var(--card); box-shadow: var(--card-shadow); color: var(--label-2); cursor: pointer;
-  font: 600 calc(14px * var(--ts)) var(--font);
+  font: 500 calc(14px * var(--ts)) var(--font);
   transition: color 0.2s, transform 0.35s var(--spring);
 }
 .lg-add-day svg { width: 16px; height: 16px; }
@@ -707,53 +793,52 @@ body.dark-theme .pair-type { color: color-mix(in srgb, var(--k) 78%, #fff); back
 
 /* ---------- 9. Боковая колонка: кольцо и предметы ---------- */
 .sidebar-panel {
-  position: sticky; top: 8px;   /* отсчёт от внутреннего поля прокрутки, которое уже равно высоте панели */
-  display: flex; flex-direction: column; gap: 16px; min-height: 0;
-  max-height: calc(100vh - var(--topbar-h) - 36px); max-height: calc(100dvh - var(--topbar-h) - 36px);
-  padding: 0; background: transparent; border: 0; border-radius: 0; box-shadow: none;
+  position: relative; top: auto; align-self: stretch;
+  display: flex; flex-direction: column; gap: 14px; min-height: 0; max-height: none; overflow: visible;
+  padding: 2px 0 0; background: transparent; border: 0; border-radius: 0; box-shadow: none;
 }
 .lg-stats-title { display: none; }
 .panel-section { background: var(--card); border-radius: var(--r-card); box-shadow: var(--card-shadow); }
 
-.lg-overall { flex-shrink: 0; align-items: center; text-align: center; gap: 14px !important; padding: 26px 22px 22px; }
-.lg-ring { --ring: var(--green); position: relative; width: 150px; height: 150px; }
+.lg-overall { flex-shrink: 0; align-items: center; text-align: center; gap: 12px !important; padding: 24px 20px 20px; }
+.lg-ring { --ring: var(--green); position: relative; width: 132px; height: 132px; }
 .lg-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); overflow: visible; }
-.lg-ring-track { fill: none; stroke: color-mix(in srgb, var(--ring) 17%, transparent); stroke-width: 13; transition: stroke 0.4s; }
+.lg-ring-track { fill: none; stroke: var(--fill); stroke-width: 8; }
 .lg-ring-fill {
-  fill: none; stroke-width: 13; stroke-linecap: round; stroke-dasharray: 326.73; stroke-dashoffset: 326.73;
+  fill: none; stroke-width: 8; stroke-linecap: round; stroke-dasharray: 326.73; stroke-dashoffset: 326.73;
   transition: stroke-dashoffset 1.3s var(--ease), stroke 0.4s;
-  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--ring) 45%, transparent));
 }
-.lg-ring-num { position: absolute; inset: 0; display: grid; place-items: center; font: 700 calc(34px * var(--ts))/1 var(--font-display); letter-spacing: -0.04em; font-variant-numeric: tabular-nums; }
+.lg-ring-num { position: absolute; inset: 0; display: grid; place-items: center; font: 600 calc(30px * var(--ts))/1 var(--font-display); letter-spacing: -0.035em; font-variant-numeric: tabular-nums; }
 .lg-overall-text { display: flex; flex-direction: column; gap: 3px; }
-.lg-overall-title { font: 600 calc(17px * var(--ts)) var(--font); letter-spacing: -0.01em; }
-.overall-count { font-size: calc(14px * var(--ts)); font-weight: 500; color: var(--label-2); }
+.lg-overall-title { font: 600 calc(16px * var(--ts)) var(--font); letter-spacing: -0.01em; }
+.overall-count { font-size: calc(14px * var(--ts)); font-weight: 400; color: var(--label-2); }
 .report-open-btn {
   width: 100%; height: 42px; margin-top: 4px; padding: 0 16px; border: 0; border-radius: 999px;
   display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer;
-  background: color-mix(in srgb, var(--tint) 12%, transparent); color: var(--tint);
-  font: 600 calc(14px * var(--ts)) var(--font);
+  background: var(--fill-2); color: var(--label);
+  font: 500 calc(14px * var(--ts)) var(--font);
   transition: background 0.2s, transform 0.35s var(--spring);
 }
-.report-open-btn:hover { background: color-mix(in srgb, var(--tint) 18%, transparent); border-color: transparent; }
+.report-open-btn svg { color: var(--label-2); }
+.report-open-btn:hover { background: var(--fill); border-color: transparent; }
 .report-open-btn:active { transform: scale(0.97); }
 
-.lg-subjects { flex: 0 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 6px !important; padding: 16px 8px 8px; }
+.lg-subjects { position: relative; flex: 0 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 6px !important; padding: 14px 6px 6px; }
 .panel-title-row { display: flex; align-items: center; justify-content: space-between; padding: 0 6px 0 14px; }
-.panel-title { font: 600 calc(17px * var(--ts)) var(--font-display); letter-spacing: -0.012em; text-transform: none; color: var(--label); }
+.panel-title { font: 600 calc(16px * var(--ts)) var(--font-display); letter-spacing: -0.012em; text-transform: none; color: var(--label); }
 .subject-list {
   flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 0;
   padding: 0 0 4px; scrollbar-width: none;
 }
 .subject-list::-webkit-scrollbar { display: none; }
-.subject-item { position: relative; display: flex; flex-direction: column; gap: 8px; padding: 11px 12px 12px 14px; border-radius: 14px; }
+.subject-item { position: relative; display: flex; flex-direction: column; gap: 8px; padding: 10px 12px 11px 14px; border-radius: var(--r-row); }
 .subject-item + .subject-item::before { content: ""; position: absolute; top: 0; left: 14px; right: 12px; height: 1px; background: var(--sep); }
 .subj-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .subj-name-wrap { display: flex; align-items: center; gap: 6px; min-width: 0; flex: 1; }
-.subj-name { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: calc(15px * var(--ts)); font-weight: 500; line-height: 1.3; }
-.subj-stat { font-size: calc(15px * var(--ts)); font-weight: 600; font-variant-numeric: tabular-nums; }
-.prog-track { height: 5px; background: var(--fill); border-radius: 999px; overflow: hidden; }
-.subject-item .prog-track { height: 5px !important; }
+.subj-name { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: calc(15px * var(--ts)); font-weight: 400; line-height: 1.3; }
+.subj-stat { font-size: calc(14px * var(--ts)); font-weight: 500; font-variant-numeric: tabular-nums; }
+.prog-track { height: 4px; background: var(--fill); border-radius: 999px; overflow: hidden; }
+.subject-item .prog-track { height: 4px !important; }
 .prog-fill { border-radius: 999px; transition: width 0.6s var(--ease); }
 /* Закладка «важный» выезжает плавно: у важных видна всегда, у остальных — при наведении */
 .subject-item .priority-btn {
@@ -770,19 +855,20 @@ body.dark-theme .pair-type { color: color-mix(in srgb, var(--k) 78%, #fff); back
 /* ---------- 10. Меню, всплывающие панели, уведомления ---------- */
 .lg-menu {
   position: fixed; z-index: 6000; min-width: 236px; padding: 6px; border-radius: var(--r-menu);
-  background: var(--glass-strong);
-  -webkit-backdrop-filter: blur(28px) saturate(2); backdrop-filter: blur(28px) saturate(2);
+  --glass-blur: 26px; --glass-sat: 2;
+  background: var(--glass-pop);
+  -webkit-backdrop-filter: blur(26px) saturate(2); backdrop-filter: blur(26px) saturate(2);
   box-shadow: var(--glass-shadow), 0 24px 48px -16px rgba(15, 20, 40, 0.28);
   font-family: var(--font); -webkit-app-region: no-drag;
   opacity: 0; transform: scale(0.86); filter: blur(4px);
   transition: opacity 0.16s ease, transform 0.18s ease, filter 0.16s ease;
 }
 .lg-menu.open { opacity: 1; transform: none; filter: none; transition: opacity 0.2s ease, transform 0.5s var(--spring), filter 0.2s ease; }
-body.dark-theme .lg-menu { background: var(--glass-strong); box-shadow: var(--glass-shadow), 0 24px 48px -16px rgba(0, 0, 0, 0.6); }
+body.dark-theme .lg-menu { background: var(--glass-pop); box-shadow: var(--glass-shadow), 0 24px 48px -16px rgba(0, 0, 0, 0.6); }
 .lg-menu-title { padding: 8px 12px 6px; font: 600 calc(13px * var(--ts)) var(--font); color: var(--label-2); }
 .lg-menu-item {
   width: 100%; height: 40px; display: flex; align-items: center; gap: 12px; padding: 0 12px;
-  border: 0; border-radius: 13px; background: transparent; color: var(--label); cursor: pointer;
+  border: 0; border-radius: 9px; background: transparent; color: var(--label); cursor: pointer;
   font: 500 calc(15px * var(--ts)) var(--font); text-align: left; transition: background 0.12s;
 }
 .lg-menu-item:hover, .lg-menu-item:focus-visible { background: var(--fill); outline: none; }
@@ -800,9 +886,10 @@ body.dark-theme .lg-menu { background: var(--glass-strong); box-shadow: var(--gl
 .lg-menu-compact { min-width: 220px; }
 
 .pf-popover {
-  top: calc(100% + 10px); border: 0; border-radius: 22px; overflow: hidden;
-  background: var(--glass-strong); color: var(--label);
-  -webkit-backdrop-filter: blur(28px) saturate(2); backdrop-filter: blur(28px) saturate(2);
+  top: calc(100% + 10px); border: 0; border-radius: 18px; overflow: hidden;
+  --glass-blur: 26px; --glass-sat: 2;
+  background: var(--glass-pop); color: var(--label);
+  -webkit-backdrop-filter: blur(26px) saturate(2); backdrop-filter: blur(26px) saturate(2);
   box-shadow: var(--glass-shadow), 0 24px 48px -16px rgba(15, 20, 40, 0.28);
   transform: translateY(-6px) scale(0.97); transform-origin: top center;
   transition: opacity 0.2s ease, transform 0.45s var(--spring), visibility 0.2s;
@@ -815,8 +902,9 @@ body.dark-theme .lg-menu { background: var(--glass-strong); box-shadow: var(--gl
 .pf-link-btn { margin: -4px -6px; padding: 4px 8px; border-radius: 8px; color: var(--tint); font-weight: 600; }
 .pf-link-btn:hover:not(:disabled) { color: var(--tint); background: color-mix(in srgb, var(--tint) 10%, transparent); }
 .pf-link-btn:disabled { color: var(--label-3); opacity: 1; }
-.pf-notif-list { max-height: 400px; padding: 0 6px 6px; }
-.pf-notif-item { gap: 12px; padding: 10px 12px; border: 0; border-radius: 16px; }
+.pf-notif-list { max-height: 400px; padding: 0 6px 6px; scrollbar-width: none; }
+.pf-notif-list::-webkit-scrollbar { display: none; }
+.pf-notif-item { gap: 12px; padding: 10px 12px; border: 0; border-radius: 12px; }
 .pf-notif-item:hover { background: var(--fill-2); }
 .pf-notif-ico { width: 38px; height: 38px; border-radius: 50%; }
 .pf-notif-title { color: var(--label); }
@@ -825,7 +913,7 @@ body.dark-theme .lg-menu { background: var(--glass-strong); box-shadow: var(--gl
 .pf-notif-item:not(.unread) .pf-notif-title { font-weight: 500; color: var(--label-2); }
 .pf-unread-mark { width: 8px; height: 8px; margin-top: 15px; background: var(--tint); }
 .pf-empty { color: var(--label-3); }
-.pf-status-opt { padding: 9px 12px; border-radius: 13px; color: var(--label); }
+.pf-status-opt { padding: 9px 12px; border-radius: 9px; color: var(--label); }
 .pf-status-opt:hover { background: var(--fill-2); }
 .pf-status-opt.selected { background: var(--fill); color: var(--label); }
 .pf-status-opt.selected .pf-st-z { color: var(--purple); }
@@ -835,14 +923,14 @@ body.dark-theme .lg-menu { background: var(--glass-strong); box-shadow: var(--gl
 .pf-st-dot.online { background: var(--green); }
 
 /* Уведомления-баннеры: сверху, как «островок» в iOS */
-.toast-container { top: calc(var(--topbar-h) + 4px); bottom: auto; left: 50%; transform: translateX(-50%); gap: 10px; align-items: center; -webkit-app-region: no-drag; }
+.toast-container { top: auto; bottom: 22px; left: 50%; transform: translateX(-50%); gap: 10px; align-items: center; -webkit-app-region: no-drag; }
 .elegant-toast {
   min-width: 0; width: max-content; max-width: min(460px, calc(100vw - 32px));
   gap: 12px; padding: 9px 20px 9px 9px; border: 0; border-radius: 28px;
   background: var(--glass-strong) !important;
   -webkit-backdrop-filter: blur(28px) saturate(2) !important; backdrop-filter: blur(28px) saturate(2) !important;
   box-shadow: var(--glass-shadow), 0 20px 40px -18px rgba(15, 20, 40, 0.3);
-  opacity: 0; transform: translateY(-28px) scale(0.86); filter: blur(6px);
+  opacity: 0; transform: translateY(28px) scale(0.86); filter: blur(6px);
   transition: opacity 0.3s ease, transform 0.6s var(--spring), filter 0.3s ease;
 }
 .elegant-toast.lg-refract {
@@ -884,13 +972,13 @@ body.dark-theme .modal-content { box-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.1
   display: grid; grid-template-columns: 44px minmax(0, 1fr) 44px; align-items: center; gap: 12px;
   padding: 16px 16px 10px;
 }
-.lg-sheet-head::before {
-  content: ""; position: absolute; inset: 0 0 -22px; z-index: -1; pointer-events: none; opacity: 0; transition: opacity 0.3s;
-  background: linear-gradient(to bottom, var(--sheet) 0%, color-mix(in srgb, var(--sheet) 70%, transparent) 60%, transparent);
-  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
-  -webkit-mask-image: linear-gradient(#000 60%, transparent); mask-image: linear-gradient(#000 60%, transparent);
-}
-.lg-sheet.is-scrolled .lg-sheet-head::before { opacity: 1; }
+/* Край прокрутки как в iOS: несколько слоёв размытия, каждый ниже и слабее предыдущего.
+   Сила размытия убывает плавно до нуля, поэтому границы не видно */
+.lg-pblur { position: absolute; left: 0; right: 0; top: 0; bottom: -30px; z-index: -1; pointer-events: none; opacity: 0; transition: opacity 0.35s ease; }
+.lg-pblur::before { content: ""; position: absolute; inset: 0; background: linear-gradient(to bottom, var(--sheet) 0%, color-mix(in srgb, var(--sheet) 82%, transparent) 38%, color-mix(in srgb, var(--sheet) 30%, transparent) 72%, transparent 100%); }
+.lg-pblur > i { position: absolute; inset: 0; }
+.lg-pblur > i { -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); -webkit-mask-image: linear-gradient(#000 0%, #000 45%, transparent 100%); mask-image: linear-gradient(#000 0%, #000 45%, transparent 100%); }
+.lg-sheet.is-scrolled .lg-sheet-head > .lg-pblur, .lg-sheet.is-scrolled #rpHead > .lg-pblur, .pf-tabbar.is-stuck > .lg-pblur { opacity: 1; }
 .lg-sheet-head .modal-title, .modal-title {
   margin: 0; text-align: center; font: 600 calc(17px * var(--ts))/1.25 var(--font-display); letter-spacing: -0.012em; color: var(--label);
 }
@@ -901,11 +989,6 @@ body.dark-theme .modal-content { box-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.1
   -webkit-backdrop-filter: blur(16px) saturate(1.8); backdrop-filter: blur(16px) saturate(1.8);
   box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.06), 0 4px 14px -6px rgba(20, 30, 60, 0.25), var(--glass-inner);
   transition: transform 0.4s var(--spring), background 0.2s, filter 0.2s;
-}
-.lg-circle::after {
-  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; padding: 1px; background: var(--glass-rim);
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
-  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
 }
 .lg-circle:hover { filter: brightness(1.04); }
 .lg-circle:active { transform: scale(0.88); }
@@ -919,7 +1002,7 @@ body.dark-theme .modal-content { box-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.1
 .lg-section-h { margin: 24px 16px 8px; }
 .lg-sheet-body > .lg-section-h:first-child { margin-top: 4px; }
 .lg-pick .lg-section-h { margin-top: 22px; }
-.lg-card { position: relative; background: var(--sheet-card); border-radius: 20px; box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.03); }
+.lg-card { position: relative; background: var(--sheet-card); border-radius: var(--r-group); box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.03); }
 .lg-card + .lg-card { margin-top: 18px; }
 .lg-footnote { margin: 10px 16px 0; font-size: calc(13px * var(--ts)); line-height: 1.4; color: var(--label-2); }
 .input-group { margin-bottom: 0; }
@@ -937,8 +1020,8 @@ body.dark-theme .modal-content { box-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.1
 .lg-row-link { cursor: pointer; transition: background 0.15s; }
 .lg-row-link:hover { background: var(--fill-2); }
 .lg-row-link > label { cursor: pointer; }
-.lg-card > :first-child { border-top-left-radius: 20px; border-top-right-radius: 20px; }
-.lg-card > :last-child { border-bottom-left-radius: 20px; border-bottom-right-radius: 20px; }
+.lg-card > :first-child { border-top-left-radius: var(--r-group); border-top-right-radius: var(--r-group); }
+.lg-card > :last-child { border-bottom-left-radius: var(--r-group); border-bottom-right-radius: var(--r-group); }
 .lg-row-value { display: inline-flex; align-items: center; gap: 2px; font-size: calc(16px * var(--ts)); color: var(--label-2); }
 .lg-row-value svg { color: var(--label-3); }
 
@@ -972,7 +1055,7 @@ body.dark-theme .modal-content { box-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.1
 .lg-chips { width: 100%; }
 .lg-chips > .select-options { display: grid; grid-template-columns: repeat(auto-fill, minmax(122px, 1fr)); gap: 8px; padding: 0; background: none; }
 .lg-chips .select-option {
-  display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 10px 12px; border-radius: 16px;
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 10px 12px; border-radius: 12px;
   background: var(--sheet-card); color: var(--label) !important; box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.04);
   transition: background 0.2s, transform 0.35s var(--spring), box-shadow 0.2s;
 }
@@ -1015,19 +1098,23 @@ body.dark-theme .modal-content { box-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.1
 }
 .custom-date-picker.open .date-trigger { color: var(--tint) !important; background: color-mix(in srgb, var(--tint) 12%, transparent); }
 .calendar-popup {
-  left: auto; right: 0; top: calc(100% + 8px); width: 300px; padding: 14px; border: 0; border-radius: 22px;
-  background: var(--glass-strong); -webkit-backdrop-filter: blur(30px) saturate(2); backdrop-filter: blur(30px) saturate(2);
+  left: auto; right: 0; top: calc(100% + 8px); width: 300px; padding: 14px; border: 0; border-radius: 22px; overflow: hidden;
+  --glass-blur: 18px; --glass-sat: 1.8;
+  background: color-mix(in srgb, var(--card-solid) 80%, transparent); -webkit-backdrop-filter: blur(18px) saturate(1.8); backdrop-filter: blur(18px) saturate(1.8);
+  transition: opacity 0.2s ease, transform 0.5s var(--spring), visibility 0.2s;
   box-shadow: var(--glass-shadow), 0 24px 48px -16px rgba(15, 20, 40, 0.3);
   transform: translateY(-6px) scale(0.97); transform-origin: top right;
 }
+.calendar-popup.lg-glass { position: absolute; }
 .custom-date-picker.open .calendar-popup { transform: none; }
+.cal-header > div, .cal-grid { position: relative; z-index: 1; }
 .cal-header { margin-bottom: 10px; padding: 0 2px; font: 600 calc(15px * var(--ts)) var(--font); color: var(--label); }
 .cal-nav-btn { width: 32px; height: 32px; padding: 0; border-radius: 50%; color: var(--tint); }
 .cal-nav-btn:hover { background: color-mix(in srgb, var(--tint) 10%, transparent); }
 .cal-day-name { font-size: 12px; font-weight: 600; color: var(--label-3); }
 .cal-cell { height: 36px; border-radius: 50%; font-size: calc(15px * var(--ts)); color: var(--label); }
 .cal-cell:hover:not(.empty) { background: var(--fill-2); }
-.cal-cell.selected { background: var(--tint); color: #fff; font-weight: 600; }
+.cal-cell.selected, .cal-cell.selected:hover:not(.empty) { background: var(--tint); color: #fff; font-weight: 600; }
 
 /* Строки-кнопки (данные): цветной значок, как в «Настройках» iOS */
 .lg-cells { display: flex; flex-direction: column; }
@@ -1040,8 +1127,8 @@ body.dark-theme .modal-content { box-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.1
 .lg-cell:hover, .lg-cells .btn-add-day:hover { background: var(--fill-2); color: var(--label); border-color: transparent; }
 .lg-cells > :not(:first-child)::after { content: ""; position: absolute; top: 0; left: 60px; right: 0; height: 1px; background: var(--sep); }
 .lg-cells > .btn-add-day:not(:first-child)::after { left: 16px; }
-.lg-cells > button:first-of-type { border-top-left-radius: 20px; border-top-right-radius: 20px; }
-.lg-cells > button:last-of-type { border-bottom-left-radius: 20px; border-bottom-right-radius: 20px; }
+.lg-cells > button:first-of-type { border-top-left-radius: var(--r-group); border-top-right-radius: var(--r-group); }
+.lg-cells > button:last-of-type { border-bottom-left-radius: var(--r-group); border-bottom-right-radius: var(--r-group); }
 .lg-cell::before { content: ""; width: 30px; height: 30px; flex-shrink: 0; border-radius: 8px; background: var(--ic-bg) var(--ic) center / 18px no-repeat; }
 .lg-cell-export { --ic-bg: var(--tint); --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 15V3M7 8l5-5 5 5'/%3E%3Cpath d='M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6'/%3E%3C/svg%3E"); }
 .lg-cell-import { --ic-bg: var(--indigo); --ic: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 3v12M7 10l5 5 5-5'/%3E%3Cpath d='M5 15v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4'/%3E%3C/svg%3E"); }
@@ -1081,7 +1168,7 @@ body.dark-theme .modal-content { box-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.1
 .pf-scroll, #profileBackdrop .pf-scroll { padding: 0 24px 28px !important; }
 .pf-footer { display: none !important; }
 .pf-hero { flex-direction: column; align-items: center; gap: 14px; padding: 34px 0 6px; text-align: center; }
-.pf-hero .pf-avatar { --av: 96px; --dot-ring: var(--card-solid); box-shadow: 0 16px 34px -16px rgba(10, 60, 180, 0.55); }
+.pf-hero .pf-avatar { --av: 96px; --dot-ring: var(--card-solid); box-shadow: 0 14px 30px -16px rgba(0, 0, 0, 0.35); }
 .pf-hero .pf-zzz { top: -18px; right: -6px; }
 .pf-avatar-edit { border-radius: 50%; }
 .pf-hero-info { align-items: center; gap: 6px; }
@@ -1100,15 +1187,13 @@ body.dark-theme .modal-content { box-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.1
 
 /* Вкладки профиля: липкая полоса над содержимым */
 .pf-tabbar {
-  position: sticky; top: 0; z-index: 20; margin: 18px -24px 18px; padding: 12px 24px;
+  position: sticky; top: 0; z-index: 20; margin: 18px -24px 18px; padding: 14px 24px 12px;
   background: transparent; border: 0; -webkit-backdrop-filter: none; backdrop-filter: none;
+  transition: padding-right 0.4s var(--ease);
 }
-.pf-tabbar::before {
-  content: ""; position: absolute; inset: 0 0 -18px; z-index: -1; pointer-events: none;
-  background: linear-gradient(to bottom, var(--sheet) 55%, transparent);
-  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
-  -webkit-mask-image: linear-gradient(#000 62%, transparent); mask-image: linear-gradient(#000 62%, transparent);
-}
+.pf-tabbar::before { content: none; }
+/* Прилипшие вкладки уступают место кнопке «закрыть» */
+.pf-tabbar.is-stuck { padding-right: 76px; }
 .pf-tabs { position: relative; display: flex; gap: 0; padding: 3px; border: 0; border-radius: 999px; background: var(--fill); }
 .pf-tab { position: relative; z-index: 1; flex: 1 0 auto; padding: 8px 12px; border-radius: 999px; color: var(--label); font: 500 calc(14px * var(--ts)) var(--font); }
 .pf-tab:hover { background: transparent; color: var(--label); }
@@ -1169,7 +1254,6 @@ button.pf-row.pickable:hover { background: var(--fill-2); }
 .pf-av-opt:active { transform: scale(0.96); }
 .pf-av-opt.selected { border-color: transparent; box-shadow: inset 0 0 0 2.5px var(--tint); }
 .pf-av-opt.locked:hover { background: var(--sheet-card); box-shadow: none; }
-.pf-av-img { background: linear-gradient(160deg, #6fd3ff, #0a84ff 55%, #5e5ce6); }
 .pf-av-lock { background: var(--label); color: var(--card-solid); box-shadow: 0 0 0 2px var(--card-solid); }
 .pf-av-name { color: var(--label-2); }
 
@@ -1180,7 +1264,6 @@ button.pf-row.pickable:hover { background: var(--fill-2); }
 .sc-me small, .sc-xp small { color: var(--label-3); }
 .sc-person.pickable:hover, .sc-person.pickable:focus-visible { background: var(--fill-2); }
 .sc-person.me { background: color-mix(in srgb, var(--tint) 8%, transparent); }
-.sc-av { background: linear-gradient(160deg, #6fd3ff, #0a84ff 55%, #5e5ce6); }
 .sc-dot { box-shadow: 0 0 0 2px var(--card-solid); }
 .sc-dot[data-status="online"] { background: var(--green); }
 .sc-you, .sc-rel { color: var(--label-3); }
@@ -1210,13 +1293,7 @@ button.pf-row.pickable:hover { background: var(--fill-2); }
   position: absolute; top: 0; left: 0; right: 0; z-index: 4; margin: 0 !important;
   padding: 24px 80px 20px 28px; background: transparent; border: 0;
 }
-#rpHead::before {
-  content: ""; position: absolute; inset: 0 0 -24px; right: 0; z-index: -1; pointer-events: none;
-  background: linear-gradient(to bottom, var(--sheet) 60%, transparent);
-  -webkit-backdrop-filter: blur(10px) saturate(1.4); backdrop-filter: blur(10px) saturate(1.4);
-  -webkit-mask-image: linear-gradient(#000 64%, transparent); mask-image: linear-gradient(#000 64%, transparent);
-}
-#rpHead::after { display: none; }
+#rpHead::before, #rpHead::after { display: none; }
 .rp-title { margin: 0 0 4px; font: 700 calc(26px * var(--ts))/1.15 var(--font-display); letter-spacing: -0.024em; }
 .rp-sub { margin: 0; font-size: calc(14px * var(--ts)); color: var(--label-2); }
 #rpBody { padding: calc(var(--rp-head-h, 96px) + 4px) 24px 28px !important; }
@@ -1281,7 +1358,7 @@ button.pf-row.pickable:hover { background: var(--fill-2); }
 
 /* ---------- 15. Телефон ---------- */
 @media (max-width: 760px) {
-  :root { --gutter: 16px; --topbar-h: calc(60px + env(safe-area-inset-top, 0px)); --r-card: 24px; }
+  :root, html.is-electron { --gutter: 16px; --titlebar-h: env(safe-area-inset-top, 0px); --bar-h: 60px; --r-card: 18px; }
 
   .lg-onb { padding: calc(env(safe-area-inset-top, 0px) + 40px) 20px calc(env(safe-area-inset-bottom, 0px) + 28px); }
   .lg-onb-title { font-size: calc(32px * var(--ts)); }
@@ -1289,7 +1366,7 @@ button.pf-row.pickable:hover { background: var(--fill-2); }
   .lg-appicon { width: 84px; height: 84px; border-radius: 22px; }
 
   /* Верхняя панель: аватар — неделя — уведомления и настройки */
-  .lg-topbar { padding: env(safe-area-inset-top, 0px) 12px 0; gap: 8px; }
+  #mainApp .lg-topbar { padding: 0 12px; gap: 8px; }
   .profile-pill { width: 44px; }
   .pf-open { padding: 0 5px; }
   .pf-text { display: none; }
@@ -1297,18 +1374,19 @@ button.pf-row.pickable:hover { background: var(--fill-2); }
   .lg-today { min-width: 92px; padding: 0 12px; }
   .lg-weeknav .lg-wn-btn { width: 36px; }
 
-  #mainApp #mainScroll {
-    padding: calc(var(--topbar-h) + 2px) 16px calc(env(safe-area-inset-bottom, 0px) + 112px);
-    scrollbar-gutter: auto;
-  }
-  .lg-hero { flex-wrap: wrap; align-items: flex-end; padding: 6px 4px 20px; }
-  .layout-grid { display: block; }
+  /* Телефон: под заголовком прокручивается одна колонка — дни или статистика (по вкладке) */
+  .lg-hero { flex-wrap: wrap; align-items: flex-end; padding: 4px 20px 14px; }
+  /* glass.js переносит заголовок внутрь колонки дней: он уезжает вверх, а в капсуле появляется «Неделя N» */
+  #mainScroll .lg-hero { padding: 2px 4px 16px; }
+  .lg-hero-title { font-size: calc(28px * var(--ts)); }
+  .layout-grid { display: flex; flex-direction: column; padding: 0; gap: 0; }
+  #mainScroll.schedule-col { flex: 1; margin: 0; padding: 2px 16px calc(env(safe-area-inset-bottom, 0px) + 112px); }
 
   .day-header { padding-left: 14px; }
-  .day-name { font-size: calc(20px * var(--ts)); }
+  .day-name { font-size: calc(18px * var(--ts)); }
   .pair-card { grid-template-columns: 48px minmax(0, 1fr) auto 30px; column-gap: 12px; padding: 12px 8px 12px 12px; }
   .pair-card + .pair-card::before, .pair-card + .undo-placeholder-card::before, .undo-placeholder-card + .pair-card::before { left: 72px; right: 12px; }
-  .pair-title { font-size: calc(16px * var(--ts)); }
+  .pair-title { font-size: calc(15.5px * var(--ts)); }
   .day-actions .lg-more { width: 36px; height: 36px; }
 
   /* Вкладки: расписание и статистика */
@@ -1316,11 +1394,12 @@ button.pf-row.pickable:hover { background: var(--fill-2); }
   #mainApp[data-tab="stats"] .schedule-col,
   #mainApp[data-tab="stats"] .lg-hero,
   #mainApp[data-tab="stats"] .lg-weeknav { display: none; }
-  #mainApp[data-tab="stats"] .lg-tb-title { display: block; opacity: 0; transform: translateY(6px); transition: opacity 0.25s, transform 0.4s var(--spring); }
-  #mainApp[data-tab="stats"].is-scrolled .lg-tb-title { opacity: 1; transform: none; }
-  .sidebar-panel { position: static; max-height: none; gap: 16px; }
-  .lg-stats-title { display: block; margin: 6px 4px 6px; font: 700 calc(34px * var(--ts))/1.1 var(--font-display); letter-spacing: -0.026em; }
-  .subject-list { overflow: visible; }
+  .sidebar-panel { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; gap: 14px; padding: 0 16px calc(env(safe-area-inset-bottom, 0px) + 112px); scrollbar-width: none; }
+  .sidebar-panel::-webkit-scrollbar { display: none; }
+  .sidebar-panel > * { flex-shrink: 0; }
+  .lg-stats-title { display: block; margin: 4px 4px 6px; font: 650 calc(28px * var(--ts))/1.1 var(--font-display); letter-spacing: -0.024em; }
+  .subject-list { overflow: visible; -webkit-mask-image: none; mask-image: none; }
+  .toast-container { bottom: calc(env(safe-area-inset-bottom, 0px) + 86px); }
   .lg-subjects { padding-bottom: 6px; }
 
   .lg-tabbar {
@@ -1328,9 +1407,9 @@ button.pf-row.pickable:hover { background: var(--fill-2); }
     bottom: calc(env(safe-area-inset-bottom, 0px) + 12px); pointer-events: none;
   }
   .lg-tabbar-inner { display: flex; padding: 4px; border-radius: 999px; pointer-events: auto; }
-  .lg-tabbar-inner.lg-thumb::before { background: var(--fill); box-shadow: none; }
+  .lg-tabbar-inner .lg-knob:not(.is-press) { background: var(--fill); box-shadow: none; }
   .lg-tab {
-    width: 112px; height: 56px; padding: 0; border: 0; border-radius: 999px; background: transparent; cursor: pointer;
+    width: 112px; height: 54px; padding: 0; border: 0; border-radius: 999px; background: transparent; cursor: pointer;
     display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
     color: var(--label); font: 600 11px var(--font); letter-spacing: 0;
     transition: color 0.25s, transform 0.35s var(--spring);
@@ -1340,14 +1419,14 @@ button.pf-row.pickable:hover { background: var(--fill-2); }
   .lg-tab:active { transform: scale(0.92); }
 
   /* Уведомления — на всю ширину под панелью */
-  .pf-notif { position: fixed; top: calc(var(--topbar-h) + 4px); left: 12px; right: 12px; width: auto; max-width: none; }
+  .pf-notif, .pf-notif.lg-glass { position: fixed; top: calc(var(--topbar-h) + 4px); left: 12px; right: 12px; width: auto; max-width: none; }
 
   /* Окна — листы снизу */
   .modal-overlay { padding: 8px 8px calc(env(safe-area-inset-bottom, 0px) + 8px); align-items: flex-end; }
   .modal-content, #profileBackdrop .pf-modal, #reportBackdrop .pf-modal {
     max-width: none !important; width: 100%; margin: auto 0 0;
     max-height: calc(100dvh - env(safe-area-inset-top, 0px) - 40px);
-    border-radius: 34px;
+    border-radius: 28px;
   }
   #reportBackdrop .pf-modal { height: calc(100dvh - env(safe-area-inset-top, 0px) - 40px); }
   .modal-overlay.open .modal-content { animation: lgSheetUp 0.6s var(--spring-soft); }
@@ -1362,8 +1441,8 @@ button.pf-row.pickable:hover { background: var(--fill-2); }
   #rpBody { padding-left: 16px !important; padding-right: 16px !important; }
   .lg-row { padding-right: 12px; }
   .lg-row > .lg-seg { flex: 1 1 100%; }
-  .lg-seg-kinds > .select-options { display: grid; grid-template-columns: 1fr 1fr; border-radius: 22px; }
-  .lg-seg-kinds > .select-options.lg-thumb::before { border-radius: 18px; }
+  .lg-seg-kinds > .select-options { display: grid; grid-template-columns: 1fr 1fr; border-radius: 20px; }
+  .lg-seg-kinds .lg-knob { border-radius: 17px; }
   .bell-grid-row { grid-template-columns: minmax(0, 1fr) 76px 12px 76px; }
   .pf-seg { grid-template-columns: repeat(4, 1fr); border-radius: 999px; }
   .pf-seg button { gap: 6px; padding: 8px 2px; font-size: calc(13px * var(--ts)); }
@@ -1379,8 +1458,314 @@ button.pf-row.pickable:hover { background: var(--fill-2); }
   .modal-overlay.open .modal-content, .modal-overlay.open, .screen,
   #scheduleAnimationWrapper.slide-in-right, #scheduleAnimationWrapper.slide-in-left { animation: none !important; }
   .lg-status.pop .lg-draw { stroke-dashoffset: 0; }
-  .lg-ring-fill, .lg-thumb::before, .elegant-toast, .lg-menu, .pf-popover { transition: none !important; }
+  .lg-ring-fill, .elegant-toast, .lg-menu, .pf-popover, .lg-glass { transition: none !important; }
+  .lg-knob.glint > i::after { animation: none; }
 }
 
 /* Поля, у которых своя подсветка фокуса, — без системной рамки */
 .hw-input:focus-visible, .bell-grid-row .input-field:focus-visible, .pf-bio:focus-visible, .lg-field .input-field:focus-visible { outline: none; }
+
+
+/* ---------- 17. Ползунки прокрутки ---------- */
+/* Системные полосы скрыты: вместо них тонкий ползунок поверх (glass.js). Он не доходит до краёв окна,
+   появляется при прокрутке или наведении и плавно гаснет; его можно тянуть */
+.lg-sb-hide { scrollbar-width: none !important; }
+.lg-sb-hide::-webkit-scrollbar { display: none !important; }
+.lg-bar { position: absolute; z-index: 45; width: 12px; pointer-events: none; opacity: 0; transition: opacity 0.5s ease; }
+.lg-bar.on, .lg-bar.drag, .lg-bar.near { opacity: 1; transition-duration: 0.18s; }
+.lg-bar > i {
+  position: absolute; right: 4px; width: 4px; border-radius: 999px; pointer-events: none;
+  background: color-mix(in srgb, var(--label) 26%, transparent);
+  transition: width 0.2s var(--ease), right 0.2s var(--ease), background 0.2s;
+}
+.lg-bar.on > i, .lg-bar.near > i, .lg-bar.drag > i { pointer-events: auto; }
+.lg-bar > i:hover, .lg-bar.drag > i { width: 6px; right: 3px; background: color-mix(in srgb, var(--label) 42%, transparent); }
+
+/* ---------- 18. Подсказки при наведении ---------- */
+.lg-tip {
+  position: fixed; z-index: 9500; left: 0; top: 0; max-width: 260px; padding: 6px 11px; border-radius: 10px;
+  font: 500 12.5px/1.35 var(--font); color: var(--label); white-space: pre-line; pointer-events: none;
+  background: var(--glass-strong);
+  -webkit-backdrop-filter: blur(22px) saturate(1.9); backdrop-filter: blur(22px) saturate(1.9);
+  box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.08), 0 8px 22px -8px rgba(0, 0, 0, 0.28), inset 0 1px 0.5px rgba(255, 255, 255, 0.7);
+  opacity: 0; transform: translateY(var(--tip-dy, -4px)) scale(0.94);
+  transition: opacity 0.14s ease, transform 0.35s var(--spring);
+}
+body.dark-theme .lg-tip { box-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.1), 0 8px 22px -8px rgba(0, 0, 0, 0.6); }
+.lg-tip.show { opacity: 1; transform: none; }
+
+/* ---------- 19. Окно подтверждения (вместо системного) ---------- */
+.lg-alert-ico.danger { background: color-mix(in srgb, var(--red) 12%, transparent); color: var(--red); }
+.lg-dialog .lg-alert-text:last-of-type { margin-bottom: 4px; }
+
+
+/* ---------- 20. Затемнение под окнами повторяет скругление окна приложения ---------- */
+html.is-electron .modal-overlay { border-radius: 14px; }
+
+/* ---------- 21. Прозрачные шапки списков: предметы и уведомления ---------- */
+/* Шапка лежит поверх списка; строки уезжают под неё, а она мягко размывает их, как в iOS */
+.lg-subjects { padding: 0 !important; overflow: hidden; gap: 0 !important; }
+.lg-subjects > .panel-title-row, .pf-notif > .pf-pop-head {
+  position: absolute; top: 0; left: 0; right: 0; z-index: 4; margin: 0; box-sizing: border-box;
+}
+.lg-subjects > .panel-title-row { height: 50px; padding: 4px 10px 0 20px; }
+.lg-subjects > .panel-title-row::before, .pf-notif > .pf-pop-head::before {
+  content: ""; position: absolute; inset: 0 0 -16px; z-index: -1; pointer-events: none; opacity: 0; transition: opacity 0.3s ease;
+  background: linear-gradient(to bottom, var(--card) 0%, color-mix(in srgb, var(--card) 72%, transparent) 55%, transparent 100%);
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  -webkit-mask-image: linear-gradient(#000 50%, transparent); mask-image: linear-gradient(#000 50%, transparent);
+}
+.pf-notif > .pf-pop-head::before { background: linear-gradient(to bottom, var(--glass-pop) 0%, color-mix(in srgb, var(--glass-pop) 70%, transparent) 55%, transparent 100%); }
+.lg-subjects.is-scrolled > .panel-title-row::before, .pf-notif.is-scrolled > .pf-pop-head::before { opacity: 1; }
+.lg-subjects .subject-list { padding: 50px 6px 8px; }
+.subject-list, .pf-notif-list {
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - var(--fb)), transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - var(--fb)), transparent 100%);
+}
+/* Уведомления: плотнее стекло, чтобы сквозь него не читался текст страницы */
+.pf-notif { --glass-pop: rgba(250, 250, 252, 0.86); }
+body.dark-theme .pf-notif { --glass-pop: rgba(40, 40, 44, 0.88); }
+.pf-notif > .pf-pop-head { height: 52px; padding: 0 18px; display: flex; align-items: center; }
+.pf-notif-list { max-height: 452px; padding: 52px 6px 6px; box-sizing: border-box; }
+
+/* ---------- 22. Барабан ---------- */
+/* Строки двигает glass.js (transform, без прокрутки браузера). Основной слой с «окном» посередине,
+   в окне — увеличенный слой; под ним — стеклянная полоса-линза. */
+.lg-wheel .select-trigger, .lg-wheel > .select-options { display: none !important; }
+.lg-wh {
+  position: relative; height: 200px; overflow: hidden; outline: none; cursor: grab;
+  touch-action: none; user-select: none; -webkit-user-select: none;
+}
+.lg-wh.is-drag { cursor: grabbing; }
+.lg-wh-base, .lg-wh-mag { position: absolute; left: 0; right: 0; }
+.lg-wh-base {
+  inset: 0;
+  /* Края растворяются, посередине — окно: там строку показывает увеличенный слой */
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 34%, #000 calc(50% - 20px), transparent calc(50% - 20px), transparent calc(50% + 20px), #000 calc(50% + 20px), #000 66%, transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 34%, #000 calc(50% - 20px), transparent calc(50% - 20px), transparent calc(50% + 20px), #000 calc(50% + 20px), #000 66%, transparent 100%);
+}
+.lg-wh-mag { top: 50%; height: 40px; margin-top: -20px; overflow: hidden; pointer-events: none; z-index: 2; }
+.lg-wh-magtrack { position: absolute; inset: 0; }
+.lg-wh-row {
+  position: absolute; left: 0; right: 0; top: 50%; height: 40px; margin-top: -20px; box-sizing: border-box; padding: 0 14px;
+  display: flex; align-items: center; justify-content: center; gap: 14px;
+  color: var(--label); font: 400 calc(17px * var(--ts)) var(--font); font-variant-numeric: tabular-nums; white-space: nowrap;
+  backface-visibility: hidden; will-change: transform, opacity;
+}
+.lg-wh-mag .lg-wh-row { top: 0; margin-top: 0; font-size: calc(18.5px * var(--ts)); font-weight: 600; letter-spacing: -0.01em; }
+.lg-wh-row b { font-weight: 500; }
+.lg-wh-row span { color: var(--label-2); font-size: 0.9em; }
+.lg-wh-mag .lg-wh-row b { font-weight: 650; }
+.lg-wh-mag .lg-wh-row span { color: var(--label); font-weight: 500; }
+/* Стеклянная линза: толщина стекла (светлые кромки сверху и снизу), блик, «желе» на скорости */
+.lg-wh-band {
+  --wv: 0; --wa: 0;
+  position: absolute; left: 0; right: 0; top: 50%; height: 40px; margin-top: -20px; z-index: 1; pointer-events: none;
+  border-radius: 12px; overflow: hidden;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--label) 7%, transparent), color-mix(in srgb, var(--label) 4%, transparent));
+  box-shadow: inset 0 1px 0.5px rgba(255, 255, 255, 0.9), inset 0 -1px 0.5px rgba(255, 255, 255, 0.55),
+    inset 0 0 0 0.5px color-mix(in srgb, var(--label) 10%, transparent), 0 1px 2px rgba(0, 0, 0, 0.04);
+  transform: scale(calc(1 + var(--wa) * 0.012), calc(1 + var(--wa) * 0.1));
+  transition: transform 0.35s var(--spring);
+}
+body.dark-theme .lg-wh-band { box-shadow: inset 0 1px 0.5px rgba(255, 255, 255, 0.22), inset 0 -1px 0.5px rgba(255, 255, 255, 0.08), inset 0 0 0 0.5px rgba(255, 255, 255, 0.08); }
+.lg-wh-band > i {
+  position: absolute; top: -40%; bottom: -40%; width: 40%; left: calc(30% - var(--wv) * 3%);
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.75) 50%, transparent);
+  opacity: calc(var(--wa) * 0.9); transform: skewX(-14deg); transition: opacity 0.4s ease;
+}
+body.dark-theme .lg-wh-band > i { background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.16) 50%, transparent); }
+.lg-wh:focus-visible ~ .lg-wh-band, .lg-wh:focus-visible > .lg-wh-band { box-shadow: 0 0 0 2px color-mix(in srgb, var(--tint) 45%, transparent); }
+
+/* Номер пары: барабан во всю ширину карточки */
+.lg-pick .lg-wheel { width: 100%; padding: 0 6px; box-sizing: border-box; background: var(--sheet-card); border-radius: var(--r-group); }
+.lg-wh-wide .lg-wh-band { left: 0; right: 0; }
+
+/* Время пар: поля-кнопки и всплывающий барабан «часы : минуты» */
+.bell-grid-row .input-field.lg-time-btn { cursor: pointer; caret-color: transparent; transition: background 0.2s, color 0.2s, transform 0.35s var(--spring); }
+.bell-grid-row .input-field.lg-time-btn:active { transform: scale(0.95); }
+.bell-grid-row .input-field.lg-time-btn:focus, .bell-grid-row .input-field.lg-time-btn.is-editing { background: color-mix(in srgb, var(--tint) 14%, transparent); color: var(--tint) !important; }
+.lg-timepick {
+  position: fixed; z-index: 7000; padding: 8px 10px 10px; border-radius: 22px;
+  --glass-blur: 24px; --glass-sat: 2; background: color-mix(in srgb, var(--card-solid) 84%, transparent);
+  -webkit-backdrop-filter: blur(24px) saturate(2); backdrop-filter: blur(24px) saturate(2);
+  box-shadow: var(--glass-shadow), 0 24px 48px -16px rgba(15, 20, 40, 0.3), var(--glass-inner);
+  opacity: 0; transform: scale(0.9); transition: opacity 0.16s ease, transform 0.2s ease;
+}
+.lg-timepick.open { opacity: 1; transform: none; transition: opacity 0.2s ease, transform 0.5s var(--spring); }
+.lg-tp-wheels { position: relative; display: flex; align-items: center; gap: 0; }
+.lg-tp-wheels > .lg-wh-band { left: 0; right: 0; }
+.lg-tp-wheels .lg-wh { width: 66px; height: 200px; }
+.lg-tp-wheels .lg-wh-row { padding: 0; font-size: calc(20px * var(--ts)); }
+.lg-tp-wheels .lg-wh-mag .lg-wh-row { font-size: calc(22px * var(--ts)); }
+.lg-tp-sep { position: relative; z-index: 3; width: 10px; text-align: center; font: 600 calc(21px * var(--ts)) var(--font); color: var(--label); }
+.lg-tp-done {
+  display: block; width: 100%; height: 36px; margin-top: 8px; border: 0; border-radius: 999px; cursor: pointer;
+  background: var(--tint); color: #fff; font: 600 calc(14px * var(--ts)) var(--font);
+  transition: transform 0.35s var(--spring), filter 0.2s;
+}
+.lg-tp-done:hover { filter: brightness(1.07); }
+.lg-tp-done:active { transform: scale(0.96); }
+
+/* ---------- 23. Окно пары: точка типа рядом с названием ---------- */
+.lg-field-line { display: flex; align-items: center; gap: 10px; }
+.lg-field-line .input-field { flex: 1; min-width: 0; }
+.lg-subj-dot { --k: #8e8e93; flex-shrink: 0; width: 10px; height: 10px; border-radius: 50%; background: var(--k); transition: background 0.3s ease, transform 0.4s var(--spring); }
+.lg-subj-dot[data-kind="lecture"] { --k: var(--orange); }
+.lg-subj-dot[data-kind="practice"] { --k: var(--green); }
+.lg-subj-dot[data-kind="lab"] { --k: var(--pink); }
+.lg-subj-dot[data-kind="other"] { --k: var(--label-3); }
+
+/* Шпаргалка цветов коротко подсвечивается, когда включили «Точку» */
+.lg-legend { padding: 3px 9px; margin-left: -9px; border-radius: 999px; }
+.lg-legend.lg-hi { animation: lgLegendHi 2.6s var(--ease); }
+@keyframes lgLegendHi {
+  0%, 100% { background: transparent; box-shadow: none; }
+  18%, 70% { background: color-mix(in srgb, var(--tint) 10%, transparent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--tint) 25%, transparent); }
+}
+
+/* ---------- 24. Облегчённые эффекты стекла ---------- */
+/* Стекло остаётся матовым и полупрозрачным, но без преломления, бликов и живых обоев */
+body.glass-lite .lg-glass.lg-refract, body.glass-lite .elegant-toast.lg-refract {
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat)) !important;
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat)) !important;
+}
+body.glass-lite .lg-glass::before, body.glass-lite .lg-knob > i { display: none; }
+body.glass-lite .lg-knob.is-press { -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--thumb); }
+body.glass-lite .lg-wallpaper i { animation: none; }
+body.glass-lite .lg-pblur > i { -webkit-backdrop-filter: none; backdrop-filter: none; }
+
+/* ---------- 25. Окно «Время пар» без прокрутки ---------- */
+#bellBackdrop .modal-scroll { overflow: hidden; }
+
+/* ---------- 26. Расписание: сверху — мягкое размытие (как в листах), снизу — ничего ---------- */
+/* Верхний край дней растворяется в фон (без «тумана»: прозрачность, а не серая заливка) */
+#mainScroll.schedule-col {
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 var(--ft));
+  mask-image: linear-gradient(to bottom, transparent 0, #000 var(--ft));
+}
+/* Поверх — размытие. Слой шире карточек: от края окна до середины промежутка между колонками,
+   поэтому его боковые края лежат на пустом фоне и не видны (раньше они резали карточки углами) */
+.lg-sched-blur {
+  grid-column: 1; grid-row: 1; align-self: start; position: relative; z-index: 3; pointer-events: none;
+  height: 36px; margin: 0 -17px 0 calc(-1 * var(--gutter)); opacity: 0; transition: opacity 0.3s ease;
+}
+/* Без подкрашивания: фон окна неоднородный (мягкие пятна света), и любая заливка видна заплаткой */
+.lg-sched-blur::before { content: none; }
+.lg-sched-blur > i {
+  position: absolute; inset: 0;
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  -webkit-mask-image: linear-gradient(#000 0%, #000 30%, transparent 100%); mask-image: linear-gradient(#000 0%, #000 30%, transparent 100%);
+}
+.layout-grid.is-scrolled > .lg-sched-blur { opacity: 1; }
+body.glass-lite .lg-sched-blur > i { -webkit-backdrop-filter: none; backdrop-filter: none; }
+
+/* ---------- 27. Предметы: закладка «важный» проявляется не сразу и не во время прокрутки ---------- */
+@media (hover: hover) {
+  .subject-item:hover .priority-btn { transition-delay: 0.3s; }
+  .subject-list.lg-scrolling .subject-item .priority-btn { transition-delay: 0s; }
+  .subject-list.lg-scrolling .subject-item:not(.is-important) .priority-btn { width: 0; margin-right: -6px; opacity: 0; transform: scale(0.6); }
+}
+.subject-list.lg-scrolling { pointer-events: none; }
+/* Колонки закреплены за своими местами: слой размытия лежит поверх дней и не сдвигает сетку */
+.layout-grid > #mainScroll { grid-column: 1; grid-row: 1; }
+.layout-grid > .sidebar-panel { grid-column: 2; grid-row: 1; }
+@media (max-width: 760px) { .lg-sched-blur { display: none; } }
+
+/* ---------- 28. Размытие под шапками повторяет скругление углов ---------- */
+.lg-subjects > .panel-title-row::before { border-radius: var(--r-card) var(--r-card) 0 0; }
+.pf-notif > .pf-pop-head::before { border-radius: 18px 18px 0 0; }
+.lg-sheet-head > .lg-pblur, #rpHead > .lg-pblur, .lg-pblur > i, .lg-pblur::before { border-radius: var(--r-sheet) var(--r-sheet) 0 0; }
+.pf-tabbar > .lg-pblur, .pf-tabbar > .lg-pblur > i, .pf-tabbar > .lg-pblur::before { border-radius: 0; }
+@media (max-width: 760px) { .lg-sheet-head > .lg-pblur, #rpHead > .lg-pblur, .lg-pblur > i, .lg-pblur::before { border-radius: 28px 28px 0 0; } }
+
+/* ---------- 29. Капсула переключения недель над днями ---------- */
+/* Капсула лежит поверх колонки дней ровно по краям карточек. Дни прокручиваются под неё:
+   стекло размывает их внутри своей скруглённой формы, отдельной полосы размытия больше нет. */
+.layout-grid { --wb-h: 54px; --wb-gap: 20px; }
+.lg-weekbar {
+  grid-column: 1; grid-row: 1; align-self: start; z-index: 6;
+  height: var(--wb-h); box-sizing: border-box; padding: 5px;
+  display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 10px;
+  border-radius: 999px;
+  --glass-blur: 16px; --glass-sat: 1.9;
+  background: color-mix(in srgb, var(--card-solid) 46%, transparent);
+  -webkit-backdrop-filter: blur(16px) saturate(1.9); backdrop-filter: blur(16px) saturate(1.9);
+}
+body.dark-theme .lg-weekbar { background: color-mix(in srgb, var(--card-solid) 58%, transparent); }
+.lg-wb-side { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.lg-wb-side.right { justify-content: flex-end; }
+.lg-wb-center { display: flex; flex-direction: column; align-items: center; gap: 1px; min-width: 0; text-align: center; }
+.lg-wb-title { font: 600 calc(16px * var(--ts))/1.2 var(--font-display); letter-spacing: -0.015em; color: var(--label); white-space: nowrap; }
+.lg-wb-sub { font: 400 calc(12.5px * var(--ts))/1.25 var(--font); color: var(--label-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; font-variant-numeric: tabular-nums; }
+.lg-weekbar .lg-wn-btn { width: 44px; height: 44px; }
+.lg-weekbar .lg-today { height: 36px; min-width: 0; padding: 0 16px; background: var(--fill-2); }
+.lg-weekbar .lg-today:hover { background: var(--fill); }
+.lg-weekbar .lg-today.is-current { color: var(--label-2); background: transparent; }
+
+/* Дни начинаются под капсулой; под её краем список плавно растворяется, чтобы карточки не выглядывали из-за скруглений */
+#mainScroll.schedule-col {
+  padding-top: calc(var(--wb-h) + var(--wb-gap));
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, rgba(0, 0, 0, 0.8) calc(var(--wb-h) * 0.45), #000 var(--wb-h));
+  mask-image: linear-gradient(to bottom, transparent 0, rgba(0, 0, 0, 0.8) calc(var(--wb-h) * 0.45), #000 var(--wb-h));
+}
+.lg-legend { margin-bottom: 14px; }
+
+/* Серия дней и онлайн — тоже стеклянная капсула в верхней панели */
+.lg-topbar .sc-head { height: 44px; padding: 0 6px; gap: 2px; border-radius: 999px; }
+.lg-topbar .sc-head:empty { display: none; }
+.lg-topbar .sc-chip { height: 34px; padding: 0 10px; background: transparent; box-shadow: none; border: 0; }
+.lg-topbar .sc-streak.on { background: transparent; }
+
+@media (max-width: 760px) {
+  .layout-grid { position: relative; --wb-h: 52px; --wb-gap: 16px; }
+  .lg-weekbar { position: absolute; top: 0; left: 12px; right: 12px; }
+  #mainApp[data-tab="stats"] .lg-weekbar { display: none; }
+  .lg-weekbar .lg-wn-btn { width: 40px; height: 40px; }
+  .lg-weekbar .lg-today { padding: 0 12px; }
+  .lg-wb-sub { font-size: calc(11.5px * var(--ts)); }
+  .lg-topbar .sc-online { display: none; }
+}
+
+
+/* На узком экране «Сегодня» становится значком календаря */
+.lg-today-ico { display: none; }
+@media (max-width: 760px) {
+  .lg-weekbar .lg-today { width: 40px; height: 40px; padding: 0; display: grid; place-items: center; background: transparent; color: var(--tint); }
+  .lg-weekbar .lg-today.is-current { color: var(--label-2); }
+  .lg-today-txt { display: none; }
+  .lg-today-ico { display: block; }
+  .lg-weekbar { gap: 4px; }
+  .lg-weekbar .lg-wb-side.right { padding-right: 0; }
+  /* симметрия: справа пустое место под размер значка */
+  .lg-weekbar .lg-wb-side.right::before { content: ""; width: 40px; flex-shrink: 0; }
+}
+
+/* ---------- 30. Дни под капсулой обрезаются по её форме ---------- */
+/* Над нижним краем капсулы список виден только внутри её скруглённого контура:
+   два круга по концам + прямоугольник между ними + всё, что ниже капсулы */
+.layout-grid { --wb-x: 14px; }
+#mainScroll.schedule-col {
+  -webkit-mask-image: radial-gradient(closest-side, #000 calc(100% - 0.5px), transparent), radial-gradient(closest-side, #000 calc(100% - 0.5px), transparent), linear-gradient(#000, #000), linear-gradient(#000, #000);
+  mask-image: radial-gradient(closest-side, #000 calc(100% - 0.5px), transparent), radial-gradient(closest-side, #000 calc(100% - 0.5px), transparent), linear-gradient(#000, #000), linear-gradient(#000, #000);
+  -webkit-mask-size: var(--wb-h) var(--wb-h), var(--wb-h) var(--wb-h), calc(100% - 2 * var(--wb-x) - var(--wb-h) + 1px) var(--wb-h), 100% calc(100% - var(--wb-h) + 1px);
+  mask-size: var(--wb-h) var(--wb-h), var(--wb-h) var(--wb-h), calc(100% - 2 * var(--wb-x) - var(--wb-h) + 1px) var(--wb-h), 100% calc(100% - var(--wb-h) + 1px);
+  -webkit-mask-position: var(--wb-x) 0, right var(--wb-x) top 0, calc(var(--wb-x) + var(--wb-h) / 2) 0, 0 calc(var(--wb-h) - 1px);
+  mask-position: var(--wb-x) 0, right var(--wb-x) top 0, calc(var(--wb-x) + var(--wb-h) / 2) 0, 0 calc(var(--wb-h) - 1px);
+  -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+}
+@media (max-width: 760px) { .layout-grid { --wb-x: 12px; } }
+
+/* ---------- 31. Предметы без рывков ---------- */
+/* Место под закладку «важный» всегда занято: название не сдвигается и не переносится при наведении.
+   У обычных предметов закладка проявляется на месте, у важных — красная всегда */
+#mainApp .subject-item .priority-btn,
+.subject-item .priority-btn {
+  width: 14px !important; margin-right: 0 !important; overflow: visible;
+  opacity: 0; transform: scale(0.7); animation: none !important;
+  transition: opacity 0.3s ease, transform 0.4s var(--spring), color 0.2s;
+}
+.subject-item:hover .priority-btn { opacity: 0.5; transform: none; transition-delay: 0.2s; }
+.subject-item.is-important .priority-btn, .priority-btn.active { opacity: 1 !important; transform: none !important; color: var(--red); }
+.subject-list.lg-scrolling .subject-item:not(.is-important) .priority-btn { opacity: 0; transition-delay: 0s; }
+.subj-name-wrap { gap: 8px; }
