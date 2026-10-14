@@ -361,8 +361,8 @@
     const cw = calculateCurrentSemesterWeek();
     if (week) viewWeek = Number(week);
     else viewWeek = (cw > 1 && weekStats(cw).marked === 0 && weekStats(cw - 1).marked > 0) ? cw - 1 : cw; // в начале недели показываем прошлую
+    $('reportBackdrop').classList.add('open'); // сначала показываем окно: ширина графика берётся из его настоящей ширины
     render();
-    $('reportBackdrop').classList.add('open');
     syncGlassInsets();
     const sc = $('rpBody'); if (sc) sc.scrollTop = 0;
     if (week) requestAnimationFrame(() => scrollToWeek(false));   // из уведомления «отчёт готов» — сразу к нужной неделе

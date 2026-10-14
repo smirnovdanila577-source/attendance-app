@@ -1,0 +1,417 @@
+/* ==========================================================================
+   LIQUID GLASS — главный экран (расписание)
+   Подключается последним и только переопределяет внешний вид.
+   Принципы: стекло лежит на живых цветных обоях; одна система радиусов
+   (капсулы 999px, карточки 22px, строки 14px); вторичные действия скрыты
+   до наведения; цвет — только там, где он что-то значит (тип пары, отметка,
+   «сейчас идёт»).
+   ========================================================================== */
+
+:root {
+  --lg-font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", "Segoe UI Variable Display", "Segoe UI", sans-serif;
+  --tint: #007aff;
+  --lg-base: #f2f2f7;
+  --lg-blob1: #9cc9ff;
+  --lg-blob2: #cdbcff;
+  --lg-blob3: #ffd0b0;
+  --glass: rgba(255, 255, 255, 0.55);
+  --glass-line: rgba(255, 255, 255, 0.85);
+  --glass-edge: rgba(15, 23, 42, 0.06);
+  --glass-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 12px 32px -14px rgba(15, 23, 42, 0.2);
+  --lg-hover: rgba(15, 23, 42, 0.05);
+  --lg-track: rgba(15, 23, 42, 0.07);
+  --hair: rgba(15, 23, 42, 0.08);
+  --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+}
+body.dark-theme {
+  --tint: #0a84ff;
+  --lg-base: #0e0f13;
+  --lg-blob1: #1d3a8a;
+  --lg-blob2: #4a2775;
+  --lg-blob3: #0e5560;
+  --glass: rgba(32, 34, 46, 0.5);
+  --glass-line: rgba(255, 255, 255, 0.1);
+  --glass-edge: rgba(255, 255, 255, 0.06);
+  --glass-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 16px 40px -16px rgba(0, 0, 0, 0.7);
+  --lg-hover: rgba(255, 255, 255, 0.06);
+  --lg-track: rgba(255, 255, 255, 0.09);
+  --hair: rgba(255, 255, 255, 0.07);
+}
+
+/* Материал стекла: размытие + светлая верхняя кромка + тонкий контур + мягкая тень */
+#mainApp .lg-weekbar,
+#mainApp .day-group,
+#mainApp .sidebar-panel,
+#mainApp header .settings-btn,
+#mainApp header .profile-pill,
+#mainApp header .sc-chip,
+#mainApp .btn-add-day {
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(24px) saturate(1.8);
+  backdrop-filter: blur(24px) saturate(1.8);
+  border: 0;
+  box-shadow: var(--glass-shadow), inset 0 1px 0 var(--glass-line), inset 0 0 0 1px var(--glass-edge);
+}
+
+/* ---------- Живые обои ---------- */
+.window-frame { background: var(--lg-base) !important; isolation: isolate; }
+/* Ровный спокойный фон без цветных пятен (обои отключены) */
+.lg-wallpaper { display: none; }
+.lg-wallpaper i { position: absolute; width: 62vmax; height: 62vmax; border-radius: 50%; filter: blur(90px); opacity: 0.6; will-change: transform; }
+.lg-wallpaper i:nth-child(1) { background: var(--lg-blob1); top: -24vmax; left: -14vmax; animation: lgDrift1 46s ease-in-out infinite alternate; }
+.lg-wallpaper i:nth-child(2) { background: var(--lg-blob2); top: 6vmax; right: -22vmax; animation: lgDrift2 54s ease-in-out infinite alternate; }
+.lg-wallpaper i:nth-child(3) { background: var(--lg-blob3); bottom: -30vmax; left: 18vmax; opacity: 0.5; animation: lgDrift3 60s ease-in-out infinite alternate; }
+body.dark-theme .lg-wallpaper i { opacity: 0.55; }
+@keyframes lgDrift1 { to { transform: translate(14vmax, 10vmax) scale(1.1); } }
+@keyframes lgDrift2 { to { transform: translate(-12vmax, 14vmax) scale(0.92); } }
+@keyframes lgDrift3 { to { transform: translate(10vmax, -12vmax) scale(1.08); } }
+.window-frame > .screen { position: relative; z-index: 1; }
+
+/* ---------- Шапка: неделя + капсула переключения ---------- */
+#mainApp header { margin: 44px -28px 18px -40px; padding: 6px 28px 18px 40px; border-bottom: 0 !important; align-items: center; }
+#mainApp header::before {
+  background: linear-gradient(to bottom, color-mix(in srgb, var(--lg-base) 82%, transparent) 0%, color-mix(in srgb, var(--lg-base) 70%, transparent) 80%, transparent 100%);
+  -webkit-backdrop-filter: blur(24px) saturate(1.6); backdrop-filter: blur(24px) saturate(1.6);
+  -webkit-mask-image: linear-gradient(to bottom, #000 82%, transparent); mask-image: linear-gradient(to bottom, #000 82%, transparent);
+}
+#mainApp .header-left { gap: 14px; align-items: center; min-width: 0; }
+#mainApp .app-title { font-family: var(--lg-font); font-size: 22px; letter-spacing: -0.025em; }
+#mainApp .app-icon { width: 44px; height: 44px; border-radius: 13px; box-shadow: 0 8px 20px -8px rgba(15, 23, 42, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.18); }
+
+/* ---------- Островок переключения недель ---------- */
+#mainApp .lg-weekbar { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px; margin-bottom: 22px; padding: 6px; border-radius: 999px; }
+.lg-wb-side { display: flex; align-items: center; gap: 4px; }
+.lg-wb-side.right { justify-content: flex-end; }
+.lg-weekbar .week-center { display: flex; flex-direction: column; align-items: center; gap: 1px; }
+.lg-week { font-family: var(--lg-font); font-size: 17px; font-weight: 700; letter-spacing: -0.015em; line-height: 1.2; white-space: nowrap; }
+.lg-weeksub { font-size: 13px; font-weight: 500; color: var(--text-muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.lg-wb-btn, .lg-today { height: 38px; display: inline-flex; align-items: center; gap: 4px; border: 0; border-radius: 999px; background: transparent; color: var(--text-main); font-size: 14px; font-weight: 600; cursor: pointer; transition: background 0.2s, transform 0.25s var(--spring), color 0.2s; }
+.lg-wb-btn { padding: 0 16px 0 10px; }
+.lg-wb-side.right .lg-wb-btn { padding: 0 10px 0 16px; }
+.lg-today { padding: 0 14px; color: var(--tint); }
+.lg-today.is-current { color: var(--text-muted); }
+.lg-wb-btn:hover:not(:disabled), .lg-today:hover { background: var(--lg-hover); }
+.lg-wb-btn:active:not(:disabled), .lg-today:active { transform: scale(0.94); }
+.lg-wb-btn:disabled { opacity: 0.3; cursor: default; }
+.lg-wb-btn:focus-visible, .lg-today:focus-visible { outline: 2px solid var(--tint); outline-offset: 1px; }
+
+/* Кнопки справа: те же стеклянные капсулы */
+#mainApp header .settings-btn { color: var(--text-main); transition: transform 0.25s var(--spring), background 0.2s; }
+#mainApp header .settings-btn:hover { background: var(--glass); transform: scale(1.06); }
+#mainApp header .profile-pill:hover { background: var(--glass); }
+#mainApp header .sc-chip { color: var(--text-main); }
+#mainApp header .sc-streak.on { color: #f97316; }
+
+/* ---------- Сетка ---------- */
+#mainApp .layout-grid { grid-template-columns: minmax(0, 1fr) 300px; gap: 24px; }
+#scheduleAnimationWrapper { gap: 16px; transition: opacity 0.22s ease, transform 0.22s ease, filter 0.22s ease; }
+#scheduleAnimationWrapper.slide-out-left, #scheduleAnimationWrapper.slide-out-right { filter: blur(6px); }
+#mainApp .schedule-mask { padding: 4px 4px 8px; margin: -4px -4px -8px; }
+
+/* ---------- День: одна стеклянная карточка со строками пар ---------- */
+#mainApp .day-group { position: relative; gap: 0; padding: 4px 6px 6px; border-radius: 22px; }
+/* Блик под курсором — стекло «ловит свет» (координаты ставит glass.js) */
+#mainApp .day-group::after, #mainApp .sidebar-panel::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; opacity: 0; transition: opacity 0.3s;
+  background: radial-gradient(420px circle at var(--mx, 50%) var(--my, 0%), rgba(255, 255, 255, 0.35), transparent 45%);
+  mix-blend-mode: soft-light;
+}
+#mainApp .day-group:hover::after, #mainApp .sidebar-panel:hover::after { opacity: 1; }
+
+#mainApp .day-header { border-bottom: 0; padding: 12px 8px 6px 12px; min-height: 30px; }
+#mainApp .day-title-wrap { gap: 10px; align-items: baseline; }
+#mainApp .day-name { width: auto; font-family: var(--lg-font); font-size: 17px; font-weight: 700; text-transform: none; letter-spacing: -0.015em; }
+#mainApp .day-date { font-size: 14px; color: var(--text-muted); text-transform: none; }
+#mainApp .today-badge { align-self: center; background: var(--text-main); color: var(--bg); text-transform: none; letter-spacing: 0; font-size: 12px; font-weight: 600; padding: 2px 9px; }
+#mainApp .day-actions { gap: 2px; opacity: 0; transition: opacity 0.2s; }
+#mainApp .day-group:hover .day-actions, #mainApp .day-group:focus-within .day-actions { opacity: 1; }
+#mainApp .day-empty { padding: 4px 12px 12px; font-size: 14px; color: var(--text-light); }
+
+/* Круглые кнопки-иконки без рамок */
+#mainApp .action-circle-btn { width: 30px; height: 30px; border: 0; background: transparent; color: var(--text-muted); transition: background 0.15s, color 0.15s, transform 0.25s var(--spring); }
+#mainApp .action-circle-btn:hover { background: var(--lg-hover); color: var(--text-main); }
+#mainApp .action-circle-btn:active { transform: scale(0.88); }
+#mainApp .action-circle-btn.green:hover { background: var(--color-green-bg); color: var(--color-green); }
+#mainApp .action-circle-btn.red:hover { background: var(--color-red-bg); color: var(--color-red); }
+#mainApp .action-circle-btn:focus-visible { outline: 2px solid var(--tint); outline-offset: 1px; opacity: 1; }
+
+/* ---------- Строка пары ---------- */
+#mainApp .pair-card {
+  grid-template-columns: 56px minmax(0, 1fr) auto 32px !important;
+  gap: 4px 14px; padding: 11px 10px 11px 17px; border: 0; border-radius: 14px; background: transparent; box-shadow: none;
+  transition: background 0.2s;
+}
+#mainApp .pair-card + .pair-card::before { content: ""; position: absolute; top: 0; left: 87px; right: 12px; height: 1px; background: var(--hair); }
+#mainApp .pair-card:hover { background: var(--lg-hover); }
+#mainApp .pair-card:hover::before, #mainApp .pair-card:hover + .pair-card::before { opacity: 0; }
+#mainApp .pair-card.is-important { border-left: 0; }
+
+#mainApp .time-block { gap: 1px; }
+#mainApp .time-text { font-size: 15px; font-weight: 600; color: var(--text-main); }
+#mainApp .time-text.time-end { font-size: 13px; font-weight: 500; color: var(--text-light); }
+#mainApp .time-block .time-end::before { content: none; }
+
+#mainApp .pair-info { gap: 3px; min-width: 0; }
+#mainApp .pair-title { display: block; font-size: 15.5px; font-weight: 600; letter-spacing: -0.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Важный предмет: тонкая красная полоска у левого края строки */
+/* Важный предмет: красная кромка слева, повторяет скругление плитки строки */
+/* Важный предмет: тонкая красная полоска у левого края строки */
+#mainApp .pair-card.is-important::after { content: ""; position: absolute; left: 5px; top: 12px; bottom: 12px; width: 3px; border-radius: 3px; background: var(--color-red); pointer-events: none; }
+.pair-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 2px 12px; min-width: 0; }
+/* Тип занятия — маленькая стеклянная плиточка с подписью, подкрашенная цветом типа */
+#mainApp .pair-type {
+  --k: #8e8e93; padding: 2px 8px; border-radius: 7px; font-size: 12px; font-weight: 600; letter-spacing: 0; line-height: 1.35;
+  color: color-mix(in srgb, var(--k) 78%, #000);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--k) 10%, rgba(255, 255, 255, 0.7)), color-mix(in srgb, var(--k) 16%, transparent));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--k) 26%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.75);
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+}
+body.dark-theme #mainApp .pair-type {
+  color: color-mix(in srgb, var(--k) 70%, #fff);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--k) 22%, rgba(255, 255, 255, 0.04)), color-mix(in srgb, var(--k) 12%, transparent));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--k) 30%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+#mainApp .pair-type:empty { display: none; }
+#mainApp .pair-type[data-kind="lecture"] { --k: #ff9f0a; }
+#mainApp .pair-type[data-kind="practice"] { --k: #30c75e; }
+#mainApp .pair-type[data-kind="lab"] { --k: #ff375f; }
+.cancelled-note { font-size: 13px; color: var(--text-light); }
+
+/* Идёт сейчас: строка заливается по мере пары, рядом пульсирует точка */
+#mainApp .pair-card.is-live {
+  border: 0;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--tint) 13%, transparent) var(--live, 0%), color-mix(in srgb, var(--tint) 4%, transparent) var(--live, 0%));
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--tint) 40%, transparent);
+}
+#mainApp .pair-card.is-live::before, #mainApp .pair-card.is-live + .pair-card::before { opacity: 0; }
+#mainApp .live-indicator { white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; padding: 0; background: none; color: var(--tint); font-size: 13px; font-weight: 600; }
+#mainApp .live-indicator::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--tint); animation: lgPulse 2s ease-in-out infinite; }
+@keyframes lgPulse { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--tint) 50%, transparent); } 50% { box-shadow: 0 0 0 5px transparent; } }
+
+/* Вторичные действия появляются при наведении; ДЗ с невыполненными пунктами видно всегда */
+.pair-actions { display: flex; align-items: center; gap: 0; }
+/* Скрытые кнопки не занимают места: строка раскрывает их при наведении, название сжимается плавно */
+/* Кнопка ДЗ всегда в строке, рядом с отметкой: в покое бледная, как «⋯»;
+   есть невыполненные — синяя с цифрой; всё сделано — зелёная; панель открыта — подсвечена */
+#mainApp .pair-actions { gap: 2px; }
+#mainApp .pair-actions .hw-btn { color: var(--text-light); background: transparent; }
+#mainApp .pair-actions .hw-btn:hover { color: var(--text-main); background: var(--lg-hover); }
+#mainApp .pair-actions .hw-btn:has(.hw-badge) { color: var(--tint); }
+#mainApp .pair-actions .hw-btn.all-done { color: var(--color-green); background: transparent; }
+#mainApp .pair-actions .hw-btn.active { color: var(--text-main); background: var(--lg-hover); }
+#mainApp .pair-actions .hw-btn .hw-badge { top: -3px; right: -3px; }
+.lg-more {
+  width: 30px; height: 30px; padding: 0; display: grid; place-items: center; border: 0; border-radius: 50%;
+  background: transparent; color: var(--text-light); cursor: pointer;
+  transition: background 0.2s, color 0.2s, transform 0.25s var(--spring);
+}
+.lg-more:hover, .lg-more.active { background: var(--lg-hover); color: var(--text-main); }
+.lg-more:active { transform: scale(0.88); }
+.lg-more:focus-visible { outline: 2px solid var(--tint); outline-offset: 1px; }
+#mainApp .pair-card.menu-open { background: var(--lg-hover); }
+
+/* Стеклянное меню действий */
+.lg-menu {
+  position: fixed; z-index: 6000; min-width: 232px; padding: 6px; border-radius: 16px;
+  background: rgba(255, 255, 255, 0.9);
+  -webkit-backdrop-filter: blur(30px) saturate(1.9); backdrop-filter: blur(30px) saturate(1.9);
+  box-shadow: 0 0 0 0.5px rgba(15, 23, 42, 0.12), 0 18px 48px -12px rgba(15, 23, 42, 0.32), 0 4px 12px -4px rgba(15, 23, 42, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  opacity: 0; transform: scale(0.9) translateY(-4px); filter: blur(2px);
+  transition: opacity 0.16s ease, transform 0.16s ease, filter 0.16s ease;
+  font-family: var(--lg-font);
+}
+.lg-menu.open { opacity: 1; transform: none; filter: none; transition: opacity 0.22s ease, transform 0.42s var(--spring), filter 0.22s ease; }
+body.dark-theme .lg-menu { background: rgba(40, 42, 52, 0.92); box-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.12), 0 18px 48px -12px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.08); }
+.lg-menu-item {
+  width: 100%; height: 38px; display: flex; align-items: center; gap: 12px; padding: 0 12px; border: 0; border-radius: 10px;
+  background: transparent; color: var(--text-main); font-size: 14px; font-weight: 500; text-align: left; cursor: pointer;
+  transition: background 0.12s;
+}
+.lg-menu-item:hover, .lg-menu-item:focus-visible { background: color-mix(in srgb, var(--text-main) 8%, transparent); outline: none; }
+.lg-menu-ico { width: 20px; display: grid; place-items: center; color: var(--text-muted); flex-shrink: 0; }
+.lg-menu-label { flex: 1; }
+.lg-menu-hint { min-width: 20px; height: 20px; padding: 0 6px; box-sizing: border-box; display: grid; place-items: center; border-radius: 999px; background: var(--tint); color: #fff; font-size: 11px; font-weight: 700; }
+.lg-menu-item.is-on .lg-menu-ico { color: var(--color-red); }
+.lg-menu-item.danger, .lg-menu-item.danger .lg-menu-ico { color: var(--color-red); }
+.lg-menu-item.danger:hover, .lg-menu-item.danger:focus-visible { background: color-mix(in srgb, var(--color-red) 12%, transparent); }
+.lg-menu-sep { height: 1px; margin: 5px 10px; background: var(--hair); }
+#mainApp .hw-badge { background: var(--tint); color: #fff; }
+
+/* Отметка посещения */
+.lg-status {
+  width: 30px; height: 30px; padding: 0; justify-self: end; display: grid; place-items: center; border-radius: 50%;
+  border: 2px solid var(--border-hover); background: transparent; color: #fff; cursor: pointer;
+  transition: border-color 0.2s, background 0.25s, transform 0.25s var(--spring);
+}
+.lg-status:hover { border-color: var(--color-green); background: color-mix(in srgb, var(--color-green) 14%, transparent); }
+.lg-status:active { transform: scale(0.86); }
+.lg-status.attended { background: var(--color-green); border-color: var(--color-green); }
+.lg-status.missed { background: var(--color-red); border-color: var(--color-red); }
+.lg-status.attended:hover, .lg-status.missed:hover { filter: brightness(1.06); }
+.lg-status.not-yet { border-style: dashed; opacity: 0.45; cursor: default; }
+.lg-status.not-yet:hover { border-color: var(--border-hover); background: transparent; }
+.lg-status:focus-visible { outline: 2px solid var(--tint); outline-offset: 2px; }
+.lg-status.pop { animation: lgPop 0.5s var(--spring); }
+.lg-status.pop .lg-draw { stroke-dasharray: 30; stroke-dashoffset: 30; animation: lgDraw 0.32s 0.1s ease-out forwards; }
+@keyframes lgPop { 0% { transform: scale(0.72); } 100% { transform: scale(1); } }
+@keyframes lgDraw { to { stroke-dashoffset: 0; } }
+.lg-status-gap { width: 30px; }
+#mainApp .pair-card.is-cancelled { opacity: 0.55; }
+
+/* Домашнее задание: панель под строкой, выровнена по названию предмета */
+#mainApp .hw-panel { grid-column: 2 / -1; }
+#mainApp .hw-body { margin-top: 6px; padding-top: 8px; border-top: 1px solid var(--hair); }
+#mainApp .hw-add { border: 0; background: var(--lg-hover); border-radius: 12px; }
+#mainApp .hw-add:focus-within { background: color-mix(in srgb, var(--text-main) 8%, transparent); }
+#mainApp .hw-add-submit { border: 0; }
+#mainApp .hw-add.ready .hw-add-submit { background: var(--tint); color: #fff; }
+
+/* Удалённая пара (плашка «Отменить») внутри карточки дня */
+#mainApp .undo-placeholder-card { background: transparent; border: 0; border-radius: 14px; min-height: 58px; padding: 0 10px 0 12px; }
+#mainApp .undo-action-btn { border: 0; background: var(--lg-hover); color: var(--tint); }
+
+/* Кнопка «Добавить учебный день» */
+#mainApp .btn-add-day { margin-top: 16px; width: 100%; padding: 12px; border-radius: 999px; color: var(--text-muted); font-weight: 600; cursor: pointer; transition: color 0.2s, transform 0.25s var(--spring); }
+#mainApp .btn-add-day:hover { color: var(--text-main); }
+
+/* ---------- Боковая панель: кольцо посещаемости и предметы ---------- */
+#mainApp .sidebar-panel { padding: 22px 20px; gap: 22px; border-radius: 24px; }
+.lg-overall { align-items: center; text-align: center; gap: 12px !important; }
+.lg-ring { position: relative; width: 132px; height: 132px; }
+.lg-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); overflow: visible; }
+.lg-ring-track { fill: none; stroke: var(--lg-track); stroke-width: 12; }
+.lg-ring-fill { fill: none; stroke-width: 12; stroke-linecap: round; stroke-dasharray: 326.73; stroke-dashoffset: 326.73; transition: stroke-dashoffset 1.2s var(--ease-out), stroke 0.4s; }
+.lg-ring-num { position: absolute; inset: 0; display: grid; place-items: center; font-family: var(--lg-font); font-size: 30px; font-weight: 700; letter-spacing: -0.035em; font-variant-numeric: tabular-nums; }
+.lg-overall-text { display: flex; flex-direction: column; gap: 2px; }
+.lg-overall-title { font-size: 15px; font-weight: 600; }
+#mainApp .overall-count { font-size: 13px; color: var(--text-muted); }
+#mainApp .report-open-btn { margin-top: 4px; border: 0; background: var(--lg-hover); color: var(--text-main); transition: background 0.2s, transform 0.25s var(--spring); }
+#mainApp .report-open-btn:hover { background: color-mix(in srgb, var(--text-main) 9%, transparent); }
+#mainApp .report-open-btn:active { transform: scale(0.97); }
+
+#mainApp .panel-title { text-transform: none; font-size: 15px; font-weight: 600; color: var(--text-main); letter-spacing: -0.01em; }
+#mainApp .subject-list { gap: 12px; }
+#mainApp .subject-item { gap: 6px; }
+#mainApp .subj-header { gap: 12px; }
+#mainApp .subj-name-wrap { min-width: 0; gap: 6px; }
+#mainApp .subj-name { font-size: 14px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#mainApp .subj-stat { font-size: 14px; }
+#mainApp .subject-item .prog-track { height: 4px !important; background: var(--lg-track); }
+/* Закладка у предмета выезжает плавно: ширина и прозрачность меняются, название сдвигается мягко */
+#mainApp .subject-item .priority-btn { display: flex; width: 0; margin-right: -6px; opacity: 0; overflow: hidden; flex-shrink: 0; transform: scale(0.6);
+  transition: width 0.35s var(--ease-out), margin-right 0.35s var(--ease-out), opacity 0.25s ease, transform 0.35s var(--spring), color 0.2s; }
+#mainApp .subject-item:hover .priority-btn { width: 14px; margin-right: 0; opacity: 0.45; transform: none; }
+#mainApp .subject-item.is-important .priority-btn { width: 14px; margin-right: 0; opacity: 1; transform: none; }
+#mainApp .subject-item.imp-in .priority-btn { animation: lgSubjIn 0.45s var(--ease-out) both; }
+#mainApp .subject-item.imp-out .priority-btn { animation: lgSubjOut 0.4s var(--ease-out) both; }
+@keyframes lgSubjIn { from { width: 0; margin-right: -6px; opacity: 0; transform: scale(0.6); } to { width: 14px; margin-right: 0; opacity: 1; transform: none; } }
+@keyframes lgSubjOut { from { width: 14px; margin-right: 0; opacity: 1; transform: none; } to { width: 0; margin-right: -6px; opacity: 0; transform: scale(0.6); } }
+
+/* ---------- Анимации ---------- */
+/* Вход в приложение: дни и панель поднимаются по очереди (один раз) */
+.lg-enter > .day-group { animation: lgRise 0.7s var(--ease-out) both; }
+.lg-enter > .day-group:nth-child(2) { animation-delay: 0.06s; }
+.lg-enter > .day-group:nth-child(3) { animation-delay: 0.12s; }
+.lg-enter > .day-group:nth-child(4) { animation-delay: 0.18s; }
+.lg-enter > .day-group:nth-child(5) { animation-delay: 0.24s; }
+.lg-enter > .day-group:nth-child(n+6) { animation-delay: 0.3s; }
+@keyframes lgRise { from { opacity: 0; transform: translateY(18px) scale(0.985); } to { opacity: 1; transform: none; } }
+
+@media (hover: none) {
+  #mainApp .day-actions { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lg-wallpaper i, .lg-enter > .day-group, .lg-menu, .lg-status.pop, .lg-status.pop .lg-draw, #mainApp .live-indicator::before { animation: none !important; }
+  .lg-status.pop .lg-draw { stroke-dashoffset: 0; }
+  .lg-ring-fill { transition: none; }
+}
+
+/* Узкое окно */
+@media (max-width: 980px) {
+  #mainApp .layout-grid { grid-template-columns: minmax(0, 1fr) 260px; gap: 18px; }
+}
+
+/* ---------- Неподвижная страница: шапка, островок недель и панель стоят на месте, прокручиваются только дни ---------- */
+#mainApp .scroll-container { overflow: hidden; display: flex; flex-direction: column; min-height: 0; padding-bottom: 22px; }
+#mainApp header { position: relative; top: auto; flex-shrink: 0; }
+#mainApp header::before { display: none; }
+#mainApp .lg-weekbar { flex-shrink: 0; }
+#mainApp .layout-grid { flex: 1; min-height: 0; align-items: stretch; grid-template-rows: minmax(0, 1fr); }
+/* Видимая область дней ровно совпадает с боковой панелью: верх и низ на одной линии.
+   Колонка шире на 10–16 px только ради теней карточек; лишняя полоса сверху всегда срезана маской. */
+#mainApp .schedule-col {
+  min-height: 0; overflow-y: auto; overflow-x: hidden;
+  margin: -10px -16px 0 -12px; padding: 10px 8px 24px 12px;
+  --ft: #000; --fb: #000; --fade-top: 0px; --fade-bottom: 0px;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, transparent 10px, var(--ft) 10px, #000 calc(10px + var(--fade-top)), #000 calc(100% - var(--fade-bottom)), var(--fb) 100%);
+  mask-image: linear-gradient(to bottom, transparent 0, transparent 10px, var(--ft) 10px, #000 calc(10px + var(--fade-top)), #000 calc(100% - var(--fade-bottom)), var(--fb) 100%);
+  scrollbar-width: none;
+}
+/* Края растворяются только когда за ними есть что прокрутить (классы ставит glass.js) */
+#mainApp .schedule-col.lg-fade-top { --ft: rgba(0, 0, 0, 0); --fade-top: 64px; }
+#mainApp .schedule-col.lg-fade-bottom { --fb: rgba(0, 0, 0, 0); --fade-bottom: 48px; }
+#mainApp .schedule-col > * { flex-shrink: 0; }
+#mainApp .schedule-col::-webkit-scrollbar { display: none; }
+
+/* Свой тонкий ползунок: невидим в покое, плавно проявляется при прокрутке и при наведении на него */
+#mainApp .layout-grid { position: relative; }
+.lg-scrollbar { position: absolute; top: 0; width: 12px; z-index: 5; opacity: 0; pointer-events: none; transition: opacity 0.5s ease; }
+.lg-scrollbar.on, .lg-scrollbar.drag { opacity: 1; transition-duration: 0.18s; }
+.lg-scrollbar.on i, .lg-scrollbar.drag i { pointer-events: auto; }   /* ловит мышь только сам ползунок, не полоса вокруг */
+.lg-scrollbar i { position: absolute; left: 3px; width: 6px; border-radius: 999px; background: color-mix(in srgb, var(--text-main) 26%, transparent); transition: background 0.2s; cursor: default; }
+.lg-scrollbar i:hover, .lg-scrollbar.drag i { background: color-mix(in srgb, var(--text-main) 40%, transparent); }
+/* Панель тянется на всю высоту — вровень с колонкой дней; длинный список предметов прокручивается внутри */
+#mainApp .sidebar-panel { align-self: stretch; min-height: 0; overflow: hidden; }
+#mainApp .sidebar-panel > .panel-section:last-child { flex: 1; min-height: 0; }
+#mainApp .subject-list { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: none; margin: 0 -6px; padding: 0 6px 4px; -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 24px), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 24px), transparent); }
+#mainApp .subject-list::-webkit-scrollbar { display: none; }
+
+/* Плитки дней при инерционной прокрутке отстают и догоняют (сдвиг ставит glass.js) */
+#mainApp .day-group { will-change: transform; transition: transform 0.5s cubic-bezier(0.34, 1.2, 0.64, 1); }
+
+/* Пока дни прокручиваются, строки не реагируют на курсор: кнопки не выезжают и ничего не дёргается */
+#mainApp .schedule-col.lg-scrolling #scheduleAnimationWrapper { pointer-events: none; }
+
+/* ---------- Предметы: заголовок с «⋯» и строка по типам занятий ---------- */
+#mainApp .panel-title-row { display: flex; align-items: center; justify-content: space-between; margin: -4px -6px -4px 0; }
+#mainApp .panel-title-row .lg-more { width: 28px; height: 28px; }
+.subj-kinds { display: flex; flex-wrap: wrap; gap: 2px 6px; margin-top: -2px; font-size: 12px; font-weight: 500; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.subj-kind b { font-weight: 600; color: var(--text-main); }
+.subj-kinds .sep { color: var(--text-light); }
+
+/* ---------- Всплывающие окна (сортировка, добавить день) — в том же стиле, что меню «⋯» ---------- */
+.lg-menu-title { padding: 6px 12px 4px; font-size: 12px; font-weight: 600; color: var(--text-muted); }
+.lg-menu-check { display: grid; place-items: center; color: var(--mc, var(--tint)); margin-left: 8px; }
+.lg-menu-item[aria-checked="true"] .lg-menu-ico { color: var(--mc, var(--tint)); }
+/* Сортировка: «по важности» — красный флажок, «по посещаемости» — зелёный */
+.lg-menu-item.sort-imp { --mc: var(--color-red); }
+.lg-menu-item.sort-att { --mc: var(--color-green); }
+.lg-menu-compact { min-width: 214px; }
+
+/* Колонка дней шире по бокам, чтобы мягкие тени карточек не обрезались прямыми краями */
+#mainApp .schedule-col { margin: -10px -24px 0 -20px; padding: 10px 16px 24px 20px; }
+#mainApp .day-group { box-shadow: var(--glass-shadow-soft), inset 0 1px 0 var(--glass-line), inset 0 0 0 1px var(--glass-edge); }
+:root { --glass-shadow-soft: 0 1px 2px rgba(15, 23, 42, 0.03), 0 6px 18px -8px rgba(15, 23, 42, 0.14); }
+body.dark-theme { --glass-shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.25), 0 8px 22px -10px rgba(0, 0, 0, 0.6); }
+/* Обёртка анимации смены недели обрезает только по горизонтали: по вертикали своей полосы прокрутки у неё быть не должно
+   (раньше при «отставании» плиток в ней вылезал большой системный ползунок и сдвигал карточки) */
+#mainApp .schedule-mask { overflow-x: clip; overflow-y: visible; }
+
+/* Аккуратный «+» вместо кнопки «Добавить учебный день» */
+#addDayBtnContainer { display: flex; justify-content: center; }
+.lg-add-day {
+  width: 38px; height: 38px; margin-top: 16px; padding: 0; display: grid; place-items: center; border: 0; border-radius: 50%; cursor: pointer;
+  background: var(--glass); color: var(--text-muted);
+  -webkit-backdrop-filter: blur(24px) saturate(1.8); backdrop-filter: blur(24px) saturate(1.8);
+  box-shadow: var(--glass-shadow-soft), inset 0 1px 0 var(--glass-line), inset 0 0 0 1px var(--glass-edge);
+  transition: color 0.2s, transform 0.25s var(--spring);
+}
+.lg-add-day:hover, .lg-add-day.active { color: var(--text-main); transform: scale(1.08); }
+.lg-add-day:active { transform: scale(0.92); }
+.lg-add-day:focus-visible { outline: 2px solid var(--tint); outline-offset: 2px; }
+.lg-add-day svg { width: 18px; height: 18px; }
+
+/* ---------- Контраст: фон темнее, у карточек и капсул чёткая тонкая граница ---------- */
+:root { --lg-base: #e6e8ed; --glass: rgba(255, 255, 255, 0.82); --glass-edge: rgba(15, 23, 42, 0.09); --lg-track: rgba(15, 23, 42, 0.08); }
+body.dark-theme { --lg-base: #08090c; --glass: rgba(30, 32, 40, 0.82); --glass-edge: rgba(255, 255, 255, 0.09); }

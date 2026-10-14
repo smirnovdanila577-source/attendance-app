@@ -381,68 +381,7 @@ body:not(.dark-theme) .status-pill.missed { color: #991b1b; }
   border-color: var(--text-main);
 }
 
-/* Модальное окно добавления пары с фиксированной красивой пропорцией */
-#modalBackdrop .modal-content {
-  min-height: 520px;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between; /* Заголовок и поля сверху, кнопки снизу */
-  padding: 32px;
-  box-sizing: border-box;
-}
-
-/* Блок с кнопками снизу */
-#modalBackdrop .modal-actions,
-.modal-actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end; /* Кнопки прижаты вправо */
-  gap: 12px;
-  margin-top: 24px;
-  padding-top: 16px;
-  border-top: 1px solid var(--border); /* Аккуратный разделитель (по желанию) */
-  flex-shrink: 0; /* Запрещает кнопкам сжиматься */
-}
-
-/* Ограничиваем высоту раскрывающегося списка, чтобы он точно не лез на кнопки */
-#modalBackdrop .select-options {
-  max-height: 160px; /* Чтобы 3-4 пункта влезали компактно и не перекрывали футер */
-}
-
-/* --- ЭСТЕТИКА МОДАЛКИ «НОВАЯ ПАРА» --- */
-
-/* --- ФИНАЛЬНЫЙ ФИКС ВЫПАДАЮЩЕГО СПИСКА --- */
-
-/* 1. Бронируем пустое место под список, чтобы окно не пыталось скроллиться вместе с ним */
-#modalBackdrop .input-group:last-of-type {
-  margin-bottom: 140px !important;
-}
-
-/* 2. Запрещаем модалке скроллиться и делаем тот самый эстетичный отступ снизу */
-#modalBackdrop .modal-content {
-  max-height: 90vh !important;
-  overflow: hidden !important;
-  padding-bottom: 32px !important; 
-}
-
-/* 3. Сам список теперь скроллится строго внутри своей рамки */
-#modalBackdrop .select-options {
-  max-height: 120px !important;
-  overflow-y: auto !important;
-  overflow-x: hidden !important;
-}
-
-/* 4. Возвращаем нормальный, крупный размер текста и плиток */
-#modalBackdrop .select-option {
-  padding: 10px 14px !important;
-  font-size: var(--fs-base) !important;
-}
-
-/* --- МИНИМАЛИСТИЧНЫЙ НОМЕР ПАРЫ --- */
-.pair-card { 
-  grid-template-columns: 24px 105px 1fr 140px 112px !important; 
-}
-
+/* Время пары: начало над концом */
 .time-block { 
   display: flex; 
   flex-direction: column; 

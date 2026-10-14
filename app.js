@@ -214,7 +214,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (titleEl) titleEl.textContent = `Привет, ${database.userProfile.name}!`;
     if (avatarEl) {
       const initial = database.userProfile.name ? database.userProfile.name.charAt(0).toUpperCase() : 'С';
-      avatarEl.textContent = initial;
+      // Выбранный в профиле аватар (если он открыт), иначе первая буква ника
+      const ext = database.profileExt || {};
+      const av = window.Avatars && ext.avatarId ? Avatars.byId(ext.avatarId) : null;
+      if (av && Avatars.isUnlocked(av, ext.achievements || {})) avatarEl.innerHTML = Avatars.html(av.id, database.userProfile.name);
+      else avatarEl.textContent = initial;
     }
     switchScreen('welcomeScreen');
   }
@@ -303,6 +307,9 @@ function startMainApp() {
     setInterval(render, 60000);
   }
   render();
+  // Один раз при входе: дни мягко поднимаются по очереди (каждые 60 с render() идёт без анимации)
+  const lgWrap = document.getElementById('scheduleAnimationWrapper');
+  if (lgWrap) { lgWrap.classList.add('lg-enter'); setTimeout(() => lgWrap.classList.remove('lg-enter'), 1400); }
 
   const syncBtn = document.getElementById('sync-schedule-btn');
 
@@ -786,13 +793,16 @@ function jumpToCurrentWeek() {
 
     if (!target) return;
 
-    const container = target.closest('.scroll-container') || document.querySelector('.scroll-container');
+    // Прокручивается вся страница; стеклянная верхняя панель лежит поверх, поэтому отступаем на её высоту
+    const container = document.getElementById('mainScroll') || target.closest('.scroll-container');
     if (!container) return;
 
     const containerRect = container.getBoundingClientRect();
     const targetRect = target.getBoundingClientRect();
+    const bar = document.querySelector('#mainApp .lg-topbar');
+    const offset = (bar ? bar.offsetHeight : 0) + 12;
 
-    const targetScrollTop = (targetRect.top - containerRect.top) + container.scrollTop - 80;
+    const targetScrollTop = (targetRect.top - containerRect.top) + container.scrollTop - offset;
 
     container.scrollTo({
       top: Math.max(0, targetScrollTop),
@@ -866,7 +876,8 @@ function saveSettings() {
 }
 
 function isSubjectImportant(subj) { return (database.important_subjects || []).includes(subj.trim()); }
-function toggleSubjectPriority(subj) { const clean = subj.trim(); if (!database.important_subjects) database.important_subjects = []; const idx = database.important_subjects.indexOf(clean); if (idx > -1) database.important_subjects.splice(idx, 1); else database.important_subjects.push(clean); saveData(); render(); }
+function toggleSubjectPriority(subj) { const clean = subj.trim(); if (!database.important_subjects) database.important_subjects = []; const idx = database.important_subjects.indexOf(clean); if (idx > -1) { database.important_subjects.splice(idx, 1); lastImpChange = { subj: clean, on: false }; } else { database.important_subjects.push(clean); lastImpChange = { subj: clean, on: true }; } saveData(); render(); }
+let lastImpChange = null; // какой предмет только что отметили/сняли — значок в списке предметов появляется или уходит плавно
 
 function changeWeek(diff) { 
   if (currentWeek + diff < 1) return;
@@ -924,7 +935,7 @@ function toggleAttendance(pairId) {
     const p = week[d]?.find(i => i.id === pairId); 
     if (p && p.cancelled) return;
     if (p && !pairHasEnded(currentWeek, d, p.time)) { showElegantToast("Рано", "Отметить пару можно после её окончания", "error"); return; }
-    if (p) { p.attended = p.attended === null ? true : p.attended === true ? false : null; if (window.Social) Social.queueMark(currentWeek, d, p); saveData(); render(); return; } 
+    if (p) { p.attended = p.attended === null ? true : p.attended === true ? false : null; lastToggledPair = p.id; if (window.Social) Social.queueMark(currentWeek, d, p); saveData(); render(); return; } 
   } 
 }
 
@@ -1042,7 +1053,9 @@ function buildTimeSelectOptions() {
     const div = document.createElement('div');
     div.className = 'select-option';
     div.setAttribute('data-value', val);
-    div.textContent = `${b.num} пара (${val})`;
+    div.title = `${b.num} пара (${val})`;
+    // Плитка: номер пары сверху, время снизу
+    div.innerHTML = `<b>${b.num} пара</b><span>${escapeHtml(b.start)} – ${escapeHtml(b.end)}</span>`;
     container.appendChild(div);
   });
   initCustomSelects(); 
@@ -1317,43 +1330,58 @@ function checkLiveStatus(dayName, timeStr, weekNum) {
 
   if (now >= sDate && now <= eDate) {
     const leftMin = Math.round((eDate - now) / 60000);
-    return `Осталось ${leftMin} мин`;
+    return `ещё ${leftMin} мин`;
   }
   return null;
 }
+// Сколько процентов идущей пары уже прошло (для заливки строки)
+function livePercent(timeStr) {
+  const [a, b] = String(timeStr || '').split(' - ');
+  if (!a || !b) return 0;
+  const now = new Date(), s = new Date(now), e = new Date(now);
+  s.setHours(...a.split(':').map(Number), 0, 0); e.setHours(...b.split(':').map(Number), 0, 0);
+  return Math.max(0, Math.min(100, Math.round((now - s) / (e - s) * 100)));
+}
+let lastToggledPair = null;
 
 function render() {
   document.getElementById("prevBtn").disabled = currentWeek <= 1; 
   const typeKey = getWeekType(currentWeek);
   
-  document.getElementById("weekCenterDisplay").innerHTML = `Неделя ${currentWeek} <span class="week-dates-badge">${getWeekDatesString(currentWeek)}</span>`; 
-  document.getElementById("weekTypeDisplay").textContent = typeKey === "left" ? "Первая неделя" : typeKey === "right" ? "Вторая неделя" : "Единое расписание";
+  document.getElementById("weekCenterDisplay").textContent = `Неделя ${currentWeek}`;
+  // Под заголовком — даты недели; тип недели пишем только при чередующемся расписании
+  const wkMon = getDateForDay(currentWeek, "Понедельник"), wkSun = getDateForDay(currentWeek, "Воскресенье");
+  const wkRange = wkMon.getMonth() === wkSun.getMonth()
+    ? `${wkMon.getDate()} – ${formatDate(wkSun)}` : `${formatDate(wkMon)} – ${formatDate(wkSun)}`;
+  document.getElementById("weekTypeDisplay").textContent = wkRange + (typeKey === "left" ? " · первая неделя" : typeKey === "right" ? " · вторая неделя" : "");
+  document.querySelector(".lg-today")?.classList.toggle("is-current", currentWeek === calculateCurrentSemesterWeek());
   
   const wrapper = document.getElementById("scheduleAnimationWrapper"); 
   wrapper.innerHTML = ""; const weekData = getWeekData(currentWeek);
 
   (database.activeDays || ALL_DAYS).forEach(day => {
     const pairs = weekData[day] || []; 
-    const block = document.createElement("div"); block.className = "day-group";
+    const block = document.createElement("div");
     const dateObj = getDateForDay(currentWeek, day);
     const formattedDate = formatDate(dateObj);
     const isToday = isDateToday(dateObj);
+    block.className = "day-group" + (isToday ? " is-today" : "");
 
     let html = `
       <div class="day-header">
         <div class="day-title-wrap">
-          <span class="day-name">${day}</span><span class="day-date">· ${formattedDate}</span>${isToday ? `<span class="today-badge">Сегодня</span>` : ''}
+          <span class="day-name">${day}</span><span class="day-date">${formattedDate}</span>${isToday ? `<span class="today-badge">Сегодня</span>` : ''}
         </div>
         <div class="day-actions">
-          <button class="action-circle-btn green" onclick="markEntireDay('${day}')" title="Отметить все"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6 7 17l-5-5"/><path d="m22 10-7.5 7.5"/></svg></button>
-          <button class="action-circle-btn" onclick="openModal('${day}')" title="Добавить пару"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14"/><path d="M12 5v14"/></svg></button>
-          <button class="action-circle-btn red" onclick="hideDay('${day}')" title="Удалить день"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+          <!-- Действия с днём (отметить все, добавить пару, скрыть день) — в стеклянном меню (glass.js) -->
+          <button class="lg-more" onclick="PairMenu.openDay(this, '${day}')" aria-label="Действия с днём" aria-haspopup="menu" title="Действия с днём"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg></button>
         </div>
       </div>
+      <div class="day-card">
     `;
 
-    if (pairs.length === 0 && !pendingUndos.some(e => e.day === day && e.weekNum === currentWeek)) { 
-      html += `<div style="font-size: var(--fs-base); color: var(--text-light); padding: 8px 0;">Нет пар</div>`; 
+    if (pairs.length === 0 && !pendingUndos.some(e => e.day === day && e.weekNum === currentWeek)) {
+      html += `<div class="day-empty"><span>Нет пар</span><button type="button" class="day-empty-add" onclick="openModal('${day}')">${ICONS.plus}Добавить пару</button></div>`;
     } else {
       buildDayDisplay(day, currentWeek).forEach(item => {
         if (item.undo) {
@@ -1371,27 +1399,26 @@ function render() {
         }
         const p = item.pair;
         const isImp = isSubjectImportant(p.subject || ""), cln = jsArg(p.subject || ""); 
-        let stCls = "status-pill", stTxt = "Отметить";
-        let stIcn = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg>`;
-        if (p.attended === true) { 
-          stCls += " attended"; 
-          stIcn = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg>`; 
-          stTxt = "Посещено"; 
-        } else if (p.attended === false) { 
-          stCls += " missed"; 
-          stIcn = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>`; 
-          stTxt = "Пропуск"; 
+        // Отметка — круглая кнопка: пусто → посещено (зелёная галочка) → пропуск (красный крестик) → пусто
+        let stCls = "lg-status", stTxt = "Отметить посещение";
+        let stIcn = '';
+        if (p.attended === true) {
+          stCls += " attended"; stTxt = "Посещено. Нажми, чтобы отметить пропуск";
+          stIcn = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path class="lg-draw" d="M5 12.5l4.5 4.5L19 7.5"/></svg>`;
+        } else if (p.attended === false) {
+          stCls += " missed"; stTxt = "Пропуск. Нажми, чтобы снять отметку";
+          stIcn = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path class="lg-draw" d="M6 6l12 12M18 6L6 18"/></svg>`;
         }
         const notEnded = !p.cancelled && !pairHasEnded(currentWeek, day, p.time);
-        if (notEnded) stCls += " not-yet";
+        if (notEnded) { stCls += " not-yet"; stTxt = "Отметить можно после окончания пары"; }
+        if (p.id === lastToggledPair) stCls += " pop";   // пружинка только у той пары, которую сейчас отметили
 
         const liveStatus = p.cancelled ? null : checkLiveStatus(day, p.time, currentWeek);
+        const livePct = liveStatus ? livePercent(p.time) : 0;
 
-        // Ищем соответствие времени
+        // Номер пары по звонкам — в подсказке при наведении на время
         const safePTime = (p.time || "").replace(/\s+/g, '');
         const bell = database.bellSchedule.find(b => `${b.start}-${b.end}`.replace(/\s+/g, '') === safePTime);
-        // Если пара найдена в звонках — выводим элегантный текст. Если нет (доп. пара) — оставляем пустоту.
-        const pairNumText = bell ? `<span class="pair-num-text">${bell.num} пара</span>` : ``;
         // Тип занятия: цвет плитки как на сайте (лекция жёлтая, практика зелёная, лабораторная розовая)
         const typeLow = (p.type || "").toLowerCase();
         const typeKind = typeLow.startsWith("лек") ? "lecture"
@@ -1404,72 +1431,92 @@ function render() {
           : `<span class="time-text">${escapeHtml(p.time || "")}</span>`;
 
         html += `
-          <div data-pair-id="${p.id}" class="pair-card ${isImp ? 'is-important' : ''} ${liveStatus ? 'is-live' : ''} ${p.cancelled ? 'is-cancelled' : ''}">
-            <div class="priority-btn ${isImp ? 'active' : ''}" onclick="toggleSubjectPriority('${cln}')">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="${isImp ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/></svg>
-            </div>
-            
-            <div class="time-block">
-              ${pairNumText}
+          <div data-pair-id="${p.id}" class="pair-card ${isImp ? 'is-important' : ''} ${liveStatus ? 'is-live' : ''} ${p.cancelled ? 'is-cancelled' : ''} ${(p.tasks || []).some(t => !t.done) ? 'has-hw' : ''}"${liveStatus ? ` style="--live:${livePct}%"` : ''}>
+            <div class="time-block"${bell ? ` title="${bell.num} пара"` : ''}>
               ${timeHtml}
             </div>
-            
-            <div class="pair-info">
-              <span class="pair-title">
-                ${escapeHtml(p.subject || "")}
+
+            <div class="pair-info" onclick="PairMenu.rowTap(this, '${day}', '${p.id}')">
+              <span class="pair-title">${escapeHtml(p.subject || "")}</span>
+              <span class="pair-meta">
+                <span class="pair-type" data-kind="${typeKind}">${escapeHtml(p.type || "")}</span>
+                ${isImp ? `<span class="pair-flag" title="Важный предмет"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" fill="currentColor"/><path d="M4 22v-7"/></svg>Важный</span>` : ''}
                 ${liveStatus ? `<span class="live-indicator">${liveStatus}</span>` : ''}
+                ${p.cancelled ? `<span class="cancelled-note" title="Пары больше нет в расписании вуза. Отметка и ДЗ сохранены">убрана из расписания</span>` : ''}
               </span>
-              <span class="pair-type" data-kind="${typeKind}">${escapeHtml(p.type || "")}</span>
             </div>
-            ${p.cancelled
-              ? `<span class="status-pill cancelled-pill" title="Пары больше нет в расписании вуза. Отметка и ДЗ сохранены">Убрана из расписания</span>`
-              : `<button class="${stCls}" onclick="toggleAttendance('${p.id}')"${notEnded ? ' title="Отметить можно после окончания пары"' : ''}>${stIcn} ${stTxt}</button>`}
-            <div style="display: flex; gap: 6px; justify-content: flex-end;">
+            <div class="pair-actions">
+              <!-- Действия с парой — в стеклянном меню (glass.js: PairMenu) -->
+              <button class="lg-more" onclick="PairMenu.open(this, '${day}', '${p.id}')" aria-label="Действия с парой" aria-haspopup="menu" title="Действия">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>
+              </button>
+              <!-- Домашнее задание — всегда под рукой, рядом с отметкой -->
               ${hwButtonHtml(p)}
-              <button class="action-circle-btn" onclick='openModal("${day}", ${JSON.stringify({ id: p.id, subject: p.subject, time: p.time, type: p.type }).replace(/&/g, "&amp;").replace(/'/g, "&apos;")})'>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
-              </button>
-              <button class="action-circle-btn red" onclick="triggerDeletePair('${day}', '${p.id}')">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
-              </button>
             </div>
+            ${p.cancelled ? '<span class="lg-status-gap"></span>'
+              : `<button class="${stCls}" onclick="toggleAttendance('${p.id}')" title="${stTxt}" aria-label="${stTxt}">${stIcn}</button>`}
             ${hwPanelHtml(p)}
           </div>`;
       });
 
     }
+    html += `</div>`; // .day-card
     block.innerHTML = html; wrapper.appendChild(block);
   });
 
   const addDayContainer = document.getElementById("addDayBtnContainer");
-  if ((database.activeDays || []).length < ALL_DAYS.length) { 
-    addDayContainer.innerHTML = `<button class="btn-add-day" onclick="openAddDayModal()">${ICONS.plus} Добавить учебный день</button>`;
+  if ((database.activeDays || []).length < ALL_DAYS.length) {
+    addDayContainer.innerHTML = `<button type="button" class="lg-add-day" onclick="PairMenu.openAddDay(this)" aria-haspopup="menu" title="Добавить учебный день">${ICONS.plus}<span>Учебный день</span></button>`;
   } else {
     addDayContainer.innerHTML = '';
   }
 
-  renderSubjectStats(); renderOverallStats();
+  lastToggledPair = null;
+  renderSubjectStats(); lastImpChange = null; renderOverallStats();
 }
+// Тип занятия по названию: лекция / практика (семинар) / лабораторная / другое
+function pairKind(type) {
+  const t = (type || "").toLowerCase();
+  return t.startsWith("лек") ? "lecture"
+    : (t.startsWith("практ") || t.startsWith("сем") || t.startsWith("пр")) ? "practice"
+    : t.startsWith("лаб") ? "lab" : "other";
+}
+const KIND_ORDER = ["lecture", "practice", "lab", "other"];
+const KIND_NAME = { lecture: "Лекции", practice: "Практики", lab: "Лабораторные", other: "Другие занятия" };
+const KIND_SHORT = { lecture: "лекции", practice: "практики", lab: "лабы", other: "другое" };
+
 function renderSubjectStats() {
-  const stats = {}; 
-  Object.values(database.weeks).forEach(w => { 
-    (database.activeDays || ALL_DAYS).forEach(day => { 
-      (w[day] || []).forEach(p => { 
-        const n = p.subject?.trim(); if (!n || p.cancelled) return; 
-        if (!stats[n]) stats[n] = { a: 0, t: 0 }; 
-        if (p.attended === true) { stats[n].a++; stats[n].t++; } 
-        else if (p.attended === false) { stats[n].t++; } 
+  // Считаем по предмету и отдельно по каждому типу занятий
+  const stats = {};
+  Object.values(database.weeks).forEach(w => {
+    (database.activeDays || ALL_DAYS).forEach(day => {
+      (w[day] || []).forEach(p => {
+        const n = p.subject?.trim(); if (!n || p.cancelled) return;
+        const s = stats[n] || (stats[n] = { a: 0, t: 0, kinds: {} });
+        const k = s.kinds[pairKind(p.type)] || (s.kinds[pairKind(p.type)] = { a: 0, t: 0 });
+        if (p.attended === true) { s.a++; s.t++; k.a++; k.t++; }
+        else if (p.attended === false) { s.t++; k.t++; }
       });
     });
   });
-  const list = document.getElementById("subjectsList"); list.innerHTML = ""; 
-  const keys = Object.keys(stats).sort(); 
+  const list = document.getElementById("subjectsList"); list.innerHTML = "";
+  const pctOf = i => i.t > 0 ? Math.round((i.a / i.t) * 100) : null;
+  // Сортировка: «по важности» — важные сверху, затем от худшей посещаемости; «по посещаемости» — от худшей к лучшей.
+  // Предметы без отметок — в конце; при равенстве — по алфавиту.
+  const mode = database.subjectSort || "importance";
+  const byPct = (x, y) => {
+    const px = pctOf(stats[x]), py = pctOf(stats[y]);
+    if (px === null || py === null) return (px === null) - (py === null);
+    return px - py;
+  };
+  const keys = Object.keys(stats).sort((x, y) =>
+    (mode === "importance" ? isSubjectImportant(y) - isSubjectImportant(x) : 0) || byPct(x, y) || x.localeCompare(y, "ru"));
   if (keys.length === 0) { list.innerHTML = `<div style="font-size: var(--fs-base); color: var(--text-light);">Нет предметов</div>`; return; }
   keys.forEach(subj => {
-    const i = stats[subj], isImp = isSubjectImportant(subj), pct = i.t > 0 ? Math.round((i.a / i.t) * 100) : 0; 
-    let c = pct < 60 ? "var(--color-red)" : pct < 80 ? "var(--color-yellow)" : "var(--color-green)"; 
-    if (i.t === 0) c = "var(--text-light)"; 
-    const b = document.createElement("div"); b.className = "subject-item";
+    const i = stats[subj], isImp = isSubjectImportant(subj), pct = i.t > 0 ? Math.round((i.a / i.t) * 100) : 0;
+    let c = pct < 60 ? "var(--color-red)" : pct < 80 ? "var(--color-yellow)" : "var(--color-green)";
+    if (i.t === 0) c = "var(--text-light)";
+    const b = document.createElement("div"); b.className = "subject-item" + (isImp ? " is-important" : "") + (lastImpChange && lastImpChange.subj === subj ? (lastImpChange.on ? " imp-in" : " imp-out") : ""); b.title = `${subj}: посещено ${i.a} из ${i.t}`;
     b.innerHTML = `
       <div class="subj-header">
         <div class="subj-name-wrap">
@@ -1478,7 +1525,7 @@ function renderSubjectStats() {
           </div>
           <span class="subj-name">${escapeHtml(subj)}</span>
         </div>
-        <div class="subj-stat" style="color: ${c};"><span style="color: var(--text-muted); font-size: var(--fs-xs); margin-right: 6px;">(${i.a} из ${i.t})</span>${pct}%</div>
+        <div class="subj-stat" style="color: ${c};">${i.t > 0 ? pct + '%' : '—'}</div>
       </div>
       <div class="prog-track" style="height: 4px;"><div class="prog-fill" style="width: ${pct}%; background: ${c}"></div></div>`;
     list.appendChild(b);
@@ -1497,10 +1544,18 @@ function renderOverallStats() {
     });
   });
   const pct = t > 0 ? Math.round((a / t) * 100) : 0; 
-  document.getElementById("overallPercent").textContent = `${pct}%`; 
-  document.getElementById("overallCount").textContent = `${a} из ${t} пар`;
-  const f = document.getElementById("overallFill"); f.style.width = `${pct}%`;
-  f.style.background = pct >= 80 ? "var(--color-green)" : pct >= 60 ? "var(--color-yellow)" : "var(--color-red)";
+  document.getElementById("overallPercent").textContent = t > 0 ? `${pct}%` : '—';
+  document.getElementById("overallCount").textContent = `${a} из ${t} ${t % 10 === 1 && t % 100 !== 11 ? 'пары' : 'пар'}`;
+  const ring = document.getElementById("overallRing");
+  if (ring) {
+    const C = 2 * Math.PI * 52;
+    ring.style.strokeDasharray = C;
+    ring.style.strokeDashoffset = C * (1 - (t > 0 ? pct : 0) / 100);
+    ring.style.stroke = pct >= 80 ? "var(--color-green)" : pct >= 60 ? "var(--color-yellow)" : "var(--color-red)";
+    // Цвет кольца нужен и дорожке под ним (бледная подложка того же цвета)
+    const box = ring.closest('.lg-ring');
+    if (box) box.style.setProperty('--ring', t > 0 ? ring.style.stroke : 'var(--text-light)');
+  }
 }
 
 function exportData() {
