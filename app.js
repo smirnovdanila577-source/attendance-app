@@ -206,7 +206,9 @@ document.addEventListener('DOMContentLoaded', () => {
       database.userProfile = null;
       saveData();
     }
-    switchScreen('authScreen');
+    // Первый запуск на этом устройстве — сначала знакомство с приложением
+    if (window.Onboarding && Onboarding.firstRun()) switchScreen('landingScreen');
+    else switchScreen('authScreen');
   } else {
     const titleEl = document.getElementById('welcomeTitle');
     const avatarEl = document.getElementById('welcomeAvatar');
@@ -343,6 +345,7 @@ function loadData() {
       if (!parsed.fontSize) parsed.fontSize = "normal";
       if (!parsed.typeStyle) parsed.typeStyle = "pill";
       if (!parsed.glassFx) parsed.glassFx = "full";
+      if (!parsed.accent) parsed.accent = "blue";
       if (!parsed.scheduleMode) parsed.scheduleMode = "alternate";
       if (!parsed.firstWeekType) parsed.firstWeekType = "left";
       if (!parsed.bellSchedule) parsed.bellSchedule = JSON.parse(JSON.stringify(DEFAULT_BELLS));
@@ -352,7 +355,7 @@ function loadData() {
   }
   return { 
     userProfile: null,
-    themeMode: "light", fontSize: "normal", typeStyle: "pill", glassFx: "full", scheduleMode: "alternate", 
+    themeMode: "light", fontSize: "normal", typeStyle: "pill", glassFx: "full", accent: "blue", scheduleMode: "alternate", 
     semesterStartDate: "2026-09-01", firstWeekType: "left",
     bellSchedule: JSON.parse(JSON.stringify(DEFAULT_BELLS)),
     activeDays: ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота"], important_subjects: [], 
@@ -583,8 +586,15 @@ function setCustomSelectValue(inputId, value) {
   }
 }
 
+// Акцентный цвет: кнопки, «Сегодня», выделение, ссылки (синий — по умолчанию)
+function applyAccent(name) {
+  if (name && name !== "blue") document.body.dataset.accent = name;
+  else delete document.body.dataset.accent;
+}
+
 function evaluateTheme() {
   applyLiveTheme(database.themeMode);
+  applyAccent(database.accent);
   if (database.fontSize === "large") document.body.classList.add('text-large');
   else document.body.classList.remove('text-large');
   document.body.classList.toggle('type-dot', database.typeStyle === 'dot');
@@ -596,6 +606,7 @@ function syncSettingsUI() {
   setCustomSelectValue('fontSelectInput', database.fontSize);
   setCustomSelectValue('typeStyleInput', database.typeStyle || 'pill');
   setCustomSelectValue('glassFxInput', database.glassFx || 'full');
+  if (window.LGAccent) LGAccent.set(database.accent || 'blue', false);
   setCustomSelectValue('scheduleModeSelect', database.scheduleMode);
   setCustomSelectValue('firstWeekInput', database.firstWeekType);
   updateScheduleModeVisibility(database.scheduleMode);
@@ -869,6 +880,7 @@ function saveSettings() {
   database.fontSize = document.getElementById("fontSelectInput").value;
   database.typeStyle = document.getElementById("typeStyleInput").value === "dot" ? "dot" : "pill";
   database.glassFx = document.getElementById("glassFxInput").value === "lite" ? "lite" : "full";
+  if (window.LGAccent) database.accent = LGAccent.get();
   database.scheduleMode = document.getElementById("scheduleModeSelect").value;
   database.firstWeekType = document.getElementById("firstWeekInput").value;
   

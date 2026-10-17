@@ -30,32 +30,52 @@
       </div>
     </div>
 
-    <!-- ЭКРАН 1: ЛЕНДИНГ (в духе «Что нового» в iOS) -->
+    <!-- Предпросмотр знакомства (Ctrl+Shift+L): вернуться туда, где был -->
+    <button type="button" class="lg-onb-exit" id="onbExit" onclick="Onboarding.exitPreview()">Вернуться в приложение</button>
+
+    <!-- ЭКРАН 1: ЗНАКОМСТВО (первый запуск; в духе «Что нового» в iOS) -->
     <div id="landingScreen" class="screen">
       <div class="scroll-container lg-onb">
-        <div class="lg-onb-inner">
-          <div class="lg-appicon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 12.5l3.6 3.6L17.5 8.5"/></svg></div>
+        <div class="lg-onb-inner lg-intro">
+          <div class="lg-appicon lg-appicon-new" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 12.5l3.6 3.6L17.5 8.5"/></svg></div>
           <h1 class="lg-onb-title">Учёба под твоим контролем</h1>
-          <p class="lg-onb-sub">Следи за посещаемостью, получай достижения и соревнуйся с одногруппниками в едином приложении.</p>
+          <p class="lg-onb-sub">Расписание, посещаемость и прогресс за семестр в одном спокойном приложении.</p>
+
+          <!-- Витрина: живой образ приложения из настоящих элементов, сцена тихо повторяется -->
+          <div class="lg-show" id="onbShow" aria-hidden="true">
+            <div class="lg-show-day">
+              <div class="lg-show-head"><b>Понедельник</b><span>13 октября</span></div>
+              <div class="lg-show-pair" style="--i:0"><span class="t">08:00</span><span class="n">Математический анализ</span><span class="st"><svg viewBox="0 0 24 24"><path d="M6.5 12.5l3.6 3.6L17.5 8.5"/></svg></span></div>
+              <div class="lg-show-pair" style="--i:1"><span class="t">09:50</span><span class="n">Физика</span><span class="st"><svg viewBox="0 0 24 24"><path d="M6.5 12.5l3.6 3.6L17.5 8.5"/></svg></span></div>
+              <div class="lg-show-pair" style="--i:2"><span class="t">11:40</span><span class="n">Программирование</span><span class="st"><svg viewBox="0 0 24 24"><path d="M6.5 12.5l3.6 3.6L17.5 8.5"/></svg></span></div>
+            </div>
+            <div class="lg-show-stat">
+              <div class="lg-show-ring"><svg viewBox="0 0 120 120"><circle class="tr" cx="60" cy="60" r="50"/><circle class="fl" cx="60" cy="60" r="50"/></svg><b id="onbPct">0%</b></div>
+              <div class="lg-show-week"><i style="--i:0"></i><i style="--i:1"></i><i style="--i:2" class="m"></i><i style="--i:3"></i><i style="--i:4"></i><i style="--i:5"></i></div>
+            </div>
+          </div>
+
           <ul class="lg-features">
             <li data-tone="blue">
-              <span class="lg-f-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19H7a5 5 0 1 1 1.1-9.88A6 6 0 0 1 19.6 11 4 4 0 0 1 17.5 19z"/><path d="m9.5 14 2.5-2.5 2.5 2.5"/><path d="M12 11.5V17"/></svg></span>
-              <div><b>Облачная синхронизация</b><span>Твое расписание автоматически синхронизируется между ПК, планшетом и смартфоном.</span></div>
-            </li>
-            <li data-tone="orange">
-              <span class="lg-f-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg></span>
-              <div><b>Топ студентов</b><span>Участвуй в глобальном лидерборде. Докажи, что у тебя самая высокая посещаемость.</span></div>
+              <span class="lg-f-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16.5" rx="3.5"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/></svg></span>
+              <div><b>Расписание подтянется само</b><span>Подтягивается с сайта вуза (ННГУ, ИГЭУ). Своё можно составить вручную.</span></div>
             </li>
             <li data-tone="green">
-              <span class="lg-f-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"><path d="M12 20v-6M6 20V10M18 20V4"/></svg></span>
-              <div><b>Умная аналитика</b><span>Алгоритм сам рассчитает безопасный лимит пропусков и предупредит о рисках.</span></div>
+              <span class="lg-f-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20v-6M6 20V10M18 20V4"/></svg></span>
+              <div><b>Посещаемость в одно касание</b><span>Отмечай пары, а кольцо, график и отчёт за неделю покажут, как идут дела.</span></div>
             </li>
-            <li data-tone="pink">
-              <span class="lg-f-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg></span>
-              <div><b>Мотивация и отчёты</b><span>Еженедельные отчёты и подбадривания не дадут тебе забросить учёбу.</span></div>
+            <li data-tone="orange">
+              <span class="lg-f-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg></span>
+              <div><b>Достижения и рейтинг</b><span>Серии без пропусков, награды и место среди одногруппников.</span></div>
             </li>
           </ul>
-          <button class="btn btn-primary lg-cta" onclick="showAuthScreen()">Начать работу</button>
+          <p class="lg-onb-note"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19H7a5 5 0 1 1 1.1-9.88A6 6 0 0 1 19.6 11 4 4 0 0 1 17.5 19z"/></svg>Данные хранятся в облаке и не потеряются</p>
+
+          <button class="btn btn-primary lg-cta" onclick="Onboarding.start()">Начать</button>
+          <div class="lg-auth-switch lg-onb-login">
+            <span>Уже есть аккаунт?</span>
+            <button type="button" onclick="Onboarding.login()">Войти</button>
+          </div>
         </div>
       </div>
     </div>
@@ -64,7 +84,8 @@
     <div id="authScreen" class="screen">
       <div class="scroll-container lg-onb">
         <div class="lg-auth">
-          <div class="lg-appicon sm" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 12.5l3.6 3.6L17.5 8.5"/></svg></div>
+          <button type="button" class="lg-circle lg-onb-back" onclick="Onboarding.back()" aria-label="Назад" title="Назад"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></button>
+          <div class="lg-appicon lg-appicon-new sm" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 12.5l3.6 3.6L17.5 8.5"/></svg></div>
           <h2 id="authTitle" class="lg-auth-title">Вход в аккаунт</h2>
           <p id="authSubtitle" class="lg-auth-sub">С возвращением в трекер</p>
 
@@ -340,6 +361,11 @@
                 <div class="select-option" data-value="auto" title="Тёмная с 19:00 до 07:00">Авто</div>
               </div>
             </div>
+          </div>
+          <div class="input-group lg-row lg-row-accent">
+            <label>Акцентный цвет</label>
+            <!-- Ряд цветов; над выбранным — жидкая стеклянная капля, её можно тянуть (glass.js: LGAccent) -->
+            <div class="lg-accent" id="accentPicker" role="radiogroup" aria-label="Акцентный цвет"><button type="button" class="lg-acc-dot" data-accent="blue" role="radio" aria-checked="false" aria-label="Синий" title="Синий"></button><button type="button" class="lg-acc-dot" data-accent="purple" role="radio" aria-checked="false" aria-label="Фиолетовый" title="Фиолетовый"></button><button type="button" class="lg-acc-dot" data-accent="pink" role="radio" aria-checked="false" aria-label="Розовый" title="Розовый"></button><button type="button" class="lg-acc-dot" data-accent="orange" role="radio" aria-checked="false" aria-label="Оранжевый" title="Оранжевый"></button><button type="button" class="lg-acc-dot" data-accent="green" role="radio" aria-checked="false" aria-label="Зелёный" title="Зелёный"></button><button type="button" class="lg-acc-dot" data-accent="teal" role="radio" aria-checked="false" aria-label="Бирюзовый" title="Бирюзовый"></button><button type="button" class="lg-acc-dot" data-accent="graphite" role="radio" aria-checked="false" aria-label="Графитовый" title="Графитовый"></button></div>
           </div>
           <div class="input-group lg-row">
             <label>Тип занятия</label>

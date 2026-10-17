@@ -1810,3 +1810,532 @@ body.dark-theme .calendar-popup.lg-glass { box-shadow: 0 0 0 0.5px rgba(255, 255
    карточку с открытым календарём поднимаем над остальными */
 .lg-card:has(.custom-date-picker.open, .custom-select.open) { position: relative; z-index: 30; }
 .lg-row:has(.custom-date-picker.open) { z-index: 31 !important; }
+
+/* ---------- 35. Акцентный цвет ---------- */
+/* Палитра Apple; синий — по умолчанию (атрибут не ставится) */
+body:not(.dark-theme)[data-accent="purple"]   { --tint: #af52de; }
+body:not(.dark-theme)[data-accent="pink"]     { --tint: #ff2d55; }
+body:not(.dark-theme)[data-accent="orange"]   { --tint: #f57c00; }
+body:not(.dark-theme)[data-accent="green"]    { --tint: #28a745; }
+body:not(.dark-theme)[data-accent="teal"]     { --tint: #1aa3b8; }
+body:not(.dark-theme)[data-accent="graphite"] { --tint: #636366; }
+body.dark-theme[data-accent="purple"]   { --tint: #bf5af2; }
+body.dark-theme[data-accent="pink"]     { --tint: #ff375f; }
+body.dark-theme[data-accent="orange"]   { --tint: #ff9f0a; }
+body.dark-theme[data-accent="green"]    { --tint: #30d158; }
+body.dark-theme[data-accent="teal"]     { --tint: #40c8e0; }
+body.dark-theme[data-accent="graphite"] { --tint: #98989d; }
+/* Смена цвета — мягкая, а не скачком */
+body { transition: background-color 0.3s; }
+.btn-primary, .lg-circle.primary, .lg-today, .cal-cell.selected, .lg-chips .select-option.selected, .today-badge, .hw-badge, .lg-tp-done { transition: background-color 0.4s ease, color 0.4s ease, box-shadow 0.4s ease, transform 0.35s var(--spring), filter 0.2s; }
+
+/* Ряд цветов */
+.lg-row-accent { flex-wrap: wrap; }
+.lg-accent {
+  --dot: 26px; --knob: 42px;
+  position: relative; flex: 1 1 100%; height: 52px; margin: 2px 0 2px;
+  display: flex; align-items: center; justify-content: space-between; padding: 0 12px;
+  touch-action: none; -webkit-user-select: none; user-select: none;
+}
+.lg-acc-dot {
+  position: relative; z-index: 1; width: var(--dot); height: var(--dot); padding: 0; border: 0; border-radius: 50%; cursor: pointer;
+  background: var(--c);
+  box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.12), inset 0 1px 1px rgba(255, 255, 255, 0.35), 0 1px 2px rgba(0, 0, 0, 0.12);
+  /* Размер под каплей задаётся из JS (--ds) настоящими width/height, а не scale():
+     увеличенный растром кружок давал мыльный светлый ореол по краю. Отрицательный margin
+     держит место в ряду неизменным */
+  width: var(--ds, var(--dot)); height: var(--ds, var(--dot));
+  margin: calc((var(--dot) - var(--ds, var(--dot))) / 2);
+}
+.lg-acc-dot:focus-visible { outline: 2px solid var(--c); outline-offset: 4px; }
+.lg-acc-dot[data-accent="blue"]     { --c: #007aff; }
+.lg-acc-dot[data-accent="purple"]   { --c: #af52de; }
+.lg-acc-dot[data-accent="pink"]     { --c: #ff2d55; }
+.lg-acc-dot[data-accent="orange"]   { --c: #ff9500; }
+.lg-acc-dot[data-accent="green"]    { --c: #34c759; }
+.lg-acc-dot[data-accent="teal"]     { --c: #30b0c7; }
+.lg-acc-dot[data-accent="graphite"] { --c: #8e8e93; }
+body.dark-theme .lg-acc-dot[data-accent="blue"] { --c: #0a84ff; }
+.lg-accent.is-drag, .lg-accent.is-drag * { cursor: grabbing !important; }
+
+/* Капля: прозрачная толстая линза. Края преломляют то, что под ней, кромки ловят свет,
+   под ней — мягкое свечение выбранного цвета */
+.lg-acc-knob {
+  position: absolute; left: 0; top: 50%; z-index: 2;
+  width: var(--knob); height: var(--knob); margin-left: calc(var(--knob) / -2);
+  border-radius: 50%; cursor: grab; pointer-events: none; will-change: transform;
+  background: rgba(255, 255, 255, 0.1);
+  -webkit-backdrop-filter: saturate(1.25) brightness(1.04);
+  backdrop-filter: saturate(1.25) brightness(1.04);
+  box-shadow:
+    0 8px 20px -6px rgba(0, 0, 0, 0.28), 0 2px 5px -1px rgba(0, 0, 0, 0.12), 0 0 0 0.5px rgba(0, 0, 0, 0.1),
+    inset 0 2px 1px rgba(255, 255, 255, 1), inset 0 -2px 2px rgba(255, 255, 255, 0.65),
+    inset 2px 0 1.5px rgba(255, 255, 255, 0.45), inset -2px 0 1.5px rgba(255, 255, 255, 0.45),
+    inset 0 0 10px rgba(255, 255, 255, 0.35);
+  transition: box-shadow 0.4s ease, background 0.4s ease;
+}
+/* Блик на капле: смещается по ходу движения */
+.lg-acc-knob > i {
+  position: absolute; inset: 0; border-radius: 50%; overflow: hidden; pointer-events: none;
+  background: radial-gradient(45% 28% at var(--hx, 50%) 16%, rgba(255, 255, 255, 0.95), transparent 72%);
+  opacity: 0.85;
+}
+.lg-accent:not(.is-drag) .lg-acc-knob { pointer-events: auto; }
+body.dark-theme .lg-acc-knob {
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: 0 8px 20px -6px rgba(0, 0, 0, 0.6), 0 0 0 0.5px rgba(255, 255, 255, 0.12),
+    inset 0 1.5px 1px rgba(255, 255, 255, 0.45), inset 0 -1.5px 1.5px rgba(255, 255, 255, 0.18),
+    inset 0 0 10px rgba(255, 255, 255, 0.08);
+}
+body.dark-theme .lg-acc-knob > i { background: radial-gradient(45% 28% at var(--hx, 50%) 16%, rgba(255, 255, 255, 0.4), transparent 72%); }
+/* Облегчённые эффекты: матовая капля без преломления */
+body.glass-lite .lg-acc-knob { -webkit-backdrop-filter: none; backdrop-filter: none; background: rgba(255, 255, 255, 0.35); }
+@media (max-width: 760px) { .lg-accent { padding: 0 6px; } }
+
+/* ===== 36. Единый стиль значков =====
+   Все контурные значки рисуются одной толщиной линии на экране, независимо от их размера
+   (non-scaling-stroke), со скруглёнными концами и углами — как один набор, в духе SF Symbols.
+   Три веса: обычный — для большинства, лёгкий — для мелких значков в строках,
+   акцентный — для ✓/✕ в круглых кнопках и стрелок переключения. */
+svg[stroke="currentColor"] { stroke-linecap: round; stroke-linejoin: round; --icon-w: 1.7px; }
+svg[stroke="currentColor"] :is(path, circle, rect, polyline, line, polygon, ellipse):not(.lg-draw) {
+  vector-effect: non-scaling-stroke; stroke-width: var(--icon-w);
+}
+svg[stroke="currentColor"]:is([width="11"], [width="12"], [width="13"], [width="14"]) { --icon-w: 1.5px; }
+.lg-circle svg[stroke="currentColor"], .lg-sheet-head svg[stroke="currentColor"],
+.lg-wn-btn svg[stroke="currentColor"], .cal-nav-btn svg[stroke="currentColor"],
+.btn-primary svg[stroke="currentColor"] { --icon-w: 2.1px; }
+/* Активное состояние — залитый значок: колокольчик, когда есть непрочитанные */
+.bell-btn.has-unread svg path:first-child { fill: currentColor; }
+
+/* ===== 37. «Динамика за семестр» в новом дизайне =====
+   Кольцо семестра как на главном экране, плавная кривая с мягкой заливкой, капсулы вместо
+   прямоугольников, плитки сводки — отдельные карточки, переключатель недель — стеклянная капсула. */
+#reportBackdrop { --rp-u: var(--fill-3); }
+#rpHead { padding: 22px 76px 18px 28px; }
+#rpHead > .lg-pblur { bottom: -26px; }
+.rp-body { gap: 30px; }
+
+/* Семестр: кольцо и цифры */
+.rp-sem { display: flex; align-items: center; gap: 22px; padding: 20px 22px; }
+.rp-ring { position: relative; flex-shrink: 0; width: 112px; height: 112px; }
+.rp-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); overflow: visible; }
+.rp-ring-track { fill: none; stroke: var(--fill); stroke-width: 11; }
+.rp-ring-fill {
+  fill: none; stroke: var(--c); stroke-width: 11; stroke-linecap: round;
+  stroke-dasharray: 326.73; stroke-dashoffset: calc(326.73 * (1 - var(--p) / 100));
+  animation: rpRing 1.2s var(--ease);
+}
+@keyframes rpRing { from { stroke-dashoffset: 326.73; } }
+.rp-ring > b {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  font: 700 calc(28px * var(--ts))/1 var(--font-display); letter-spacing: -0.035em; font-variant-numeric: tabular-nums;
+}
+.rp-sem-info { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.rp-sem-title { font: 600 calc(17px * var(--ts))/1.25 var(--font-display); letter-spacing: -0.012em; }
+.rp-sem-line { font-size: calc(14px * var(--ts)); color: var(--label-2); font-variant-numeric: tabular-nums; }
+.rp-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.rp-chip {
+  padding: 5px 11px; border-radius: 999px; background: var(--fill-2); color: var(--label-2);
+  font-size: calc(12.5px * var(--ts)); font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.rp-chip.r { background: color-mix(in srgb, var(--red) 12%, transparent); color: var(--pf-red, var(--red)); }
+.se-cover { display: none; }
+.se-hint { margin-top: 12px; padding: 12px 16px; }
+
+/* График по неделям */
+.se-chart { padding: 14px 10px 6px; }
+.se-grid { stroke: var(--sep); stroke-width: 1; }
+.se-target { stroke: var(--green); stroke-width: 1.5; stroke-dasharray: 3 6; stroke-linecap: round; opacity: 0.8; }
+.se-axis { fill: var(--label-3); font-size: 11.5px; font-weight: 500; }
+.se-target-lbl { fill: var(--green); font-weight: 600; }
+.se-svg { color: var(--tint); }
+.se-fill-a { stop-color: currentColor; stop-opacity: 0.22; }
+.se-fill-b { stop-color: currentColor; stop-opacity: 0; }
+.se-area { stroke: none; }
+.se-line { fill: none; stroke: currentColor; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+.se-dot { fill: currentColor; stroke: var(--sheet-card); stroke-width: 2; }
+.se-dot.sel { stroke-width: 3; }
+.se-tip { padding: 9px 13px; border-radius: 16px; }
+
+/* Переключатель недель — стеклянная капсула, как бар недель на главном экране */
+.rp-weeknav {
+  padding: 5px; border-radius: 999px; background: var(--glass);
+  -webkit-backdrop-filter: blur(20px) saturate(1.8); backdrop-filter: blur(20px) saturate(1.8);
+  box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.05), 0 6px 18px -10px rgba(20, 30, 60, 0.3), var(--glass-inner);
+}
+body.glass-lite .rp-weeknav { -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--sheet-card); }
+.rp-nav-btn { width: 38px; height: 38px; color: var(--label); transition: background 0.2s, transform 0.35s var(--spring); }
+.rp-nav-btn:hover:not(:disabled) { background: var(--fill-2); }
+.rp-nav-btn:active:not(:disabled) { transform: scale(0.88); }
+.rp-nav-btn:disabled { opacity: 0.25; }
+.rp-weeklabel b { font: 600 calc(16px * var(--ts))/1.25 var(--font-display); letter-spacing: -0.01em; }
+.rp-weeklabel span { font-size: calc(12.5px * var(--ts)); color: var(--label-2); }
+.rp-week .rp-weeknav { margin-bottom: 18px; }
+
+/* Неделя: главная цифра в карточке */
+.rp-week-hero { padding: 20px 22px; }
+.rp-week .rp-big { font: 700 calc(44px * var(--ts))/1 var(--font-display); letter-spacing: -0.04em; }
+.rp-big-sub { margin-top: 6px; font-size: calc(14px * var(--ts)); color: var(--label-2); }
+.rp-delta { padding: 6px 12px; border-radius: 999px; font-size: calc(12.5px * var(--ts)); }
+.rp-hero-track { height: 6px; margin-top: 18px; }
+
+/* Сводка: три карточки со значком */
+.rp-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.rp-tile {
+  --tc: var(--label-3);
+  display: flex; flex-direction: column; align-items: flex-start; padding: 14px 16px 15px;
+  border-radius: 20px; background: var(--sheet-card); box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.03);
+}
+.rp-tile.g { --tc: var(--green); }
+.rp-tile.r { --tc: var(--red); }
+.rp-tile-ico {
+  width: 26px; height: 26px; margin-bottom: 12px; border-radius: 50%; display: grid; place-items: center;
+  background: color-mix(in srgb, var(--tc) 15%, transparent); color: var(--tc);
+}
+.rp-tile.m .rp-tile-ico { background: var(--fill-2); color: var(--label-2); }
+.rp-tile-num { font: 700 calc(28px * var(--ts))/1 var(--font-display); letter-spacing: -0.03em; color: var(--label); font-variant-numeric: tabular-nums; }
+.rp-tile.m .rp-tile-num { color: var(--label-2); }
+.rp-tile-label { margin-top: 5px; font-size: calc(13px * var(--ts)); color: var(--label-2); }
+
+/* Выводы: значки как в списках настроек */
+.rp-ins { padding: 13px 16px; font-size: calc(14.5px * var(--ts)); }
+.rp-ins-ico { width: 30px; height: 30px; border-radius: 50%; }
+
+@media (max-width: 720px) {
+  .rp-sem { gap: 16px; padding: 18px; }
+  .rp-ring { width: 92px; height: 92px; }
+  .rp-ring > b { font-size: calc(23px * var(--ts)); }
+  .rp-tiles { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .rp-tile { padding: 12px; }
+}
+@media (prefers-reduced-motion: reduce) { .rp-ring-fill { animation: none; } }
+/* Шапка отчёта выше обычной (заголовок + подпись): плотная подложка до самого низа текста */
+#rpHead > .lg-pblur { bottom: -28px; }
+#rpHead > .lg-pblur::before { background: linear-gradient(to bottom, var(--sheet) 0%, var(--sheet) 58%, color-mix(in srgb, var(--sheet) 70%, transparent) 78%, transparent 100%); }
+#rpHead > .lg-pblur > i {
+  -webkit-backdrop-filter: blur(18px) saturate(1.4); backdrop-filter: blur(18px) saturate(1.4);
+  -webkit-mask-image: linear-gradient(#000 0%, #000 62%, transparent 100%); mask-image: linear-gradient(#000 0%, #000 62%, transparent 100%);
+}
+
+/* ===== 38. «Динамика за семестр» v2: шире, стекло, точки, анимации ===== */
+#reportBackdrop .pf-modal { max-width: 860px !important; height: min(90vh, 980px); }
+#rpBody { padding-left: 56px !important; padding-right: 56px !important; }
+#rpHead { padding: 28px 84px 20px 56px; }
+.rp-body { position: relative; gap: 48px; padding-top: 6px; }
+
+/* Мягкие цветные пятна за карточками: стеклу есть что преломлять */
+.rp-glow { position: absolute; inset: -120px -56px 0; z-index: -1; overflow: hidden; pointer-events: none; }
+@media (max-width: 760px) { .rp-glow { left: -16px; right: -16px; } }
+.rp-glow i { position: absolute; border-radius: 50%; opacity: 0.6; }
+.rp-glow i:nth-child(1) { width: 560px; height: 560px; top: -40px; left: -160px; background: radial-gradient(closest-side, color-mix(in srgb, var(--tint) 26%, transparent), transparent); }
+.rp-glow i:nth-child(2) { width: 520px; height: 520px; top: 460px; right: -160px; background: radial-gradient(closest-side, color-mix(in srgb, var(--purple, #af52de) 18%, transparent), transparent); }
+.rp-glow i:nth-child(3) { width: 600px; height: 600px; top: 1050px; left: 10%; background: radial-gradient(closest-side, color-mix(in srgb, var(--teal, #30b0c7) 16%, transparent), transparent); }
+/* В тёмной теме пятна едва заметны и без цвета радуги: только глубина */
+body.dark-theme .rp-glow i { opacity: 0.22; filter: saturate(0.5); }
+
+/* Карточки отчёта — стекло */
+#rpBody .pf-box, #rpBody .rp-tile, #rpBody .rp-insights, #rpBody .se-hint {
+  background: color-mix(in srgb, var(--sheet-card) 74%, transparent);
+  box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.04), 0 10px 30px -18px rgba(20, 30, 60, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+body.dark-theme #rpBody :is(.pf-box, .rp-tile, .rp-insights, .se-hint) {
+  background: color-mix(in srgb, var(--sheet-card) 80%, transparent);
+  box-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.07), 0 10px 30px -18px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+body.glass-lite #rpBody :is(.pf-box, .rp-tile, .rp-insights, .se-hint) { background: var(--sheet-card); -webkit-backdrop-filter: none; backdrop-filter: none; }
+body.glass-lite .rp-glow { display: none; }
+
+/* График: направляющая, точки, рисование линии */
+.se-chart { position: relative; overflow: visible; }
+.se-guide { stroke: currentColor; stroke-width: 1.5; stroke-dasharray: 2 5; stroke-linecap: round; opacity: 0.45; }
+.se-dot { transition: r 0.35s var(--spring), stroke-width 0.2s; }
+.se-dot.hov { r: 7; stroke-width: 3; }
+.se-wnum { fill: var(--label-3); font-size: 12.5px; font-weight: 600; transition: fill 0.2s; }
+.se-wnum.sel { fill: currentColor; font-weight: 700; }
+.se-anim .se-line { stroke-dasharray: 1; stroke-dashoffset: 1; animation: seDraw 1.2s 0.15s var(--ease) forwards; }
+.se-anim .se-area { opacity: 0; animation: seFade 0.9s 0.7s ease forwards; }
+.se-anim .se-dot { transform-box: fill-box; transform-origin: center; transform: scale(0); animation: sePop 0.5s calc(0.25s + var(--d)) var(--spring) forwards; }
+@keyframes seDraw { to { stroke-dashoffset: 0; } }
+@keyframes seFade { to { opacity: 1; } }
+@keyframes sePop { to { transform: scale(1); } }
+
+/* Плашка над точкой — стекло; плавно едет за курсором */
+.se-tip {
+  position: absolute; top: 0; left: 0; z-index: 3; display: flex; flex-direction: column; gap: 1px;
+  padding: 8px 13px; border-radius: 14px; pointer-events: none; white-space: nowrap;
+  background: color-mix(in srgb, var(--glass-strong, rgba(255,255,255,.8)) 85%, transparent);
+  -webkit-backdrop-filter: blur(18px) saturate(1.8); backdrop-filter: blur(18px) saturate(1.8);
+  box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.06), 0 10px 24px -10px rgba(20, 30, 60, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  font-size: calc(12px * var(--ts)); color: var(--label-2);
+  opacity: 0; transition: transform 0.45s var(--spring), opacity 0.3s ease;
+}
+.se-tip.on { opacity: 1; }
+.se-tip b { font-size: calc(13.5px * var(--ts)); font-weight: 700; color: var(--label); }
+body.dark-theme .se-tip { box-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.1), 0 10px 24px -10px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.08); }
+
+/* Переключатель недель прилипает под шапкой; отчёт уходит под стекло */
+/* sticky считается от края содержимого (под отступом = высота шапки), поэтому почти ноль */
+.rp-week .rp-weeknav { position: relative; z-index: 1; max-width: 460px; margin: 0 auto 22px; }
+
+.rp-from-r { animation: rpFromR 0.5s var(--ease); }
+.rp-from-l { animation: rpFromL 0.5s var(--ease); }
+@keyframes rpFromR { from { opacity: 0; transform: translateX(44px); } }
+@keyframes rpFromL { from { opacity: 0; transform: translateX(-44px); } }
+
+/* Точки: каждая пара — кружок */
+.rp-pt { display: block; width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0; background: var(--rp-u); }
+.rp-pt.a { background: var(--green); }
+.rp-pt.m { background: var(--red); }
+.rp-pt.u { background: transparent; box-shadow: inset 0 0 0 2px var(--fill-3); }
+.rp-pt.none { background: transparent; width: 4px; height: 4px; margin: 5px; background: var(--fill); }
+.rp-pt.a, .rp-pt.m { box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.35), 0 2px 6px -2px color-mix(in srgb, currentColor 0%, rgba(0, 0, 0, 0.25)); }
+.rp-ready .rp-pt:not(.none) { animation: rpPop 0.55s var(--d, 0ms) var(--spring) backwards; }
+@keyframes rpPop { from { transform: scale(0); opacity: 0; } }
+
+/* Пары по дням */
+.rp-chart { display: grid; gap: 4px; }
+.rp-col { display: flex; flex-direction: column; align-items: center; gap: 0; min-width: 0; }
+.rp-pts { display: flex; flex-direction: column; align-items: center; gap: 9px; padding: 12px 0 14px; width: 100%; border-radius: 16px; transition: background 0.25s; }
+.rp-col:hover .rp-pts { background: var(--fill-2); }
+.rp-pts .rp-pt { width: 18px; height: 18px; }
+.rp-pts .rp-pt.none { width: 4px; height: 4px; margin: 7px; }
+.rp-day { margin-top: 4px; padding: 3px 9px; border-radius: 999px; font-size: calc(13px * var(--ts)); font-weight: 600; color: var(--label); }
+.rp-col.today .rp-day { background: var(--tint); color: #fff; }
+.rp-val { margin-top: 3px; height: auto; font-size: calc(11.5px * var(--ts)); font-weight: 500; color: var(--label-3); white-space: nowrap; }
+.rp-legend { display: flex; justify-content: center; flex-wrap: wrap; gap: 6px 18px; margin-top: 16px; font-size: calc(12.5px * var(--ts)); color: var(--label-2); }
+.rp-legend span { display: inline-flex; align-items: center; gap: 7px; }
+.rp-legend .rp-pt { width: 10px; height: 10px; }
+
+/* По предметам: имя слева, точки пар справа */
+.rp-subjects { display: flex; flex-direction: column; gap: 0; }
+.rp-subj { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 11px 0; }
+.rp-subj:first-child { padding-top: 0; }
+.rp-subj:last-child { padding-bottom: 0; }
+.rp-subj + .rp-subj { border-top: 0.5px solid var(--sep); }
+.rp-subj-txt { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.rp-subj-name { font-size: calc(15px * var(--ts)); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rp-subj-stat { font-size: calc(12.5px * var(--ts)); font-weight: 500; color: var(--label-2); }
+.rp-subj-pts { display: flex; gap: 6px; flex-shrink: 0; }
+
+@media (max-width: 760px) { #rpBody { padding-left: 16px !important; padding-right: 16px !important; } }
+@media (prefers-reduced-motion: reduce) {
+  .se-anim .se-line, .se-anim .se-area, .se-anim .se-dot, .rp-ready .rp-pt, .rp-from-r, .rp-from-l { animation: none !important; stroke-dashoffset: 0; opacity: 1; transform: none; }
+}
+
+/* ===== 39. «Динамика за семестр» v3: одна спокойная колонка, много воздуха ===== */
+/* Итог семестра лежит прямо на стекле, без карточки */
+.rp-sem { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 10px; padding: 8px 0 0; }
+.rp-sem .rp-ring { width: 168px; height: 168px; margin-bottom: 8px; }
+.rp-sem .rp-ring-track, .rp-sem .rp-ring-fill { stroke-width: 10; }
+.rp-sem .rp-ring > b { font-size: calc(40px * var(--ts)); }
+.rp-sem-line { font-size: calc(15px * var(--ts)); color: var(--label-2); }
+.rp-sem .rp-chips { justify-content: center; margin-top: 4px; }
+.rp-quiet { display: flex; align-items: flex-start; justify-content: center; gap: 7px; max-width: 520px; margin-top: 10px; font-size: calc(13px * var(--ts)); line-height: 1.45; color: var(--label-3); }
+.rp-quiet svg { flex-shrink: 0; margin-top: 2px; color: var(--orange); opacity: 0.8; }
+
+/* Тихие заголовки разделов: взгляд держится на цифрах */
+#rpBody .pf-section-title { margin: 0 6px 12px; font: 600 calc(13px * var(--ts)) var(--font); letter-spacing: 0.01em; color: var(--label-2); }
+
+/* Неделя: одна карточка — итог, сравнение и точки по дням */
+.rp-week-body { display: flex; flex-direction: column; gap: 48px; }
+.rp-wcard { padding: 26px 28px 22px; }
+.rp-wcard .rp-hero { flex-wrap: wrap; }
+.rp-wcard .rp-chart { margin-top: 26px; padding-top: 22px; border-top: 0.5px solid var(--sep); }
+
+@media (max-width: 760px) {
+  #rpHead { padding: 24px 76px 18px 20px; }
+  .rp-sem .rp-ring { width: 136px; height: 136px; }
+  .rp-sem .rp-ring > b { font-size: calc(32px * var(--ts)); }
+  .rp-wcard { padding: 20px 18px 18px; }
+}
+
+/* ===== 40. Отчёт: стеклянная капля на графике, стеклянная шапка ===== */
+/* Капля: прозрачная бусина на линии графика; перетекает между неделями, её можно вести рукой */
+.se-knob {
+  position: absolute; left: 0; top: 0; z-index: 2; width: 28px; height: 28px; margin: -14px 0 0 -14px;
+  border-radius: 50%; pointer-events: none; opacity: 0; transition: opacity 0.4s ease;
+  background: rgba(255, 255, 255, 0.12);
+  -webkit-backdrop-filter: saturate(1.6) brightness(1.08); backdrop-filter: saturate(1.6) brightness(1.08);
+  box-shadow:
+    0 7px 16px -6px rgba(20, 30, 60, 0.32), 0 1px 3px rgba(20, 30, 60, 0.12), 0 0 0 0.5px rgba(0, 0, 0, 0.08),
+    inset 0 2px 1px rgba(255, 255, 255, 1), inset 0 -2px 2px rgba(255, 255, 255, 0.6),
+    inset 2px 0 1.5px rgba(255, 255, 255, 0.4), inset -2px 0 1.5px rgba(255, 255, 255, 0.4),
+    inset 0 0 9px rgba(255, 255, 255, 0.35);
+}
+.se-knob.on { opacity: 1; }
+.se-knob > i { position: absolute; inset: 0; border-radius: inherit; pointer-events: none; background: radial-gradient(46% 28% at 50% 16%, rgba(255, 255, 255, 0.95), transparent 72%); opacity: 0.85; }
+.se-knob.empty { opacity: 0.6; }
+.se-chart { cursor: grab; touch-action: pan-y; }
+.se-chart.is-drag, .se-chart.is-drag * { cursor: grabbing !important; }
+body.dark-theme .se-knob {
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: 0 7px 16px -6px rgba(0, 0, 0, 0.7), 0 0 0 0.5px rgba(255, 255, 255, 0.14),
+    inset 0 1.5px 1px rgba(255, 255, 255, 0.45), inset 0 -1.5px 1.5px rgba(255, 255, 255, 0.2),
+    inset 0 0 9px rgba(255, 255, 255, 0.08);
+}
+body.dark-theme .se-knob > i { background: radial-gradient(46% 28% at 50% 16%, rgba(255, 255, 255, 0.4), transparent 72%); }
+.se-wnum.hov { fill: var(--label); }
+.se-wnum.sel { fill: currentColor; }
+/* Плашку двигает сама капля каждый кадр — своей задержки у неё нет, чтобы не отставала */
+.se-tip { transition: opacity 0.3s ease; }
+
+/* Шапка — стекло с невидимой границей: несколько слоёв размытия, каждый ниже и слабее,
+   поэтому под заголовком содержимое размыто сильно, а к низу размытие плавно сходит на нет */
+#rpHead > .rp-pb { bottom: -44px; }
+/* Слои размытия держим «прогретыми» (почти невидимы): иначе в первый раз они создаются прямо
+   во время прокрутки, и прокрутка спотыкается */
+.lg-sheet:not(.is-scrolled) #rpHead > .rp-pb { opacity: 0.01; }
+#rpHead > .rp-pb::before {
+  background: linear-gradient(to bottom, color-mix(in srgb, var(--sheet) 55%, transparent) 0%, color-mix(in srgb, var(--sheet) 35%, transparent) 55%, transparent 100%);
+}
+#rpHead > .rp-pb > i { position: absolute; inset: 0; -webkit-mask-image: none; mask-image: none; }
+#rpHead > .rp-pb > i:nth-child(1) { -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px);
+  -webkit-mask-image: linear-gradient(#000 0%, #000 70%, transparent 100%); mask-image: linear-gradient(#000 0%, #000 70%, transparent 100%); }
+#rpHead > .rp-pb > i:nth-child(2) { -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  -webkit-mask-image: linear-gradient(#000 0%, #000 55%, transparent 85%); mask-image: linear-gradient(#000 0%, #000 55%, transparent 85%); }
+#rpHead > .rp-pb > i:nth-child(3) { -webkit-backdrop-filter: blur(14px) saturate(1.5); backdrop-filter: blur(14px) saturate(1.5);
+  -webkit-mask-image: linear-gradient(#000 0%, #000 42%, transparent 70%); mask-image: linear-gradient(#000 0%, #000 42%, transparent 70%); }
+#rpHead > .rp-pb > i:nth-child(4) { -webkit-backdrop-filter: blur(28px) saturate(1.7); backdrop-filter: blur(28px) saturate(1.7);
+  -webkit-mask-image: linear-gradient(#000 0%, #000 32%, transparent 56%); mask-image: linear-gradient(#000 0%, #000 32%, transparent 56%); }
+body.glass-lite #rpHead > .rp-pb > i { -webkit-backdrop-filter: none; backdrop-filter: none; }
+body.glass-lite #rpHead > .rp-pb::before { background: linear-gradient(to bottom, var(--sheet) 0%, var(--sheet) 60%, transparent 100%); }
+
+/* ===== 41. Смена недели «на месте»: кружки перетекают из состояния в состояние ===== */
+.rp-pt {
+  box-shadow: inset 0 0 0 0 transparent, 0 0 0 0 transparent;
+  transition: background-color 0.35s ease, box-shadow 0.35s ease, width 0.4s var(--spring), height 0.4s var(--spring), margin 0.4s var(--spring);
+}
+.rp-pt.u { box-shadow: inset 0 0 0 2px var(--fill-3), 0 0 0 0 transparent; }
+.rp-pt.none { box-shadow: inset 0 0 0 0 transparent, 0 0 0 0 transparent; }
+.rp-pt.a, .rp-pt.m { box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.35), 0 2px 6px -2px rgba(0, 0, 0, 0.25); }
+.rp-hero-track .prog-fill { transition: width 0.65s var(--ease), background-color 0.4s ease; }
+.rp-col .rp-day { transition: background-color 0.3s ease, color 0.3s ease; }
+
+/* ===== 42. Знакомство с приложением (первый запуск) ===== */
+.lg-intro { max-width: 520px; }
+.lg-intro .lg-onb-title { font-size: calc(36px * var(--ts)); margin-bottom: 10px; }
+.lg-intro .lg-onb-sub { margin-bottom: 26px; font-size: calc(16px * var(--ts)); max-width: 440px; }
+
+/* Значок приложения: цвет акцента, внутри стеклянная капля с галочкой */
+.lg-appicon-new {
+  width: 88px; height: 88px; border-radius: 24px; margin-bottom: 22px;
+  background: linear-gradient(150deg, color-mix(in srgb, var(--tint) 62%, #fff) 0%, var(--tint) 48%, color-mix(in srgb, var(--tint) 58%, #3a1c8f) 100%);
+  box-shadow: 0 18px 36px -16px color-mix(in srgb, var(--tint) 70%, transparent), 0 1px 3px rgba(0, 0, 0, 0.12),
+    inset 0 1px 0.5px rgba(255, 255, 255, 0.45), inset 0 -3px 8px rgba(0, 0, 0, 0.18);
+}
+.lg-appicon-new::before {
+  content: ""; position: absolute; left: 50%; top: 50%; width: 58%; height: 58%; transform: translate(-50%, -50%); border-radius: 50%;
+  background: rgba(255, 255, 255, 0.18);
+  box-shadow: inset 0 2px 1px rgba(255, 255, 255, 0.85), inset 0 -2px 2px rgba(255, 255, 255, 0.35), inset 0 0 8px rgba(255, 255, 255, 0.25), 0 6px 12px -6px rgba(0, 0, 0, 0.35);
+}
+.lg-appicon-new svg { width: 34%; height: 34%; }
+.lg-appicon-new.sm { width: 68px; height: 68px; border-radius: 19px; }
+body.dark-theme .lg-appicon-new { background: linear-gradient(150deg, color-mix(in srgb, var(--tint) 75%, #fff) 0%, var(--tint) 50%, color-mix(in srgb, var(--tint) 55%, #1a0d4a) 100%); }
+
+/* Витрина */
+.lg-show { width: 100%; display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); gap: 12px; margin-bottom: 30px; text-align: left; }
+.lg-show-day, .lg-show-stat {
+  border-radius: 20px; padding: 14px 16px; background: color-mix(in srgb, var(--sheet-card) 78%, transparent);
+  box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.04), 0 14px 32px -20px rgba(20, 30, 60, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+body.dark-theme .lg-show-day, body.dark-theme .lg-show-stat { box-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.08), 0 14px 32px -20px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.06); }
+.lg-show-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; }
+.lg-show-head b { font: 600 calc(14px * var(--ts)) var(--font-display); }
+.lg-show-head span { font-size: calc(12px * var(--ts)); color: var(--label-3); }
+.lg-show-pair { display: grid; grid-template-columns: 40px minmax(0, 1fr) 22px; align-items: center; gap: 8px; padding: 7px 0; }
+.lg-show-pair + .lg-show-pair { border-top: 0.5px solid var(--sep); }
+.lg-show-pair .t { font-size: calc(12.5px * var(--ts)); color: var(--label-2); font-variant-numeric: tabular-nums; }
+.lg-show-pair .n { font-size: calc(13px * var(--ts)); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lg-show-pair .st {
+  width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center;
+  box-shadow: inset 0 0 0 2px var(--fill-3); background: transparent;
+  transition: background-color 0.35s ease, box-shadow 0.35s ease, transform 0.45s var(--spring);
+}
+.lg-show-pair .st svg { width: 14px; height: 14px; fill: none; stroke: #fff; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 20; stroke-dashoffset: 20; transition: stroke-dashoffset 0.35s ease; }
+.lg-show.play .lg-show-pair .st { background: var(--green); box-shadow: inset 0 0 0 0 transparent, 0 4px 10px -4px color-mix(in srgb, var(--green) 70%, transparent); transform: scale(1.08); transition-delay: calc(0.35s + var(--i) * 0.42s); }
+.lg-show.play .lg-show-pair .st svg { stroke-dashoffset: 0; transition-delay: calc(0.5s + var(--i) * 0.42s); }
+
+.lg-show-stat { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; }
+.lg-show-ring { position: relative; width: 92px; height: 92px; }
+.lg-show-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.lg-show-ring circle { fill: none; stroke-width: 10; }
+.lg-show-ring .tr { stroke: var(--fill); }
+.lg-show-ring .fl { stroke: var(--green); stroke-linecap: round; stroke-dasharray: 314.16; stroke-dashoffset: 314.16; transition: stroke-dashoffset 1.3s var(--ease); }
+.lg-show.play .lg-show-ring .fl { stroke-dashoffset: 56.5; transition-delay: 1.5s; }
+.lg-show-ring b { position: absolute; inset: 0; display: grid; place-items: center; font: 700 calc(21px * var(--ts)) var(--font-display); letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+.lg-show-week { display: flex; gap: 7px; }
+.lg-show-week i { width: 12px; height: 12px; border-radius: 50%; box-shadow: inset 0 0 0 2px var(--fill-3); transition: background-color 0.35s ease, box-shadow 0.35s ease, transform 0.45s var(--spring); }
+.lg-show.play .lg-show-week i { background: var(--green); box-shadow: inset 0 0 0 0 transparent; transition-delay: calc(3s + var(--i) * 0.12s); }
+.lg-show.play .lg-show-week i.m { background: var(--red); }
+/* Мягкий сброс перед повтором */
+.lg-show.reset .lg-show-pair .st, .lg-show.reset .lg-show-pair .st svg, .lg-show.reset .lg-show-ring .fl, .lg-show.reset .lg-show-week i { transition-delay: 0s !important; transition-duration: 0.5s; }
+.lg-show.reset .lg-show-pair .st { background: transparent; box-shadow: inset 0 0 0 2px var(--fill-3); transform: none; }
+.lg-show.reset .lg-show-pair .st svg { stroke-dashoffset: 20; }
+.lg-show.reset .lg-show-ring .fl { stroke-dashoffset: 314.16; }
+.lg-show.reset .lg-show-week i { background: transparent; box-shadow: inset 0 0 0 2px var(--fill-3); }
+
+/* Пункты: значки в цветных скруглённых квадратах */
+.lg-intro .lg-features { gap: 18px; margin-bottom: 0; }
+.lg-intro .lg-features li { grid-template-columns: 40px 1fr; gap: 14px; align-items: center; }
+.lg-intro .lg-f-ico { --fc: var(--tint); width: 40px; height: 40px; border-radius: 12px; color: #fff; background: var(--fc); box-shadow: 0 6px 14px -8px var(--fc), inset 0 1px 0 rgba(255, 255, 255, 0.3); }
+.lg-intro .lg-f-ico svg { width: 22px; height: 22px; }
+.lg-intro [data-tone="blue"] .lg-f-ico { --fc: var(--blue, #007aff); }
+.lg-intro [data-tone="green"] .lg-f-ico { --fc: var(--green); }
+.lg-intro [data-tone="orange"] .lg-f-ico { --fc: var(--orange); }
+.lg-intro .lg-features b { font-size: calc(15px * var(--ts)); }
+.lg-intro .lg-features li > div > span { margin-top: 2px; font-size: calc(14px * var(--ts)); line-height: 1.4; }
+.lg-onb-note { display: flex; align-items: center; justify-content: center; gap: 6px; margin: 20px 0 0; font-size: calc(13px * var(--ts)); color: var(--label-3); }
+.lg-intro .lg-cta { margin-top: 22px; }
+.lg-onb-login { margin-top: 12px; }
+
+/* Появление по очереди: значок «падает» на место, затем заголовок, витрина, пункты, кнопка */
+.lg-intro-in .lg-intro > * { animation: lgIntroUp 0.7s var(--ease) backwards; }
+.lg-intro-in .lg-intro > .lg-appicon { animation: lgIntroDrop 0.8s var(--spring) backwards; }
+.lg-intro-in .lg-intro > :nth-child(2) { animation-delay: 0.12s; }
+.lg-intro-in .lg-intro > :nth-child(3) { animation-delay: 0.2s; }
+.lg-intro-in .lg-intro > :nth-child(4) { animation-delay: 0.3s; }
+.lg-intro-in .lg-intro > .lg-features { animation: none; }
+.lg-intro-in .lg-intro > .lg-features li { animation: lgIntroUp 0.6s var(--ease) backwards; }
+.lg-intro-in .lg-intro > .lg-features li:nth-child(1) { animation-delay: 0.42s; }
+.lg-intro-in .lg-intro > .lg-features li:nth-child(2) { animation-delay: 0.52s; }
+.lg-intro-in .lg-intro > .lg-features li:nth-child(3) { animation-delay: 0.62s; }
+.lg-intro-in .lg-intro > :nth-child(6) { animation-delay: 0.72s; }
+.lg-intro-in .lg-intro > :nth-child(7), .lg-intro-in .lg-intro > :nth-child(8) { animation-delay: 0.8s; }
+@keyframes lgIntroUp { from { opacity: 0; transform: translateY(14px); } }
+@keyframes lgIntroDrop { from { opacity: 0; transform: translateY(-22px) scale(0.86); } }
+
+/* Назад к знакомству на экране входа — только если пришли оттуда */
+.lg-auth { position: relative; }
+.lg-onb-back { position: absolute; top: -6px; left: 0; display: none; }
+body.onb-from .lg-onb-back { display: grid; }
+
+/* Предпросмотр знакомства (Ctrl+Shift+L) */
+.lg-onb-exit {
+  position: fixed; top: 14px; left: 50%; z-index: 9000; transform: translateX(-50%); display: none;
+  padding: 8px 16px; border: 0; border-radius: 999px; cursor: pointer;
+  font: 600 calc(13px * var(--ts)) var(--font); color: var(--label);
+  background: var(--glass); -webkit-backdrop-filter: blur(16px) saturate(1.8); backdrop-filter: blur(16px) saturate(1.8);
+  box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.08), 0 6px 18px -8px rgba(20, 30, 60, 0.35), var(--glass-inner);
+  -webkit-app-region: no-drag;
+}
+body.onb-preview:has(#landingScreen.active, #authScreen.active) .lg-onb-exit { display: block; }
+
+@media (max-width: 760px) {
+  .lg-intro .lg-onb-title { font-size: calc(30px * var(--ts)); }
+  .lg-show { grid-template-columns: minmax(0, 1fr); }
+  .lg-show-stat { flex-direction: row; justify-content: space-around; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lg-intro-in .lg-intro > *, .lg-intro-in .lg-intro > .lg-features li { animation: none !important; }
+}
+
+/* Знакомство помещается в окно без прокрутки */
+#landingScreen .lg-onb { padding-top: 44px; padding-bottom: 28px; }
+.lg-intro .lg-appicon-new { width: 76px; height: 76px; border-radius: 21px; margin-bottom: 18px; }
+.lg-intro .lg-onb-sub { margin-bottom: 22px; }
+.lg-intro .lg-show { margin-bottom: 24px; }
+.lg-intro .lg-features { gap: 14px; }
+.lg-onb-note { margin-top: 16px; }
+.lg-intro .lg-cta { margin-top: 18px; }
+.lg-onb-login { margin-top: 8px; }

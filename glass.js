@@ -672,6 +672,9 @@ window.LGScroll = (function () {
     { sel: '#mainScroll', tiles: '#scheduleAnimationWrapper > .day-group, #addDayBtnContainer, .lg-legend', host: el => el.parentElement, guard: true, lag: 1 },
     { sel: '.subject-list', tiles: ':scope > .subject-item', host: el => el.parentElement, fade: [0, 26], guard: true, lag: 0.5 },
     { sel: '.pf-notif-list', tiles: ':scope > .pf-notif-item', host: el => el.parentElement, fade: [0, 30], lag: 0.5 },
+    // «Динамика за семестр»: содержимое едет одним целым (отдельные блоки с отставанием дрожали),
+    // инерция чуть длиннее, чтобы между щелчками колеса страница плыла, а не толкалась
+    { sel: '#rpBody', tiles: ':scope > .rp-body', host: el => el.closest('.modal-content'), lag: 0, glide: 0.1 },
     // Листы: содержимое едет целиком, без «качания» карточек; у краёв растягивается
     { sel: '.modal-scroll:not(#bellBackdrop .modal-scroll)', tiles: ':scope > :not(.lg-bar):not(.lg-pblur)', host: el => el.closest('.modal-content'), lag: 0 }
   ];
@@ -740,7 +743,7 @@ window.LGScroll = (function () {
       if (st.target > max) st.target = max;
       const prev = st.cur;
       if (st.cur !== st.target) {
-        let d = (st.target - st.cur) * (1 - Math.pow(1 - GLIDE, f));
+        let d = (st.target - st.cur) * (1 - Math.pow(1 - (rule.glide || GLIDE), f));
         if (Math.abs(st.target - st.cur) < 0.5) d = st.target - st.cur;   // доехали — встаём точно
         st.cur = Math.min(max, Math.max(0, st.cur + d));
         el.scrollTop = st.cur;
@@ -1473,4 +1476,244 @@ window.LGWheel = (function () {
     kick();
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
+})();
+
+/* 14. Акцентный цвет: ряд цветных кружков, над выбранным — большая жидкая стеклянная капля.
+   • Щелчок по цвету — капля перетекает к нему: вытягивается по ходу движения, сплющивается,
+     а у цели слегка «перекатывается» и успокаивается (пружина с небольшим перелётом).
+   • Каплю можно взять и тянуть: она набухает, кружки под ней увеличиваются, как под линзой,
+     цвет приложения меняется на лету. Отпустили — капля сама садится на ближайший цвет.
+   • Стрелки ←/→ на клавиатуре тоже работают.
+   Выбранный цвет — предпросмотр; сохраняется галочкой окна настроек (app.js: saveSettings). */
+window.LGAccent = (function () {
+  'use strict';
+  const reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const K = 300, D = 2 * Math.sqrt(300) * 0.62;         // слабое затухание — «жидкий» перелёт
+  let box, knob, dots = [], cur = 'blue';
+  const st = { x: 0, v: 0, t: 0, p: 1, pv: 0, pt: 1, raf: 0, last: 0, drag: null, ready: false };
+
+  const centers = () => dots.map(d => d.offsetLeft + d.offsetWidth / 2);
+  const idxOf = name => Math.max(0, dots.findIndex(d => d.dataset.accent === name));
+  const nearest = x => { const c = centers(); let b = 0; c.forEach((v, i) => { if (Math.abs(v - x) < Math.abs(c[b] - x)) b = i; }); return b; };
+
+  function preview(i) {
+    const name = dots[i] && dots[i].dataset.accent;
+    if (!name || name === cur) return;
+    cur = name;
+    dots.forEach((d, k) => { const on = k === i; d.classList.toggle('selected', on); d.setAttribute('aria-checked', on); });
+    if (typeof applyAccent === 'function') applyAccent(name);
+  }
+
+  function draw() {
+    if (!st.size) { const cs = getComputedStyle(box); st.size = parseFloat(cs.getPropertyValue('--knob')) || 42; st.dot = parseFloat(cs.getPropertyValue('--dot')) || 26; }
+    const size = st.size;
+    const sv = Math.min(0.38, Math.abs(st.v) / 1500);
+    const sx = (1 + sv) * st.p, sy = (1 - sv * 0.45) * st.p;
+    // Растяжение — настоящими размерами, а не scale(): так кромки и блики не размазываются
+    knob.style.width = (size * sx).toFixed(2) + 'px';
+    knob.style.height = (size * sy).toFixed(2) + 'px';
+    knob.style.marginLeft = (-size * sx / 2).toFixed(2) + 'px';
+    knob.style.transform = `translate3d(${st.x.toFixed(2)}px, -50%, 0)`;
+    // Кружки под каплей увеличиваются — эффект линзы (тоже настоящим размером, без растрового scale)
+    const c = centers();
+    dots.forEach((d, i) => {
+      const k = Math.max(0, 1 - Math.abs(c[i] - st.x) / 30);
+      d.style.setProperty('--ds', (st.dot * (1 + k * 0.28 * st.p)).toFixed(2) + 'px');
+    });
+    knob.style.setProperty('--hx', Math.round(50 + Math.max(-30, Math.min(30, st.v / 40))) + '%');
+  }
+
+  function loop(now) {
+    st.raf = 0;
+    const dt = Math.min(0.034, st.last ? (now - st.last) / 1000 : 0.016); st.last = now;
+    const h = dt / 2;
+    for (let i = 0; i < 2; i++) {
+      if (!st.drag) { st.v += (-K * (st.x - st.t) - D * st.v) * h; st.x += st.v * h; }
+      st.pv += (-380 * (st.p - st.pt) - 2 * Math.sqrt(380) * 0.55 * st.pv) * h; st.p += st.pv * h;
+    }
+    draw();
+    const moving = st.drag || Math.abs(st.x - st.t) > 0.1 || Math.abs(st.v) > 2 || Math.abs(st.p - st.pt) > 0.002 || Math.abs(st.pv) > 0.02;
+    if (moving) st.raf = requestAnimationFrame(loop);
+    else { st.x = st.t; st.v = 0; st.p = st.pt; st.pv = 0; draw(); st.last = 0; knob.classList.remove('is-moving'); }
+  }
+  const kick = () => { knob.classList.add('is-moving'); if (!st.raf) { st.last = 0; st.raf = requestAnimationFrame(loop); } };
+
+  function goTo(i, animate) {
+    const c = centers();
+    if (!c.length) return;
+    i = Math.max(0, Math.min(c.length - 1, i));
+    st.t = c[i];
+    preview(i);
+    if (!animate || reduce || !st.ready) { st.x = st.t; st.v = 0; draw(); return; }
+    // Толчок: капля набухает в начале пути и опускается у цели
+    st.pv += 3.2;
+    kick();
+  }
+
+  function lens() {
+    // Преломление SVG-линзой на маленькой капле даёт цветные ореолы по краю цветного кружка,
+    // поэтому увеличение делаем масштабом самого кружка (см. draw), без displacement-фильтра
+    knob.style.removeProperty('--acc-lens');
+  }
+
+  function bind() {
+    box.addEventListener('click', e => {
+      const d = e.target.closest('.lg-acc-dot');
+      if (!d) return;
+      goTo(dots.indexOf(d), true);
+    });
+    box.addEventListener('pointerdown', e => {
+      if (e.button !== 0) return;
+      const r = box.getBoundingClientRect();
+      const x = e.clientX - r.left;
+      if (Math.abs(x - st.x) > 26) return;                   // тянуть можно саму каплю
+      e.preventDefault();
+      box.setPointerCapture(e.pointerId);
+      st.drag = { id: e.pointerId, dx: x - st.x, moved: false, lx: x, lt: performance.now() };
+      st.pt = 1.16; lens(); kick();
+      box.classList.add('is-drag');
+    });
+    box.addEventListener('pointermove', e => {
+      const d = st.drag;
+      if (!d || d.id !== e.pointerId) return;
+      const r = box.getBoundingClientRect();
+      const c = centers();
+      let x = e.clientX - r.left - d.dx;
+      // За крайними цветами капля тянется туго, как резина
+      const lo = c[0], hi = c[c.length - 1];
+      if (x < lo) x = lo - (lo - x) / (1 + (lo - x) / 24);
+      if (x > hi) x = hi + (x - hi) / (1 + (x - hi) / 24);
+      const now = performance.now();
+      st.v = (x - d.lx) / Math.max(0.008, (now - d.lt) / 1000) * 0.5 + st.v * 0.5;
+      d.lx = x; d.lt = now;
+      if (Math.abs(x - st.x) > 2) d.moved = true;
+      st.x = x;
+      preview(nearest(x));                                   // цвет приложения меняется на лету
+      kick();
+    });
+    const up = e => {
+      const d = st.drag;
+      if (!d || d.id !== e.pointerId) return;
+      st.drag = null;
+      box.classList.remove('is-drag');
+      st.pt = 1;
+      if (d.moved && window.LGEatClick) LGEatClick();
+      // Бросок: учитываем скорость, затем садимся на ближайший цвет
+      const i = nearest(st.x + Math.max(-60, Math.min(60, st.v * 0.08)));
+      st.t = centers()[i]; preview(i);
+      kick();
+    };
+    box.addEventListener('pointerup', up);
+    box.addEventListener('pointercancel', up);
+    box.addEventListener('keydown', e => {
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+      e.preventDefault();
+      goTo(idxOf(cur) + (e.key === 'ArrowRight' ? 1 : -1), true);
+      dots[idxOf(cur)].focus({ preventScroll: true });
+    });
+    new ResizeObserver(() => { if (!box.offsetWidth) return; const was = st.ready; st.ready = true; goTo(idxOf(cur), false); if (!was) lens(); }).observe(box);
+  }
+
+  function start() {
+    box = document.getElementById('accentPicker');
+    if (!box) return;
+    dots = [...box.querySelectorAll('.lg-acc-dot')];
+    knob = document.createElement('span');
+    knob.className = 'lg-acc-knob';
+    knob.setAttribute('aria-hidden', 'true');
+    knob.innerHTML = '<i></i>';
+    box.appendChild(knob);
+    bind();
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
+
+  return {
+    get: () => cur,
+    set(name, animate) {
+      if (!box) return;
+      cur = null;                                            // чтобы preview точно обновил отметки
+      goTo(idxOf(name || 'blue'), !!animate);
+      if (!cur) cur = name || 'blue';
+    }
+  };
+})();
+
+/* 15. Знакомство с приложением (первый запуск).
+   • Показывается один раз на устройстве, пока пользователь не нажал «Начать» или «Войти».
+   • Витрина наверху — живая сцена: пары отмечаются, кольцо заполняется, неделя загорается; повторяется.
+   • Ctrl+Shift+L открывает знакомство в любой момент (для проверки), кнопка сверху возвращает назад. */
+window.Onboarding = (function () {
+  'use strict';
+  const KEY = 'tracker.onbSeen';
+  const reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const $ = id => document.getElementById(id);
+  let prevScreen = null, loopT = 0, cntRaf = 0;
+
+  const seen = () => { try { return localStorage.getItem(KEY) === '1'; } catch (e) { return false; } };
+  const markSeen = () => { try { localStorage.setItem(KEY, '1'); } catch (e) { /* без хранилища — покажем ещё раз */ } };
+  const active = () => { const s = $('landingScreen'); return !!s && s.classList.contains('active'); };
+  const setAuthMode = reg => { if (typeof isRegisterMode !== 'undefined' && isRegisterMode !== reg && typeof toggleAuthMode === 'function') toggleAuthMode(); };
+
+  // Сцена витрины: один проход ≈ 6,5 с, затем мягкий сброс и повтор, пока экран открыт
+  function play() {
+    clearTimeout(loopT); cancelAnimationFrame(cntRaf);
+    const show = $('onbShow'), pct = $('onbPct');
+    if (!show || !active()) return;
+    if (reduce) { show.classList.add('play'); if (pct) pct.textContent = '82%'; return; }
+    show.classList.remove('play', 'reset');
+    void show.offsetWidth;
+    show.classList.add('play');
+    // проценты в кольце досчитывают вместе с заполнением
+    const t0 = performance.now() + 1500, dur = 1300;
+    const step = now => {
+      const k = Math.max(0, Math.min(1, (now - t0) / dur)), e = 1 - Math.pow(1 - k, 3);
+      if (pct) pct.textContent = Math.round(82 * e) + '%';
+      if (k < 1 && active()) cntRaf = requestAnimationFrame(step);
+    };
+    cntRaf = requestAnimationFrame(step);
+    loopT = setTimeout(() => {
+      if (!active()) return;
+      show.classList.add('reset');                    // всё мягко гаснет…
+      loopT = setTimeout(play, 700);                  // …и сцена начинается заново
+    }, 5800);
+  }
+
+  // Следим, когда экран знакомства становится видимым
+  function watch() {
+    const s = $('landingScreen'); if (!s) return;
+    let was = false;
+    new MutationObserver(() => {
+      const on = active();
+      if (on && !was) { s.classList.remove('lg-intro-in'); void s.offsetWidth; s.classList.add('lg-intro-in'); setTimeout(play, 650); }
+      if (!on) { clearTimeout(loopT); cancelAnimationFrame(cntRaf); }
+      was = on;
+    }).observe(s, { attributes: true, attributeFilter: ['class'] });
+    if (active()) { was = true; s.classList.add('lg-intro-in'); setTimeout(play, 650); }
+  }
+
+  function start() { markSeen(); setAuthMode(true); document.body.classList.add('onb-from'); switchScreen('authScreen'); }
+  function login() { markSeen(); setAuthMode(false); document.body.classList.add('onb-from'); switchScreen('authScreen'); }
+  function back() { document.body.classList.remove('onb-from'); switchScreen('landingScreen'); }
+
+  // Предпросмотр: открыть знакомство откуда угодно и вернуться обратно
+  function preview() {
+    const cur = document.querySelector('.screen.active');
+    if (cur && cur.id !== 'landingScreen' && cur.id !== 'authScreen') prevScreen = cur.id;
+    if (!prevScreen) prevScreen = cur ? cur.id : 'authScreen';
+    document.querySelectorAll('.modal-overlay.open').forEach(m => m.classList.remove('open'));
+    document.body.classList.add('onb-preview');
+    switchScreen('landingScreen');
+  }
+  function exitPreview() {
+    document.body.classList.remove('onb-preview', 'onb-from');
+    setAuthMode(false);
+    switchScreen(prevScreen || 'authScreen');
+    prevScreen = null;
+  }
+  document.addEventListener('keydown', e => {
+    if (e.ctrlKey && e.shiftKey && (e.code === 'KeyL')) { e.preventDefault(); preview(); }
+  });
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', watch); else watch();
+  return { firstRun: () => !seen(), start, login, back, preview, exitPreview };
 })();
