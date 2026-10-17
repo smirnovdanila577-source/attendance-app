@@ -681,7 +681,7 @@ window.LGScroll = (function () {
 
   function attach(el, rule) {
     if (el.__lgs) return;
-    const st = el.__lgs = { target: 0, cur: 0, raf: 0, lastT: 0, lastWheel: 0, over: 0, overV: 0, tiles: new Map() };
+    const st = el.__lgs = { target: 0, cur: 0, wrote: 0, raf: 0, lastT: 0, lastWheel: 0, over: 0, overV: 0, tiles: new Map() };
     const host = rule.host ? rule.host(el) : null;
     let scrollT = 0;
     const edges = () => {
@@ -714,13 +714,15 @@ window.LGScroll = (function () {
       if (own && own !== el && el.contains(own)) return;
       if (document.body.classList.contains('glass-lite') && el.scrollHeight <= el.clientHeight) return;
       e.preventDefault();
-      if (!st.raf) { st.cur = el.scrollTop; st.target = st.cur; st.lastT = 0; }
+      // Своё точное положение (с долями пикселя): при масштабе экрана 125–150 % браузер округляет
+      // scrollTop, и раньше из-за этого прокрутка то обрывалась, то «зависала», не доехав
+      if (!st.raf) { st.cur = st.target = st.wrote = el.scrollTop; st.lastT = 0; }
       const dy = (e.deltaMode === 1 ? e.deltaY * 40 : e.deltaMode === 2 ? e.deltaY * el.clientHeight : e.deltaY) * STEP;
       const max = Math.max(0, el.scrollHeight - el.clientHeight);
-      let t = st.target + dy;
+      let t = Math.min(max, Math.max(0, st.target)) + dy;
       // За край тянется, только когда список уже стоит у самого края
-      if (t < 0) { if (st.cur <= 2) st.over = Math.max(-600, st.over + t * 0.75); t = 0; }
-      else if (t > max) { if (max - st.cur <= 2) st.over = Math.min(600, st.over + (t - max) * 0.75); t = max; }
+      if (t < 0) { if (st.cur <= 1.5) st.over = Math.max(-600, st.over + t * 0.75); t = 0; }
+      else if (t > max) { if (max - st.cur <= 1.5) st.over = Math.min(600, st.over + (t - max) * 0.75); t = max; }
       st.target = t;
       st.lastWheel = performance.now();
       if (!st.raf) st.raf = requestAnimationFrame(step);
@@ -732,15 +734,17 @@ window.LGScroll = (function () {
       st.raf = 0;
       const dt = Math.min(50, st.lastT ? now - st.lastT : 16.7); st.lastT = now;
       const f = dt / 16.7;
-      if (Math.abs(el.scrollTop - st.cur) > 2) st.cur = st.target = el.scrollTop;   // прокрутили иначе — отдаём управление
+      // Прокрутили чем-то другим (ползунок, «Сегодня», клавиши) — отдаём управление
+      if (Math.abs(el.scrollTop - st.wrote) > 3) st.cur = st.target = st.wrote = el.scrollTop;
+      const max = Math.max(0, el.scrollHeight - el.clientHeight);
+      if (st.target > max) st.target = max;
       const prev = st.cur;
       if (st.cur !== st.target) {
         let d = (st.target - st.cur) * (1 - Math.pow(1 - GLIDE, f));
-        if (Math.abs(st.target - st.cur) < 0.6) d = st.target - st.cur;
-        el.scrollTop = st.cur + d;
-        st.cur = el.scrollTop;
-        // Упёрлись в край или в долю пикселя — дальше не едем
-        if (Math.abs(st.cur - (prev + d)) > 0.5 || Math.abs(st.target - st.cur) < 1) st.target = st.cur;
+        if (Math.abs(st.target - st.cur) < 0.5) d = st.target - st.cur;   // доехали — встаём точно
+        st.cur = Math.min(max, Math.max(0, st.cur + d));
+        el.scrollTop = st.cur;
+        st.wrote = el.scrollTop;
       }
       const v = (st.cur - prev) / f;
       if (now - st.lastWheel > 90) {   // колёсико отпустили — край возвращается пружиной без перелёта
@@ -750,6 +754,8 @@ window.LGScroll = (function () {
         if (Math.abs(st.over) < 0.3 && Math.abs(st.overV) < 2) { st.over = 0; st.overV = 0; }
       }
       const shift = -rubber(st.over);
+      // Шапка над списком (предметы, уведомления) становится стеклом и тогда, когда строки уезжают под неё растяжением
+      if (host) host.classList.toggle('is-scrolled', st.cur > 2 || shift < -2);
       const top = el.getBoundingClientRect().top, H = el.clientHeight || 1;
       let prevO = null, busy = false;
       el.querySelectorAll(rule.tiles).forEach(t => {
@@ -1427,29 +1433,35 @@ window.LGWheel = (function () {
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
 })();
 
-/* 13. Карточки дней, уходя под капсулу недель, скругляются: видимая часть карточки обрезается
-   по нижнему краю капсулы со скруглёнными углами того же радиуса, что у карточек. */
+/* 13. Карточки дней заходят под капсулу недель целиком и видны сквозь стекло. Пока верх карточки
+   проходит от нижнего края капсулы до её середины, верхние углы карточки плавно скругляются
+   до радиуса капсулы — карточка ложится точно в её контур и не выступает за скругление. */
 (function () {
   'use strict';
   function start() {
     const col = document.getElementById('mainScroll'), bar = document.querySelector('#mainApp .lg-weekbar');
     if (!col || !bar) return;
     let raf = 0, until = 0;
-    const clipped = new Set();
+    const shaped = new Set();
     function frame() {
       raf = 0;
-      const line = bar.getBoundingClientRect().bottom - 4;   // линия среза — чуть выше нижнего края стекла
+      const b = bar.getBoundingClientRect();
+      const base = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--r-card')) || 16;
+      const big = b.height / 2;
       const now = new Set();
       col.querySelectorAll('.day-card').forEach(c => {
         const r = c.getBoundingClientRect();
-        if (r.bottom <= line || r.top >= line) return;
-        const cut = line - r.top;
-        const R = Math.min(16, (r.bottom - line) / 2);
-        c.style.clipPath = `inset(${cut.toFixed(1)}px 0 -30px 0 round ${R.toFixed(1)}px ${R.toFixed(1)}px 0 0)`;   // снизу запас под тень
+        if (r.bottom < b.top || r.top > b.bottom) return;
+        // 0 — верх карточки у нижнего края капсулы, 1 — на её середине и выше
+        const t = Math.max(0, Math.min(1, (b.bottom - r.top) / (b.height / 2)));
+        if (t <= 0) return;
+        const e = t * t * (3 - 2 * t);                       // плавное начало и конец
+        const R = Math.min(base + (big - base) * e, r.height / 2);
+        c.style.borderTopLeftRadius = c.style.borderTopRightRadius = R.toFixed(2) + 'px';
         now.add(c);
       });
-      clipped.forEach(c => { if (!now.has(c)) c.style.clipPath = ''; });
-      clipped.clear(); now.forEach(c => clipped.add(c));
+      shaped.forEach(c => { if (!now.has(c)) { c.style.borderTopLeftRadius = c.style.borderTopRightRadius = ''; } });
+      shaped.clear(); now.forEach(c => shaped.add(c));
       if (performance.now() < until) raf = requestAnimationFrame(frame);
     }
     // Карточки двигаются и после прокрутки (инерция, «резиновый» край) — следим ещё немного
@@ -1457,7 +1469,7 @@ window.LGWheel = (function () {
     col.addEventListener('scroll', kick, { passive: true });
     col.addEventListener('wheel', kick, { passive: true });
     window.addEventListener('resize', kick);
-    new MutationObserver(kick).observe(col, { childList: true, subtree: true });
+    new MutationObserver(kick).observe(col, { childList: true });
     kick();
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();

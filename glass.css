@@ -1099,8 +1099,9 @@ body.dark-theme .modal-content { box-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.1
 .custom-date-picker.open .date-trigger { color: var(--tint) !important; background: color-mix(in srgb, var(--tint) 12%, transparent); }
 .calendar-popup {
   left: auto; right: 0; top: calc(100% + 8px); width: 300px; padding: 14px; border: 0; border-radius: 22px; overflow: hidden;
-  --glass-blur: 18px; --glass-sat: 1.8;
-  background: color-mix(in srgb, var(--card-solid) 80%, transparent); -webkit-backdrop-filter: blur(18px) saturate(1.8); backdrop-filter: blur(18px) saturate(1.8);
+  /* Жидкое стекло: сквозь календарь видно размытые строки настроек под ним */
+  --glass-blur: 3px; --glass-sat: 1.7;
+  background: color-mix(in srgb, var(--card-solid) 22%, transparent); -webkit-backdrop-filter: blur(3px) saturate(1.7); backdrop-filter: blur(3px) saturate(1.7);
   transition: opacity 0.2s ease, transform 0.5s var(--spring), visibility 0.2s;
   box-shadow: var(--glass-shadow), 0 24px 48px -16px rgba(15, 20, 40, 0.3);
   transform: translateY(-6px) scale(0.97); transform-origin: top right;
@@ -1748,10 +1749,12 @@ body.dark-theme .lg-weekbar { background: color-mix(in srgb, var(--card-solid) 5
 #mainScroll.schedule-col {
   -webkit-mask-image: radial-gradient(closest-side, #000 calc(100% - 0.5px), transparent), radial-gradient(closest-side, #000 calc(100% - 0.5px), transparent), linear-gradient(#000, #000), linear-gradient(#000, #000);
   mask-image: radial-gradient(closest-side, #000 calc(100% - 0.5px), transparent), radial-gradient(closest-side, #000 calc(100% - 0.5px), transparent), linear-gradient(#000, #000), linear-gradient(#000, #000);
-  -webkit-mask-size: var(--wb-h) var(--wb-h), var(--wb-h) var(--wb-h), calc(100% - 2 * var(--wb-x) - var(--wb-h) + 1px) var(--wb-h), 100% calc(100% - var(--wb-h) + 1px);
-  mask-size: var(--wb-h) var(--wb-h), var(--wb-h) var(--wb-h), calc(100% - 2 * var(--wb-x) - var(--wb-h) + 1px) var(--wb-h), 100% calc(100% - var(--wb-h) + 1px);
-  -webkit-mask-position: var(--wb-x) 0, right var(--wb-x) top 0, calc(var(--wb-x) + var(--wb-h) / 2) 0, 0 calc(var(--wb-h) - 1px);
-  mask-position: var(--wb-x) 0, right var(--wb-x) top 0, calc(var(--wb-x) + var(--wb-h) / 2) 0, 0 calc(var(--wb-h) - 1px);
+  /* По контуру капсулы режется только её верхняя половина (там карточка могла бы вылезти над скруглением).
+     Ниже середины капсулы карточка видна целиком и плавно уходит под стекло, без ступенек у её концов */
+  -webkit-mask-size: var(--wb-h) var(--wb-h), var(--wb-h) var(--wb-h), calc(100% - 2 * var(--wb-x) - var(--wb-h) + 1px) var(--wb-h), 100% calc(100% - var(--wb-h) / 2 + 1px);
+  mask-size: var(--wb-h) var(--wb-h), var(--wb-h) var(--wb-h), calc(100% - 2 * var(--wb-x) - var(--wb-h) + 1px) var(--wb-h), 100% calc(100% - var(--wb-h) / 2 + 1px);
+  -webkit-mask-position: var(--wb-x) 0, right var(--wb-x) top 0, calc(var(--wb-x) + var(--wb-h) / 2) 0, 0 calc(var(--wb-h) / 2 - 1px);
+  mask-position: var(--wb-x) 0, right var(--wb-x) top 0, calc(var(--wb-x) + var(--wb-h) / 2) 0, 0 calc(var(--wb-h) / 2 - 1px);
   -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
 }
 @media (max-width: 760px) { .layout-grid { --wb-x: 12px; } }
@@ -1769,3 +1772,41 @@ body.dark-theme .lg-weekbar { background: color-mix(in srgb, var(--card-solid) 5
 .subject-item.is-important .priority-btn, .priority-btn.active { opacity: 1 !important; transform: none !important; color: var(--red); }
 .subject-list.lg-scrolling .subject-item:not(.is-important) .priority-btn { opacity: 0; transition-delay: 0s; }
 .subj-name-wrap { gap: 8px; }
+
+/* ---------- 32. Календарь — прозрачное стекло ---------- */
+.calendar-popup.lg-glass { box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.08), 0 18px 40px -14px rgba(15, 20, 40, 0.32), var(--glass-inner); }
+body.dark-theme .calendar-popup { background: color-mix(in srgb, var(--card-solid) 48%, transparent); }
+/* Цифры чуть плотнее, чтобы читались на любом фоне под стеклом */
+.calendar-popup .cal-cell:not(.selected), .calendar-popup #calMonthLabel { font-weight: 500; }
+.calendar-popup .cal-cell:hover:not(.empty):not(.selected) { background: color-mix(in srgb, var(--label) 9%, transparent); }
+body.glass-lite .calendar-popup { background: color-mix(in srgb, var(--card-solid) 86%, transparent); }
+
+/* Прозрачное стекло, как в iOS 26: под календарём видны строки настроек — чуть размытые и
+   изогнутые у краёв линзы. Толщину стеклу дают световые кромки и внутренняя тень */
+.calendar-popup.lg-glass {
+  box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.1), 0 20px 44px -14px rgba(15, 20, 40, 0.34), 0 4px 12px -4px rgba(15, 20, 40, 0.12),
+    inset 0 1.5px 1px rgba(255, 255, 255, 1), inset 0 -1.5px 1px rgba(255, 255, 255, 0.6),
+    inset 1.5px 0 1px rgba(255, 255, 255, 0.5), inset -1.5px 0 1px rgba(255, 255, 255, 0.5),
+    inset 0 0 22px rgba(255, 255, 255, 0.55);
+}
+/* Подложка под цифрами: лёгкая дымка, чтобы даты читались поверх любого текста под стеклом */
+.calendar-popup .cal-grid, .calendar-popup .cal-header { text-shadow: 0 0 6px var(--card-solid), 0 0 2px var(--card-solid); }
+.calendar-popup .cal-cell.selected { text-shadow: none; }
+body.dark-theme .calendar-popup { background: color-mix(in srgb, var(--card-solid) 34%, transparent); }
+body.dark-theme .calendar-popup.lg-glass { box-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.1), 0 20px 44px -14px rgba(0, 0, 0, 0.7), inset 0 1px 1px rgba(255, 255, 255, 0.28), inset 0 -1px 1px rgba(255, 255, 255, 0.1), inset 0 0 22px rgba(255, 255, 255, 0.05); }
+.calendar-popup.lg-glass.lg-refract {
+  -webkit-backdrop-filter: var(--lg-lens) blur(3px) saturate(1.7) !important; backdrop-filter: var(--lg-lens) blur(3px) saturate(1.7) !important;
+}
+
+/* ---------- 33. Календарь: без блика за курсором, мягкая подсветка дня ---------- */
+/* Блик под курсором на календаре выглядел как белый ореол за цифрами — здесь он не нужен */
+.calendar-popup.lg-glass::before { display: none; }
+/* Подсветка дня проявляется плавно и с небольшой задержкой: курсор, пробегающий по числам, не мерцает */
+.calendar-popup .cal-cell { transition: background-color 0.35s ease, color 0.2s ease; }
+.calendar-popup .cal-cell:hover:not(.empty):not(.selected) { transition-delay: 0.1s; }
+
+/* ---------- 34. Открытый календарь или список всегда поверх соседних карточек ---------- */
+/* Карточки в окне двигаются при прокрутке (инерция) и из-за этого рисуются отдельными слоями —
+   карточку с открытым календарём поднимаем над остальными */
+.lg-card:has(.custom-date-picker.open, .custom-select.open) { position: relative; z-index: 30; }
+.lg-row:has(.custom-date-picker.open) { z-index: 31 !important; }
