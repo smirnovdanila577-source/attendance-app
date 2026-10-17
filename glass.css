@@ -2331,7 +2331,7 @@ body.onb-preview:has(#landingScreen.active, #authScreen.active) .lg-onb-exit { d
 }
 
 /* Знакомство помещается в окно без прокрутки */
-#landingScreen .lg-onb { padding-top: 44px; padding-bottom: 28px; }
+@media (min-width: 761px) { #landingScreen .lg-onb { padding-top: 44px; padding-bottom: 28px; } }
 .lg-intro .lg-appicon-new { width: 76px; height: 76px; border-radius: 21px; margin-bottom: 18px; }
 .lg-intro .lg-onb-sub { margin-bottom: 22px; }
 .lg-intro .lg-show { margin-bottom: 24px; }
@@ -2339,3 +2339,16 @@ body.onb-preview:has(#landingScreen.active, #authScreen.active) .lg-onb-exit { d
 .lg-onb-note { margin-top: 16px; }
 .lg-intro .lg-cta { margin-top: 18px; }
 .lg-onb-login { margin-top: 8px; }
+
+/* ===== 43. Телефон ===== */
+@media (max-width: 760px) {
+  /* iOS увеличивает страницу при вводе в поле со шрифтом меньше 16 px — держим 16 */
+  input, textarea, select, .input-field, .hw-input { font-size: 16px !important; }
+  /* Без двойного касания для масштаба и без серой вспышки при нажатии */
+  html { -webkit-text-size-adjust: 100%; }
+  body { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+}
+/* Как отдельное приложение с экрана «Домой»: страница целиком не «пружинит» */
+@media (display-mode: standalone) {
+  html, body { overscroll-behavior: none; }
+}
