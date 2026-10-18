@@ -2352,3 +2352,142 @@ body.onb-preview:has(#landingScreen.active, #authScreen.active) .lg-onb-exit { d
 @media (display-mode: standalone) {
   html, body { overscroll-behavior: none; }
 }
+
+/* ===== 44. Профиль v2: окно как у отчёта, компактная шапка, меню вместо вкладок-настроек ===== */
+#profileBackdrop .pf-modal.pf-v2 { max-width: 860px !important; height: min(90vh, 980px); }
+#profileBackdrop .pf-v2 .pf-scroll { position: relative; padding: 0 56px 44px !important; }
+.pf-v2 .rp-glow { inset: 0 -56px 0; }
+
+/* Шапка: аватар слева, справа имя, тег, статус, группа и «о себе» */
+.pf-hero2 { display: flex; align-items: center; gap: 28px; padding: 44px 0 6px; }
+.pf-pop-anchor { position: relative; }
+.pf-av-anchor { flex-shrink: 0; }
+.pf-hero2 .pf-avatar-edit { position: relative; display: block; padding: 0; border: 0; background: none; cursor: pointer; border-radius: 50%; }
+.pf-hero2 .pf-avatar { --av: 108px; --dot-ring: var(--sheet); box-shadow: 0 16px 34px -18px rgba(0, 0, 0, 0.45); transition: transform 0.4s var(--spring); }
+.pf-hero2 .pf-avatar-edit:hover .pf-avatar { transform: scale(1.03); }
+.pf-hero2 .pf-avatar-edit:active .pf-avatar { transform: scale(0.97); }
+.pf-av-badge {
+  position: absolute; left: 50%; bottom: -6px; transform: translateX(-50%) translateY(4px); opacity: 0;
+  width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; color: var(--label);
+  background: var(--glass); -webkit-backdrop-filter: blur(14px) saturate(1.8); backdrop-filter: blur(14px) saturate(1.8);
+  box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.08), 0 4px 12px -4px rgba(20, 30, 60, 0.3), var(--glass-inner);
+  transition: opacity 0.25s ease, transform 0.4s var(--spring);
+}
+.pf-avatar-edit:hover .pf-av-badge, .pf-avatar-edit:focus-visible .pf-av-badge { opacity: 1; transform: translateX(-50%); }
+.pf-hero2 .pf-hero-info { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; min-width: 0; text-align: left; }
+.pf-hero2 .pf-hero-name { margin: 0; font: 700 calc(30px * var(--ts))/1.1 var(--font-display); letter-spacing: -0.026em; }
+.pf-hero-line { display: flex; flex-wrap: wrap; gap: 8px; }
+.pf-pill {
+  display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px 0 4px; border: 0; border-radius: 999px; cursor: pointer;
+  background: var(--fill-2); color: var(--label-2); font: 500 calc(13.5px * var(--ts)) var(--font);
+  transition: background 0.2s, transform 0.35s var(--spring);
+}
+.pf-pill:hover { background: var(--fill); }
+.pf-pill:active { transform: scale(0.96); }
+.pf-pill .pf-chip { padding: 4px 10px; }
+.pf-pill > svg { opacity: 0.55; }
+.pf-pill-txt { color: var(--label); }
+.pf-pill > .pf-pill-txt:first-child { padding-left: 8px; }
+.pf-pill .pf-st-ico { margin-left: 6px; }
+.pf-hero2 .pf-hero-meta { font-size: calc(14px * var(--ts)); color: var(--label-2); }
+.pf-bio-row { display: flex; align-items: center; gap: 8px; width: 100%; max-width: 460px; min-height: 34px; }
+.pf-bio-view {
+  display: inline-flex; align-items: center; gap: 8px; max-width: 100%; padding: 6px 10px; margin-left: -10px; border: 0; border-radius: 10px; cursor: text;
+  background: transparent; color: var(--label); font: 400 calc(15px * var(--ts))/1.35 var(--font); text-align: left; transition: background 0.2s;
+}
+.pf-bio-view:hover { background: var(--fill-2); }
+.pf-bio-view.empty { color: var(--label-3); }
+.pf-bio-pen { opacity: 0; color: var(--label-3); transition: opacity 0.2s; }
+.pf-bio-view:hover .pf-bio-pen, .pf-bio-view.empty .pf-bio-pen { opacity: 1; }
+.pf-bio-inline { flex: 1; height: 36px; margin: 0 0 0 -10px; padding: 0 10px; font-size: calc(15px * var(--ts)); }
+.pf-bio-row .pf-bio-count { flex-shrink: 0; font-size: calc(12px * var(--ts)); }
+
+/* Всплывающие меню шапки: аватар, тег, статус — стекло */
+.pf-pop {
+  position: absolute; top: calc(100% + 10px); left: 0; z-index: 40; padding: 8px; border-radius: 20px; text-align: left;
+  background: var(--glass-pop); -webkit-backdrop-filter: blur(26px) saturate(2); backdrop-filter: blur(26px) saturate(2);
+  box-shadow: var(--glass-shadow), 0 24px 48px -16px rgba(15, 20, 40, 0.3);
+  transform-origin: top left;
+}
+.pf-pop.in { animation: pfPopIn 0.45s var(--spring); }
+@keyframes pfPopIn { from { opacity: 0; transform: translateY(-6px) scale(0.95); } }
+.pf-pop-title { display: flex; justify-content: space-between; padding: 6px 8px 8px; font: 600 calc(13px * var(--ts)) var(--font); color: var(--label-2); }
+.pf-pop-title span { font-weight: 500; color: var(--label-3); }
+.pf-pop-note { margin: 8px 8px 4px; font-size: calc(12px * var(--ts)); line-height: 1.4; color: var(--label-3); }
+.pf-pop-avatar { width: 452px; top: calc(100% + 12px); }
+.pf-pop-avatar .pf-av-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+.pf-pop-avatar .pf-av-opt { background: color-mix(in srgb, var(--sheet-card) 70%, transparent); }
+.pf-pop-tag { width: 330px; }
+.pf-tag-list { display: flex; flex-direction: column; gap: 2px; max-height: 330px; overflow-y: auto; scrollbar-width: none; }
+.pf-tag-opt {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) 18px; align-items: center; gap: 10px; padding: 8px 10px; border: 0; border-radius: 12px;
+  background: transparent; color: var(--label); cursor: pointer; text-align: left; transition: background 0.2s;
+}
+.pf-tag-opt:hover { background: var(--fill-2); }
+.pf-tag-opt.locked { cursor: default; }
+.pf-tag-opt.locked:hover { background: transparent; }
+.pf-tag-opt.locked .pf-chip { opacity: 0.55; }
+.pf-tag-none { font-size: calc(14px * var(--ts)); font-weight: 500; padding-left: 2px; }
+.pf-tag-sub { font-size: calc(12px * var(--ts)); color: var(--label-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pf-tag-mark { display: grid; place-items: center; color: var(--label-3); }
+.pf-tag-opt:not(.selected):not(.locked) .pf-tag-mark { opacity: 0; }
+.pf-tag-opt.selected .pf-tag-mark { color: var(--tint); }
+.pf-pop-status { width: 268px; }
+
+/* Вкладки: стеклянная капсула по центру, прилипает при прокрутке */
+.pf-v2 .pf-tabbar { margin: 28px -56px 24px; padding: 12px 56px; }
+.pf-v2 .pf-tabbar.is-stuck { padding-right: 56px; }
+.pf-v2 .pf-tabs { max-width: 540px; margin: 0 auto; }
+
+/* Тихие заголовки и стеклянные карточки, как в отчёте */
+.pf-v2 .pf-pane { gap: 40px; }
+.pf-v2 .pf-section-title { margin: 0 6px 12px; font: 600 calc(13px * var(--ts)) var(--font); letter-spacing: 0.01em; color: var(--label-2); }
+.pf-v2 .pf-section-title .pf-link-btn { font-size: calc(13px * var(--ts)); }
+.pf-v2 :is(.pf-stat, .pf-medal, .pf-box, .pf-list, .pf-row.sc-person) { background: color-mix(in srgb, var(--sheet-card) 74%, transparent); }
+.pf-v2 :is(.pf-stat, .pf-medal) { box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.04), 0 10px 30px -18px rgba(20, 30, 60, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.6); }
+body.dark-theme .pf-v2 :is(.pf-stat, .pf-medal) { background: color-mix(in srgb, var(--sheet-card) 80%, transparent); box-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.07), 0 10px 30px -18px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.06); }
+
+/* Прогресс: серия, очки, идеальные недели, домашки */
+.pf-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+.pf-stat { --tc: var(--tint); display: flex; flex-direction: column; align-items: flex-start; padding: 16px 18px 17px; border-radius: 20px; }
+.pf-stat[data-tone="orange"] { --tc: var(--orange); }
+.pf-stat[data-tone="blue"] { --tc: var(--blue, #007aff); }
+.pf-stat[data-tone="green"] { --tc: var(--green); }
+.pf-stat[data-tone="violet"] { --tc: var(--purple, #af52de); }
+.pf-stat-ico { width: 30px; height: 30px; margin-bottom: 14px; border-radius: 50%; display: grid; place-items: center; color: var(--tc); background: color-mix(in srgb, var(--tc) 15%, transparent); }
+.pf-stat-num { font: 700 calc(30px * var(--ts))/1 var(--font-display); letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+.pf-stat-label { margin-top: 6px; font-size: calc(13.5px * var(--ts)); color: var(--label); }
+.pf-stat-sub { margin-top: 2px; font-size: calc(12px * var(--ts)); color: var(--label-3); }
+
+/* Витрина: полученные с датой и ближайшие цели с прогрессом */
+.pf-v2 .pf-showcase { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.pf-v2 .pf-medal { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 22px 14px 18px; border-radius: 20px; text-align: center; min-width: 0; }
+.pf-medal-sub { font-size: calc(12px * var(--ts)); color: var(--label-3); font-variant-numeric: tabular-nums; }
+.pf-medal.next .pf-ico { opacity: 0.55; filter: saturate(0.6); }
+.pf-medal.next .pf-medal-title { color: var(--label-2); }
+.pf-medal.next .prog-track { width: 70%; height: 4px; margin-top: 2px; }
+.pf-v2 .prog-fill[data-w] { transition: width 0.9s var(--ease); }
+
+@media (max-width: 760px) {
+  #profileBackdrop .pf-v2 .pf-scroll { padding: 0 16px 28px !important; }
+  .pf-v2 .rp-glow { inset: 0 -16px 0; }
+  .pf-hero2 { flex-direction: column; text-align: center; gap: 16px; padding-top: 28px; }
+  .pf-hero2 .pf-hero-info { align-items: center; text-align: center; }
+  .pf-hero2 .pf-avatar { --av: 92px; }
+  .pf-hero-line { justify-content: center; }
+  .pf-bio-row { justify-content: center; }
+  .pf-pop { position: fixed; left: 12px !important; right: 12px; top: auto; bottom: calc(env(safe-area-inset-bottom, 0px) + 12px); width: auto !important; }
+  .pf-pop-avatar .pf-av-grid { grid-template-columns: repeat(4, 1fr); }
+  .pf-v2 .pf-tabbar { margin: 20px -16px 18px; padding: 10px 16px; }
+  .pf-stats { grid-template-columns: repeat(2, 1fr); }
+  .pf-v2 .pf-showcase { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+}
+.pf-v2 .pf-avatar-edit::after { display: none; }
+.pf-pop { background: color-mix(in srgb, var(--sheet-card) 84%, transparent); }
+body.dark-theme .pf-pop { background: color-mix(in srgb, var(--sheet-card) 88%, transparent); }
+/* Сервер просыпается: спокойное ожидание вместо ошибки */
+.sc-waking { gap: 8px; padding: 56px 24px; text-align: center; }
+.sc-waking b { font: 600 calc(16px * var(--ts)) var(--font-display); color: var(--label); }
+.sc-waking span:last-child { max-width: 360px; font-size: calc(13.5px * var(--ts)); line-height: 1.45; color: var(--label-2); }
+.sc-waking .ip-spin { width: 22px; height: 22px; margin-bottom: 6px; }
+@media (max-width: 760px) { .pf-v2 .pf-tab-count { display: none; } }

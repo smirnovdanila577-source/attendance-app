@@ -30,7 +30,9 @@
     info: '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>',
     bell: '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>',
     zap: '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>',
-    chart: '<path d="M12 20v-6M6 20V10M18 20V4"/>'
+    chart: '<path d="M12 20v-6M6 20V10M18 20V4"/>',
+    pen: '<path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>',
+    chev: '<path d="m6 9 6 6 6-6"/>'
   };
 
   /* ---------- Статусы ---------- */
@@ -114,6 +116,7 @@
   /* ---------- Состояние модуля ---------- */
   let bound = false, lastActive = Date.now(), tickTimer = null, lastShownStatus = null;
   let evalTimer = null, evaluating = false, activeTab = 'overview', lastHeaderSig = '', pickerOpen = false;
+  let pop = null, popFresh = false, bioEdit = false, animNext = false;   // всплывающее меню в шапке профиля: 'avatar' | 'tag' | 'status'
 
   const $ = id => document.getElementById(id);
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -291,7 +294,7 @@
     return face + '<span class="pf-dot"></span><span class="pf-zzz" aria-hidden="true"><i>z</i><i>z</i><i>z</i></span>';
   }
   function avatarPickerHtml(e) {
-    if (!pickerOpen || !window.Avatars) return '';
+    if (!window.Avatars) return '';
     const name = database.userProfile.name || 'С';
     const cur = myAvatarId(e);
     const opt = (id, inner, open, title, sub) => `
@@ -303,11 +306,40 @@
       const open = Avatars.isUnlocked(a, e.achievements);
       const ach = a.unlock ? achById(a.unlock) : null;
       const how = ach ? (ach.secret && !open ? 'Скрытое достижение' : `Достижение «${ach.title}»`) : '';
-      return opt(a.id, Avatars.html(a.id), open, open ? a.name : `${a.name}: ${how}`, a.name);
+      return opt(a.id, Avatars.html(a.id), open, open ? a.name : `${a.name}. Откроется за ${how.charAt(0).toLowerCase() + how.slice(1)}`, a.name);
     }));
-    return `<div class="pf-av-picker"><span class="pf-field-label">Аватар</span>
+    return `<div class="pf-pop-title">Аватар</div>
       <div class="pf-av-grid">${items.join('')}</div>
-      <p class="pf-tags-note">Закрытые аватары открываются за достижения.</p></div>`;
+      <p class="pf-pop-note">Закрытые аватары открываются за достижения. Наведи на замочек, чтобы узнать за какое.</p>`;
+  }
+  // Меню тега: открытые можно надеть, закрытые показывают, за что откроются
+  function tagPopHtml(e) {
+    const row = t => {
+      const owned = !!e.tags[t.id], equipped = e.tag === t.id;
+      const a = t.ach ? achById(t.ach) : null;
+      const sub = owned ? (a ? `За «${esc(a.title)}»` : esc(t.hint || ''))
+        : (a && a.secret ? 'За скрытое достижение' : `Откроется за «${esc(a ? a.title : '')}»`);
+      return `<button type="button" class="pf-tag-opt ${owned ? '' : 'locked'} ${equipped ? 'selected' : ''}" data-tag="${t.id}" ${owned ? '' : 'aria-disabled="true"'} role="radio" aria-checked="${equipped}">
+        <span class="pf-chip" data-tone="${owned ? t.tone : 'gray'}">${esc(t.name)}</span>
+        <span class="pf-tag-sub">${sub}</span>
+        <span class="pf-tag-mark">${owned ? svg(P.check, 14, 2.6) : svg(P.lock, 13, 2.2)}</span>
+      </button>`;
+    };
+    const got = Object.keys(e.tags).filter(id => tagById(id)).length;
+    return `<div class="pf-pop-title">Тег под ником <span>${got} из ${TAGS.length}</span></div>
+      <div class="pf-tag-list" role="radiogroup">
+        <button type="button" class="pf-tag-opt ${e.tag ? '' : 'selected'}" data-tag="" role="radio" aria-checked="${!e.tag}">
+          <span class="pf-tag-none">Без тега</span><span class="pf-tag-sub">Под ником ничего</span><span class="pf-tag-mark">${svg(P.check, 14, 2.6)}</span>
+        </button>
+        ${TAGS.map(row).join('')}
+      </div>`;
+  }
+  function statusPopHtml(e) {
+    return STATUS_MODES.map(m => `
+      <button type="button" class="pf-status-opt ${e.status === m.id ? 'selected' : ''}" data-status="${m.id}">
+        ${statusIcon(m.id)}
+        <span><span>${m.label}</span><small>${m.desc}</small></span>
+      </button>`).join('');
   }
 
   /* ---------- Шапка ---------- */
@@ -389,32 +421,47 @@
   /* ---------- Окно профиля ---------- */
   function renderHero() {
     const e = ext(), st = effectiveStatus();
+    const curInp = $('pfBio'), draft = bioEdit && curInp ? curInp.value : null;   // не теряем набранный текст при перерисовке
     const tag = e.tag ? tagById(e.tag) : null;
     const up = database.userProfile;
-    const meta = [up.group ? `Группа ${up.group}` : '', up.university || ''].filter(Boolean).join(', ') || 'Профиль студента';
+    const meta = [up.group ? `Группа ${up.group}` : '', up.university || ''].filter(Boolean).join(', ');
+    const stLabel = STATUS_LABEL[st] + (e.status === 'auto' ? ' · авто' : '');
+    const popBox = (kind, html) => pop === kind ? `<div class="pf-pop pf-pop-${kind} ${popFresh ? 'in' : ''}" role="dialog">${html}</div>` : '';
+    const bio = bioEdit
+      ? `<input type="text" id="pfBio" class="pf-bio pf-bio-inline" maxlength="80" value="${esc(draft !== null ? draft : e.bio)}" aria-label="О себе"><span class="pf-bio-count" id="pfBioCount">${(draft !== null ? draft : e.bio).length} / 80</span>`
+      : `<button type="button" class="pf-bio-view ${e.bio ? '' : 'empty'}" data-act="bio">${e.bio ? esc(e.bio) : 'Добавить пару слов о себе'}<span class="pf-bio-pen">${svg(P.pen, 13, 2.2)}</span></button>`;
 
     $('pfHero').innerHTML = `
-      <div class="pf-hero">
-        <button type="button" class="pf-avatar-edit" data-act="avatar" aria-label="Выбрать аватар">
-          <span class="pf-avatar" data-status="${st}">${avatarInner(e)}</span>
-        </button>
+      <div class="pf-hero2">
+        <div class="pf-pop-anchor pf-av-anchor">
+          <button type="button" class="pf-avatar-edit" data-act="pop" data-pop="avatar" aria-label="Выбрать аватар" title="Выбрать аватар">
+            <span class="pf-avatar" data-status="${st}">${avatarInner(e)}</span>
+            <span class="pf-av-badge">${svg(P.pen, 13, 2.2)}</span>
+          </button>
+          ${popBox('avatar', avatarPickerHtml(e))}
+        </div>
         <div class="pf-hero-info">
           <h2 class="pf-hero-name">${esc(up.name || 'Студент')}</h2>
-          ${tag ? `<span class="pf-chip" data-tone="${tag.tone}">${esc(tag.name)}</span>` : ''}
-          <div class="pf-hero-meta">${esc(meta)}</div>
-          <div class="pf-hero-actions">
-            <button type="button" class="pf-link-btn" data-act="avatar">${pickerOpen ? 'Скрыть аватары' : 'Выбрать аватар'}</button>
+          <div class="pf-hero-line">
+            <div class="pf-pop-anchor">
+              <button type="button" class="pf-pill" data-act="pop" data-pop="tag" aria-label="Тег под ником">
+                ${tag ? `<span class="pf-chip" data-tone="${tag.tone}">${esc(tag.name)}</span>` : '<span class="pf-pill-txt">Без тега</span>'}${svg(P.chev, 14, 2.4)}
+              </button>
+              ${popBox('tag', tagPopHtml(e))}
+            </div>
+            <div class="pf-pop-anchor">
+              <button type="button" class="pf-pill" data-act="pop" data-pop="status" aria-label="Статус">
+                ${statusIcon(st)}<span class="pf-pill-txt">${esc(stLabel)}</span>${svg(P.chev, 14, 2.4)}
+              </button>
+              ${popBox('status', statusPopHtml(e))}
+            </div>
           </div>
+          <div class="pf-hero-meta">${esc(meta)}${meta ? ' · ' : ''}в приложении с ${fmtDate(e.createdAt)}</div>
+          <div class="pf-bio-row">${bio}</div>
         </div>
-      </div>
-      ${avatarPickerHtml(e)}
-      <span class="pf-field-label">Статус</span>
-      <div class="pf-seg" role="radiogroup" aria-label="Статус">
-        ${STATUS_MODES.map(m => `
-          <button type="button" role="radio" aria-checked="${e.status === m.id}" class="${e.status === m.id ? 'selected' : ''}" data-status="${m.id}">
-            ${statusIcon(m.id)}<span>${m.short}</span>
-          </button>`).join('')}
       </div>`;
+    popFresh = false;
+    if (bioEdit) { const inp = $('pfBio'); if (inp) { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); } }
   }
 
   function renderTabs() {
@@ -423,14 +470,17 @@
     const tabs = [
       { id: 'overview', label: 'Обзор' },
       { id: 'achievements', label: 'Достижения', count: `${got}/${ACH.length}` },
-      { id: 'tags', label: 'Теги', count: `${Object.keys(e.tags).filter(id => tagById(id)).length}/${TAGS.length}` },
       ...(window.Social ? [{ id: 'league', label: 'Лига' }, { id: 'friends', label: 'Друзья' }] : [])
     ];
     $('pfTabs').innerHTML = tabs.map(t => `
       <button type="button" class="pf-tab ${activeTab === t.id ? 'selected' : ''}" data-tab="${t.id}" role="tab" aria-selected="${activeTab === t.id}">
         ${t.label}${t.count ? `<span class="pf-tab-count">${t.count}</span>` : ''}
       </button>`).join('');
-    document.querySelectorAll('.pf-pane').forEach(p => p.classList.toggle('active', p.dataset.pane === activeTab));
+    document.querySelectorAll('.pf-pane').forEach(p => {
+      const on = p.dataset.pane === activeTab, was = p.classList.contains('active');
+      p.classList.toggle('active', on);
+      if (on && !was) p.animate([{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }], { duration: 320, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' });
+    });
     if (window.Social && (activeTab === 'league' || activeTab === 'friends')) Social.renderPane(activeTab);
   }
 
@@ -442,40 +492,75 @@
   }
 
   function renderOverview() {
-    if (document.activeElement && document.activeElement.id === 'pfBio') return; // не мешаем вводу
-    const e = ext(), s = computeStats();
+    const e = ext(), s = computeStats(), soc = !!window.Social;
+    const plural = (n, f) => { const a = Math.abs(n) % 100, b = a % 10; return (a > 10 && a < 20) ? f[2] : b > 1 && b < 5 ? f[1] : b === 1 ? f[0] : f[2]; };
+    // Одна серия: учебные дни подряд с отметками (без сервера — пары подряд)
+    const streak = soc ? s.dayStreak : s.streak;
+    const tiles = [
+      { tone: 'orange', icon: 'flame', num: streak, label: soc ? `${plural(streak, ['день', 'дня', 'дней'])} в серии` : 'пар подряд', sub: soc && s.bestDayStreak ? `лучшая: ${s.bestDayStreak}` : '' },
+      soc ? { tone: 'blue', icon: 'zap', num: s.weekXp, label: 'очков за неделю', sub: `всего ${s.xpTotal}` } : null,
+      { tone: 'green', icon: 'cal', num: s.perfectWeeks, label: plural(s.perfectWeeks, ['идеальная неделя', 'идеальные недели', 'идеальных недель']), sub: 'все пары посещены' },
+      { tone: 'violet', icon: 'clip', num: s.hwDone, label: `из ${s.hwTotal} домашек`, sub: 'выполнено' }
+    ].filter(Boolean);
+
+    // Витрина: последние полученные; свободные места — ближайшие цели с прогрессом
     const got = ACH.filter(a => e.achievements[a.id]).sort((a, b) => e.achievements[b.id] - e.achievements[a.id]).slice(0, 3);
-    const medals = got.map(a => medalHtml(a, e));
-    while (medals.length < 3) medals.push('<div class="pf-medal empty">Место для достижения</div>');
-    const color = s.pct >= 80 ? 'var(--color-green)' : s.pct >= 60 ? 'var(--color-yellow)' : 'var(--color-red)';
+    const cards = got.map(a => `
+      <div class="pf-medal" data-tone="${a.tone}">
+        <span class="pf-ico">${svg(P[a.icon], 22)}</span>
+        <span class="pf-medal-title">${esc(a.title)}</span>
+        <span class="pf-medal-sub">получено ${fmtDate(e.achievements[a.id])}</span>
+      </div>`);
+    if (cards.length < 3) {
+      const next = ACH.filter(a => !e.achievements[a.id] && !a.secret)
+        .map(a => { const [c, t] = a.progress(s, e, database); return { a, c, t, r: t ? c / t : 0 }; })
+        .sort((x, y) => y.r - x.r).slice(0, 3 - cards.length);
+      next.forEach(({ a, c, t }) => cards.push(`
+        <div class="pf-medal next" data-tone="${a.tone}">
+          <span class="pf-ico">${svg(P[a.icon], 22)}</span>
+          <span class="pf-medal-title">${esc(a.title)}</span>
+          <div class="prog-track"><div class="prog-fill" data-w="${Math.round(c / t * 100)}" style="width:0%"></div></div>
+          <span class="pf-medal-sub">${c} из ${t}</span>
+        </div>`));
+    }
 
     $('pfPaneOverview').innerHTML = `
       <section>
-        <h3 class="pf-section-title"><span>Витрина достижений</span><button type="button" class="pf-link-btn" data-tab="achievements">Все достижения</button></h3>
-        <div class="pf-showcase">${medals.join('')}</div>
-      </section>
-      <section>
-        <h3 class="pf-section-title"><span>Успеваемость</span></h3>
-        <div class="pf-box">
-          <div class="pf-big"><div class="pf-big-num">${s.pct}%</div><div class="pf-big-sub">${s.attended} из ${s.total} пар</div></div>
-          <div class="prog-track"><div class="prog-fill" style="width:${s.pct}%; background:${color}"></div></div>
-          <div class="pf-mini-grid">
-            <div><div class="pf-mini-num">${s.streak}</div><div class="pf-mini-label">пар подряд</div></div>
-            <div><div class="pf-mini-num">${s.hwDone} / ${s.hwTotal}</div><div class="pf-mini-label">домашек сделано</div></div>
-            <div><div class="pf-mini-num">${s.perfectWeeks}</div><div class="pf-mini-label">идеальных недель</div></div>
-          </div>
-          ${window.Social ? `<div class="pf-mini-grid">
-            <div><div class="pf-mini-num">${s.dayStreak}</div><div class="pf-mini-label">дней в серии</div></div>
-            <div><div class="pf-mini-num">${s.weekXp}</div><div class="pf-mini-label">очков за неделю</div></div>
-            <div><div class="pf-mini-num">${s.xpTotal}</div><div class="pf-mini-label">очков всего</div></div>
-          </div>` : ''}
+        <h3 class="pf-section-title"><span>Прогресс</span></h3>
+        <div class="pf-stats">${tiles.map(t => `
+          <div class="pf-stat" data-tone="${t.tone}">
+            <span class="pf-stat-ico">${svg(P[t.icon], 16, 2.2)}</span>
+            <div class="pf-stat-num" data-count="${t.num}">${t.num}</div>
+            <div class="pf-stat-label">${t.label}</div>
+            ${t.sub ? `<div class="pf-stat-sub">${esc(t.sub)}</div>` : ''}
+          </div>`).join('')}
         </div>
       </section>
       <section>
-<h3 class="pf-section-title"><span>О себе</span><span class="pf-since">В приложении с ${fmtDate(e.createdAt)}</span></h3>
-        <input type="text" id="pfBio" class="pf-bio" maxlength="80" value="${esc(e.bio)}">
-        <div class="pf-bio-count" id="pfBioCount">${e.bio.length} / 80</div>
+        <h3 class="pf-section-title"><span>Витрина достижений</span><button type="button" class="pf-link-btn" data-tab="achievements">Все достижения</button></h3>
+        <div class="pf-showcase">${cards.join('')}</div>
       </section>`;
+    if (animNext) animateIn($('pfPaneOverview'));
+    else $('pfPaneOverview').querySelectorAll('.prog-fill[data-w]').forEach(f => { f.style.width = f.dataset.w + '%'; });
+  }
+
+  // Цифры досчитывают, полоски прогресса заполняются — при каждом показе
+  function animateIn(root) {
+    if (!root) return;
+    const reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    root.querySelectorAll('[data-count]').forEach(el => {
+      const to = Number(el.dataset.count);
+      if (reduce || !to) { el.textContent = to; return; }
+      const t0 = performance.now(), dur = 800;
+      const step = now => { const k = Math.min(1, (now - t0) / dur); el.textContent = Math.round(to * (1 - Math.pow(1 - k, 3))); if (k < 1 && el.isConnected) requestAnimationFrame(step); };
+      el.textContent = '0'; requestAnimationFrame(step);
+    });
+    const fills = root.querySelectorAll('.prog-fill[data-w]');
+    if (!fills.length) return;
+    requestAnimationFrame(() => requestAnimationFrame(() => fills.forEach((f, i) => {
+      f.style.transitionDelay = (reduce ? 0 : Math.min(i, 12) * 40) + 'ms';
+      f.style.width = f.dataset.w + '%';
+    })));
   }
 
   const avatarFor = achId => (window.Avatars ? Avatars.list.find(a => a.unlock === achId) : null) || null;
@@ -511,7 +596,7 @@
         <div class="pf-row-body">
           <span class="pf-row-title">${esc(a.title)}</span>
           <span class="pf-row-desc">${esc(a.desc)}</span>
-          <div class="prog-track"><div class="prog-fill" style="width:${Math.round(cur / tar * 100)}%"></div></div>
+          <div class="prog-track"><div class="prog-fill" data-w="${Math.round(cur / tar * 100)}" style="width:0%"></div></div>
           <span class="pf-row-meta">${cur} / ${tar}${note ? ', ' + esc(note) : ''}</span>
         </div>
         ${tag ? `<span class="pf-lock" title="Награда: тег «${esc(tag.name)}»">${svg(P.tag, 16)}</span>` : ''}
@@ -519,40 +604,16 @@
       </div>`;
     }).join('');
     $('pfPaneAchievements').innerHTML = `
-      <p class="pf-tags-note">Получено ${got} из ${ACH.length}. Значок тега у достижения означает, что за него откроется тег.</p>
+      <p class="pf-tags-note">Получено ${got} из ${ACH.length}. Значок тега у достижения означает, что за него откроется тег под ником.</p>
       <div class="pf-list">${rows}</div>`;
-  }
-
-  function renderTags() {
-    const e = ext();
-    const row = (t) => {
-      const owned = !!e.tags[t.id];
-      const equipped = e.tag === t.id;
-      const a = t.ach ? achById(t.ach) : null;
-      const sub = owned
-        ? (a ? `Получен за «${esc(a.title)}»` : esc(t.hint || ''))
-        : (a && a.secret ? 'Награда за скрытое достижение' : `Получи достижение «${esc(a ? a.title : '')}»`);
-      return `<button type="button" class="pf-row ${owned ? 'pickable' : 'locked'} ${equipped ? 'equipped' : ''}" data-tag="${t.id}" ${owned ? '' : 'aria-disabled="true"'} role="radio" aria-checked="${equipped}">
-        <span class="pf-radio">${svg(P.check, 12, 3)}</span>
-        <div class="pf-row-body">
-          <span class="pf-chip" data-tone="${owned ? t.tone : 'gray'}">${esc(t.name)}</span>
-          <span class="pf-row-desc">${sub}</span>
-        </div>
-        ${owned ? '' : `<span class="pf-lock">${svg(P.lock, 16)}</span>`}
-      </button>`;
-    };
-    const none = `<button type="button" class="pf-row pickable ${e.tag ? '' : 'equipped'}" data-tag="" role="radio" aria-checked="${!e.tag}">
-      <span class="pf-radio">${svg(P.check, 12, 3)}</span>
-      <div class="pf-row-body"><span class="pf-row-title">Без тега</span><span class="pf-row-desc">Под ником ничего не показывается</span></div>
-    </button>`;
-    $('pfPaneTags').innerHTML = `
-      <p class="pf-tags-note">Теги не выбрать и не купить: каждый открывается за достижение. Выбранный тег показывается под твоим ником в шапке.</p>
-      <div class="pf-list" role="radiogroup">${none}${TAGS.map(row).join('')}</div>`;
+    if (activeTab === 'achievements' && animNext) animateIn($('pfPaneAchievements'));
+    else $('pfPaneAchievements').querySelectorAll('.prog-fill[data-w]').forEach(f => { f.style.width = f.dataset.w + '%'; });
   }
 
   function renderModal() {
     if (!hasUser() || !$('pfHero')) return;
-    renderHero(); renderTabs(); renderOverview(); renderAchievements(); renderTags();
+    renderHero(); renderTabs(); renderOverview(); renderAchievements();
+    animNext = false;
   }
   const modalOpen = () => $('profileBackdrop').classList.contains('open');
   function renderAll() {
@@ -565,12 +626,14 @@
   function openProfile(tab) {
     if (!hasUser()) return;
     closePops();
-    if (tab) activeTab = tab;
+    if (tab === 'tags') { activeTab = 'achievements'; pop = 'tag'; popFresh = true; }   // старые уведомления про теги
+    else if (tab) activeTab = tab;
+    animNext = true;
     renderModal();
     $('profileBackdrop').classList.add('open');
     const sc = $('profileBackdrop').querySelector('.pf-scroll'); if (sc) sc.scrollTop = 0;
   }
-  function closeProfile() { $('profileBackdrop').classList.remove('open'); }
+  function closeProfile() { pop = null; bioEdit = false; $('profileBackdrop').classList.remove('open'); }
 
   /* ---------- События ---------- */
   function bind() {
@@ -598,32 +661,42 @@
     const modal = $('profileBackdrop');
     modal.addEventListener('click', e => {
       if (e.target === modal) { closeProfile(); return; }
+      // щелчок мимо открытого меню закрывает его
+      if (pop && !e.target.closest('.pf-pop, [data-act="pop"]')) { pop = null; renderHero(); }
       const t = e.target.closest('[data-act], [data-tab], [data-status], [data-tag], [data-avatar]'); if (!t) return;
       if (t.dataset.act === 'close') closeProfile();
-      else if (t.dataset.act === 'avatar') { pickerOpen = !pickerOpen; renderHero(); }
+      else if (t.dataset.act === 'pop') { const k = t.dataset.pop; pop = pop === k ? null : k; popFresh = !!pop; bioEdit = false; renderHero(); }
+      else if (t.dataset.act === 'bio') { pop = null; bioEdit = true; renderHero(); }
       else if (t.dataset.avatar !== undefined) {
         const e2 = ext(), id = t.dataset.avatar, a = id && window.Avatars ? Avatars.byId(id) : null;
         if (id && !Avatars.isUnlocked(a, e2.achievements)) return;
         e2.avatarId = id; lastHeaderSig = ''; saveData(); renderAll();
       }
-      else if (t.dataset.tab) { activeTab = t.dataset.tab; renderTabs(); }
-      else if (t.dataset.status) setStatus(t.dataset.status);
+      else if (t.dataset.tab) {
+        activeTab = t.dataset.tab; renderTabs();
+        if (activeTab === 'overview') { animNext = true; renderOverview(); animNext = false; }
+        if (activeTab === 'achievements') animateIn($('pfPaneAchievements'));
+      }
+      else if (t.dataset.status) { pop = null; setStatus(t.dataset.status); }
       else if (t.dataset.tag !== undefined) {
         const id = t.dataset.tag, e2 = ext();
         if (id === '' ) e2.tag = null;
         else if (e2.tags[id]) e2.tag = id;
         else return;
-        saveData(); renderAll();
+        pop = null; saveData(); renderAll();
       }
     });
     modal.addEventListener('input', e => {
       if (e.target.id === 'pfBio') $('pfBioCount').textContent = `${e.target.value.length} / 80`;
     });
-    modal.addEventListener('change', e => {
-      if (e.target.id === 'pfBio') { ext().bio = e.target.value.trim().slice(0, 80); saveData(); renderAll(); }
+    // «О себе»: текст под именем превращается в поле; сохраняем, когда поле теряет фокус
+    modal.addEventListener('focusout', e => {
+      if (e.target.id !== 'pfBio' || !bioEdit) return;
+      ext().bio = e.target.value.trim().slice(0, 80); bioEdit = false; saveData(); renderAll();
     });
     modal.addEventListener('keydown', e => {
       if (e.target.id === 'pfBio' && e.key === 'Enter') e.target.blur();
+      if (e.target.id === 'pfBio' && e.key === 'Escape') { e.stopPropagation(); bioEdit = false; renderHero(); }
     });
 
     document.addEventListener('click', e => {
@@ -634,6 +707,7 @@
     document.addEventListener('keydown', e => {
       if (e.key !== 'Escape') return;
       if (document.querySelector('.pf-popover.open')) closePops();
+      else if (modalOpen() && pop) { pop = null; renderHero(); }
       else if (modalOpen()) closeProfile();
     });
 
@@ -665,7 +739,7 @@
   }
   function teardown() {       // при выходе из аккаунта
     if (!bound) return;
-    closePops(); closeProfile(); lastHeaderSig = ''; activeTab = 'overview'; pickerOpen = false;
+    closePops(); closeProfile(); lastHeaderSig = ''; activeTab = 'overview'; pickerOpen = false; pop = null; bioEdit = false;
   }
 
   // Для social.js: данные профиля, вид достижений и тегов, текущий статус

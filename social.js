@@ -206,6 +206,8 @@
   const statusDot = st => `<span class="sc-dot" data-status="${esc(st)}"></span>`;
   const loading = () => '<div class="sc-loading"><span class="ip-spin"></span>Загружаем…</div>';
   const failed = msg => `<div class="pf-empty">${esc(msg)}<button type="button" class="pf-link-btn" data-sc="retry">Повторить</button></div>`;
+  // Сервер на Render засыпает без дела и просыпается до минуты: спокойно ждём и повторяем сами
+  const waking = () => `<div class="pf-empty sc-waking"><span class="ip-spin"></span><b>Сервер просыпается…</b><span>Он засыпает, когда им долго не пользуются. Обычно это занимает до минуты, мы повторим сами.</span></div>`;
 
   function paneEl(tab) { return tab === 'league' ? $('pfPaneLeague') : $('pfPaneFriends'); }
 
@@ -218,10 +220,19 @@
     try {
       if (tab === 'league') renderLeague(el, await api('/api/league'));
       else renderFriends(el, await api('/api/friends'));
-      el.dataset.loaded = '1';
+      el.dataset.loaded = '1'; el.__tries = 0;
       if (tab === 'friends') refreshState();
     } catch (e) {
-      el.innerHTML = failed(e.status === 401 ? 'Сессия истекла. Выйди и войди в аккаунт заново' : 'Не удалось связаться с сервером');
+      clearTimeout(el.__retry);
+      if (e.status === 401) { el.innerHTML = failed('Сессия истекла. Выйди и войди в аккаунт заново'); return; }
+      el.__tries = (el.__tries || 0) + 1;
+      if (el.__tries <= 14) {
+        if (!el.querySelector('.sc-waking')) el.innerHTML = waking();
+        el.__retry = setTimeout(() => { if (el.classList.contains('active') && el.isConnected) renderPane(tab); }, 5000);
+      } else {
+        el.__tries = 0;
+        el.innerHTML = failed('Сервер не отвечает. Проверь интернет и попробуй ещё раз');
+      }
     }
   }
 
