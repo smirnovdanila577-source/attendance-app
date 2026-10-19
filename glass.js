@@ -554,11 +554,19 @@ window.LGBar = (function () {
     { sel: '#mainScroll', host: el => el.parentElement, inset: () => mobile() ? { top: 72, bottom: 112 } : { top: 76, bottom: 30 }, x: schedX },
     { sel: '.modal-scroll:not(#bellBackdrop .modal-scroll)', host: el => el.closest('.modal-content') || el.parentElement, inset: el => ({ top: el.closest('.lg-alert') ? 14 : 72, bottom: 16 }), x: edgeX },
     { sel: '.pf-notif-list', inset: el => ({ top: headH(el) + 6, bottom: 10 }), x: edgeX },
-    { sel: '.subject-list', inset: el => ({ top: headH(el) + 6, bottom: 10 }), x: edgeX, only: () => !mobile() },
+    { sel: '.subject-list', inset: el => ({ top: headH(el) + 6, bottom: 10 }), x: subjX, only: () => !mobile() },
     { sel: '#mainApp .sidebar-panel', host: el => el.parentElement, inset: () => ({ top: 6, bottom: 112 }), only: () => mobile() },
     { sel: '.lg-onb', inset: () => ({ top: 50, bottom: 16 }) }
   ];
 
+
+  // Предметы: ползунок ровно посередине между концом строк (процент, полоска) и краем карточки
+  function subjX(el, hr, er) {
+    const t = el.querySelector('.subject-item .prog-track, .subject-item .subj-stat');
+    if (!t) return edgeX(el, hr, er);
+    const contentRight = t.getBoundingClientRect().right;
+    return Math.round(((contentRight + er.right) / 2 - 6) - hr.left);   // 6 — середина ползунка внутри полосы
+  }
 
   function schedX(el, hr, er) {
     if (mobile()) return er.right - hr.left - 14;
@@ -1387,24 +1395,6 @@ window.LGWheel = (function () {
       new MutationObserver(upd).observe(typeBox, { subtree: true, attributes: true, attributeFilter: ['class'] });
       upd();
     }
-    // Включили «Точку» в настройках — после закрытия окна шпаргалка цветов коротко подсвечивается
-    const setup = document.getElementById('setupBackdrop'), legend = document.querySelector('.lg-legend');
-    if (setup && legend) {
-      let was = document.body.classList.contains('type-dot'), pending = false;
-      new MutationObserver(() => {
-        const on = document.body.classList.contains('type-dot');
-        if (on && !was && setup.classList.contains('open')) pending = true;
-        if (!on) pending = false;
-        was = on;
-      }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
-      new MutationObserver(() => {
-        if (setup.classList.contains('open') || !pending) return;
-        pending = false;
-        if (!document.body.classList.contains('type-dot')) return;
-        legend.classList.remove('lg-hi'); void legend.offsetWidth; legend.classList.add('lg-hi');
-        setTimeout(() => legend.classList.remove('lg-hi'), 2800);
-      }).observe(setup, { attributes: true, attributeFilter: ['class'] });
-    }
     // Календарь целиком в поле зрения: окно настроек само подкручивается, если он открылся у нижнего края
     const dp = document.getElementById('customDatePicker'), cal = document.getElementById('calendarPopup');
     if (dp && cal) new MutationObserver(() => {
@@ -1716,4 +1706,85 @@ window.Onboarding = (function () {
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', watch); else watch();
   return { firstRun: () => !seen(), start, login, back, preview, exitPreview };
+})();
+
+/* 16. Светофор: стеклянная капля перескакивает между кнопками окна.
+   Навёл на кружок — над ним «набухает» прозрачная капля, кружок под ней чуть увеличивается, как под линзой.
+   Ведёшь к соседнему — капля перетекает, вытягиваясь по ходу. Увёл курсор — капля тает.
+   Капля не ловит нажатия: клик всегда достаётся кнопке под ней. */
+(function () {
+  'use strict';
+  const reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function start() {
+    const box = document.querySelector('.titlebar-controls');
+    if (!box || reduce) return;
+    const btns = [...box.querySelectorAll('.mac-btn')];
+    if (!btns.length) return;
+    const drop = document.createElement('span');
+    drop.className = 'tl-drop'; drop.setAttribute('aria-hidden', 'true'); drop.innerHTML = '<i></i>';
+    box.appendChild(drop);
+    const S = 24;                                              // размер капли
+    const K = 560, D = 2 * Math.sqrt(560) * 0.72, KS = 700, DS = 2 * Math.sqrt(700) * 0.8;
+    const st = { x: 0, v: 0, t: 0, s: 0, sv: 0, ts: 0, raf: 0, last: 0 };
+    const center = b => b.offsetLeft + b.offsetWidth / 2;
+    let leaveT = 0;                                            // капля не исчезает сразу, а немного ждёт
+
+    function draw() {
+      const sp = Math.min(0.45, Math.abs(st.v) / 900);
+      const k = Math.max(0, st.s);
+      const w = S * (1 + sp) * k, h = S * (1 - sp * 0.4) * k;
+      drop.style.width = w.toFixed(2) + 'px'; drop.style.height = h.toFixed(2) + 'px';
+      drop.style.margin = `${(-h / 2).toFixed(2)}px 0 0 ${(-w / 2).toFixed(2)}px`;
+      drop.style.transform = `translate3d(${st.x.toFixed(2)}px, 0, 0)`;
+      drop.style.opacity = Math.min(1, k * 1.4).toFixed(3);
+    }
+    function loop(now) {
+      st.raf = 0;
+      const dt = Math.min(0.034, st.last ? (now - st.last) / 1000 : 0.016); st.last = now;
+      const h = dt / 2;
+      for (let n = 0; n < 2; n++) {
+        st.v += (-K * (st.x - st.t) - D * st.v) * h; st.x += st.v * h;
+        // появляется быстро, тает медленно и мягко
+        const ks = st.ts > st.s ? KS : 90, ds = st.ts > st.s ? DS : 2 * Math.sqrt(90) * 1.05;
+        st.sv += (-ks * (st.s - st.ts) - ds * st.sv) * h; st.s += st.sv * h;
+      }
+      draw();
+      const moving = Math.abs(st.x - st.t) > 0.05 || Math.abs(st.v) > 1 || Math.abs(st.s - st.ts) > 0.002 || Math.abs(st.sv) > 0.02;
+      if (moving) st.raf = requestAnimationFrame(loop);
+      else { st.x = st.t; st.v = 0; st.s = st.ts; st.sv = 0; draw(); st.last = 0; }
+    }
+    const kick = () => { if (!st.raf) { st.last = 0; st.raf = requestAnimationFrame(loop); } };
+
+    btns.forEach(b => b.addEventListener('pointerenter', () => {
+      clearTimeout(leaveT);
+      btns.forEach(x => x.classList.toggle('tl-on', x === b));
+      st.t = center(b);
+      if (st.s < 0.08) { st.x = st.t; st.v = 0; }              // появилась — сразу над кружком
+      st.ts = 1; kick();
+    }));
+    box.addEventListener('pointerleave', () => {
+      clearTimeout(leaveT);
+      leaveT = setTimeout(() => { btns.forEach(x => x.classList.remove('tl-on')); st.ts = 0; kick(); }, 900);
+    });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
+})();
+
+/* 17. Предметы: таблетки фильтра плавно прячутся, когда список прокручивают вниз
+   (если фильтр не выбран), и возвращаются у самого верха. Выбранный фильтр не прячется — видно, что он включён. */
+(function () {
+  'use strict';
+  function start() {
+    const list = document.getElementById('subjectsList'), seg = document.getElementById('subjKindSeg');
+    const box = list && list.closest('.lg-subjects');
+    if (!list || !seg || !box) return;
+    const upd = () => {
+      const active = !!seg.querySelector('button.selected');
+      box.classList.toggle('kinds-away', !seg.hidden && !active && list.scrollTop > 6);
+    };
+    list.addEventListener('scroll', upd, { passive: true });
+    new MutationObserver(upd).observe(seg, { subtree: true, attributes: true, attributeFilter: ['class', 'hidden'] });
+    upd();
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
 })();

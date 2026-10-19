@@ -135,7 +135,7 @@ body.dark-theme {
   --glass-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.5), 0 14px 34px -12px rgba(0, 0, 0, 0.75);
   --glass-inner: inset 0 1px 1px rgba(255, 255, 255, 0.16), inset 0 -1px 1px rgba(255, 255, 255, 0.05), inset 0 0 16px rgba(255, 255, 255, 0.04);
   --rim-hi: rgba(255, 255, 255, 0.5);
-  --spec: rgba(255, 255, 255, 0.14);
+  --spec: rgba(255, 255, 255, 0.05);   /* блик под курсором в тёмной теме еле заметный, без серого пятна */
   --glass-rim: linear-gradient(155deg, rgba(255, 255, 255, 0.4) 0%, rgba(255, 255, 255, 0.1) 28%, rgba(255, 255, 255, 0.02) 52%, rgba(255, 255, 255, 0.06) 78%, rgba(255, 255, 255, 0.24) 100%);
 
   --wall-1: #131b2c; --wall-2: #1a1628; --wall-3: #1f1815; --wall-4: #101d1c;
@@ -917,8 +917,9 @@ body.dark-theme .lg-menu { background: var(--glass-pop); box-shadow: var(--glass
 .pf-status-opt:hover { background: var(--fill-2); }
 .pf-status-opt.selected { background: var(--fill); color: var(--label); }
 .pf-status-opt.selected .pf-st-z { color: var(--purple); }
-.pf-status-opt.selected .pf-st-auto { color: var(--tint); }
-.pf-st-auto { color: var(--tint); }
+.pf-status-opt.selected .pf-st-auto { color: #f5b800; }
+.pf-st-auto { color: #f5b800; }   /* молния «Авто» — жёлтая, как значок энергосбережения */
+.pf-st-auto svg { fill: currentColor; }
 .pf-st-dot { background: var(--pf-offline); }
 .pf-st-dot.online { background: var(--green); }
 
@@ -1271,10 +1272,18 @@ button.pf-row.pickable:hover { background: var(--fill-2); }
 .sc-rel.ok { color: var(--green); }
 .sc-mini-streak { color: var(--orange); }
 .sc-rank[data-place="1"] { color: #e0a800; }
+/* Тройка недели: мягкий кружок тона 15% — золото, серебро, бронза */
+.sc-rank:is([data-place="1"], [data-place="2"], [data-place="3"]) { --pc: #e0a800; height: 28px; border-radius: 50%; display: grid; place-items: center; color: var(--pc); background: color-mix(in srgb, var(--pc) 15%, transparent); }
+.pf-v2 .sc-rank { width: 28px; }   /* одна ширина у всех мест — аватары стоят ровным столбцом */
+.sc-rank[data-place="2"] { --pc: #8e8e93; }
+.sc-rank[data-place="3"] { --pc: #b87333; }
+.sc-mini-streak { gap: 2px; }
 .sc-act { height: 28px; padding: 0 12px; background: var(--tint); color: #fff; font-size: 12px; font-weight: 600; }
 .sc-act.ghost { width: 28px; padding: 0; border: 0; background: var(--fill); color: var(--label-2); }
 .sc-act.ghost:hover { color: var(--red); background: color-mix(in srgb, var(--red) 12%, transparent); border-color: transparent; }
-.sc-zone { padding: 6px 16px; border-bottom: 1px dashed var(--sep-strong); background: transparent; color: var(--label-3); }
+.sc-zone { display: flex; align-items: center; gap: 10px; padding: 8px 16px; border: 0; background: transparent; color: var(--label-3); font-size: calc(11px * var(--ts)); font-weight: 500; }
+.sc-zone::before, .sc-zone::after { content: ""; flex: 1; height: 0.5px; background: var(--sep-strong); }
+.pf-v2 .sc-zone { background: color-mix(in srgb, var(--sheet-card) 74%, transparent); }   /* тот же фон, что у строк */
 .sc-label { margin: 0 16px 8px; color: var(--label-2); }
 .sc-add { gap: 10px; }
 .sc-add-btn { height: 48px; }
@@ -1762,16 +1771,7 @@ body.dark-theme .lg-weekbar { background: color-mix(in srgb, var(--card-solid) 5
 /* ---------- 31. Предметы без рывков ---------- */
 /* Место под закладку «важный» всегда занято: название не сдвигается и не переносится при наведении.
    У обычных предметов закладка проявляется на месте, у важных — красная всегда */
-#mainApp .subject-item .priority-btn,
-.subject-item .priority-btn {
-  width: 14px !important; margin-right: 0 !important; overflow: visible;
-  opacity: 0; transform: scale(0.7); animation: none !important;
-  transition: opacity 0.3s ease, transform 0.4s var(--spring), color 0.2s;
-}
-.subject-item:hover .priority-btn { opacity: 0.5; transform: none; transition-delay: 0.2s; }
-.subject-item.is-important .priority-btn, .priority-btn.active { opacity: 1 !important; transform: none !important; color: var(--red); }
-.subject-list.lg-scrolling .subject-item:not(.is-important) .priority-btn { opacity: 0; transition-delay: 0s; }
-.subj-name-wrap { gap: 8px; }
+/* (закладка снова выезжает слева, см. раздел 1 и 27) */
 
 /* ---------- 32. Календарь — прозрачное стекло ---------- */
 .calendar-popup.lg-glass { box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.08), 0 18px 40px -14px rgba(15, 20, 40, 0.32), var(--glass-inner); }
@@ -2201,6 +2201,25 @@ body.dark-theme .se-knob > i { background: radial-gradient(46% 28% at 50% 16%, r
 body.glass-lite #rpHead > .rp-pb > i { -webkit-backdrop-filter: none; backdrop-filter: none; }
 body.glass-lite #rpHead > .rp-pb::before { background: linear-gradient(to bottom, var(--sheet) 0%, var(--sheet) 60%, transparent 100%); }
 
+/* Профиль: стеклянная шапка у самого верха окна, как в отчёте и других листах.
+   Появляется при прокрутке; прилипшие вкладки лежат поверх неё */
+.pf-tabbar > .lg-pblur { display: none; }
+.pf-topglass { position: absolute; top: 0; left: 0; right: 0; height: 64px; z-index: 3; pointer-events: none; }
+.pf-topglass > .rp-pb { bottom: -22px; opacity: 1; transition: none; }   /* стекло есть всегда — ничего не включается и не мигает */
+.pf-topglass > .rp-pb::before { background: linear-gradient(to bottom, color-mix(in srgb, var(--sheet) 22%, transparent) 0%, color-mix(in srgb, var(--sheet) 12%, transparent) 55%, transparent 100%); }
+body.dark-theme .pf-topglass > .rp-pb::before { background: linear-gradient(to bottom, color-mix(in srgb, var(--sheet) 22%, transparent) 0%, color-mix(in srgb, var(--sheet) 12%, transparent) 55%, transparent 100%); }
+.pf-topglass > .rp-pb > i { position: absolute; inset: 0; -webkit-mask-image: none; mask-image: none; }
+.pf-topglass > .rp-pb > i:nth-child(1) { -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px);
+  -webkit-mask-image: linear-gradient(#000 0%, #000 70%, transparent 100%); mask-image: linear-gradient(#000 0%, #000 70%, transparent 100%); }
+.pf-topglass > .rp-pb > i:nth-child(2) { -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  -webkit-mask-image: linear-gradient(#000 0%, #000 55%, transparent 85%); mask-image: linear-gradient(#000 0%, #000 55%, transparent 85%); }
+.pf-topglass > .rp-pb > i:nth-child(3) { -webkit-backdrop-filter: blur(18px) saturate(1.6); backdrop-filter: blur(18px) saturate(1.6);
+  -webkit-mask-image: linear-gradient(#000 0%, #000 42%, transparent 70%); mask-image: linear-gradient(#000 0%, #000 42%, transparent 70%); }
+.pf-topglass > .rp-pb > i:nth-child(4) { display: none; -webkit-backdrop-filter: none; backdrop-filter: none;
+  -webkit-mask-image: linear-gradient(#000 0%, #000 32%, transparent 56%); mask-image: linear-gradient(#000 0%, #000 32%, transparent 56%); }
+body.glass-lite .pf-topglass > .rp-pb > i { -webkit-backdrop-filter: none; backdrop-filter: none; }
+body.glass-lite .pf-topglass > .rp-pb::before { background: linear-gradient(to bottom, var(--sheet) 0%, var(--sheet) 60%, transparent 100%); }
+
 /* ===== 41. Смена недели «на месте»: кружки перетекают из состояния в состояние ===== */
 .rp-pt {
   box-shadow: inset 0 0 0 0 transparent, 0 0 0 0 transparent;
@@ -2491,3 +2510,483 @@ body.dark-theme .pf-pop { background: color-mix(in srgb, var(--sheet-card) 88%, 
 .sc-waking span:last-child { max-width: 360px; font-size: calc(13.5px * var(--ts)); line-height: 1.45; color: var(--label-2); }
 .sc-waking .ip-spin { width: 22px; height: 22px; margin-bottom: 6px; }
 @media (max-width: 760px) { .pf-v2 .pf-tab-count { display: none; } }
+
+/* ===== 45. Светофор: стеклянная капля ===== */
+.mac-btn { transition: transform 0.35s var(--spring), filter 0.15s; }
+.mac-btn::before { content: ""; position: absolute; inset: -4px; border-radius: 50%; }   /* чуть больше зона наведения */
+.mac-btn.tl-on { transform: scale(1.22); }
+.tl-drop {
+  position: absolute; left: 0; top: 50%; z-index: 2; width: 0; height: 0; border-radius: 50%; pointer-events: none; opacity: 0;
+  background: rgba(255, 255, 255, 0.1);
+  -webkit-backdrop-filter: saturate(1.5) brightness(1.08); backdrop-filter: saturate(1.5) brightness(1.08);
+  box-shadow:
+    0 4px 10px -3px rgba(20, 30, 60, 0.3), 0 0 0 0.5px rgba(0, 0, 0, 0.08),
+    inset 0 1.5px 1px rgba(255, 255, 255, 0.95), inset 0 -1.5px 1.5px rgba(255, 255, 255, 0.55),
+    inset 1.5px 0 1px rgba(255, 255, 255, 0.35), inset -1.5px 0 1px rgba(255, 255, 255, 0.35), inset 0 0 6px rgba(255, 255, 255, 0.3);
+}
+.tl-drop > i { position: absolute; inset: 0; border-radius: inherit; background: radial-gradient(46% 30% at 50% 18%, rgba(255, 255, 255, 0.9), transparent 72%); opacity: 0.85; }
+body.dark-theme .tl-drop {
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: 0 4px 10px -3px rgba(0, 0, 0, 0.6), 0 0 0 0.5px rgba(255, 255, 255, 0.14),
+    inset 0 1.5px 1px rgba(255, 255, 255, 0.45), inset 0 -1px 1.5px rgba(255, 255, 255, 0.2), inset 0 0 6px rgba(255, 255, 255, 0.08);
+}
+body.dark-theme .tl-drop > i { background: radial-gradient(46% 30% at 50% 18%, rgba(255, 255, 255, 0.4), transparent 72%); }
+
+/* ===== 46. Кружки типа занятия, как в «Напоминаниях» =====
+   Яркая серединка с объёмом (светлее сверху, глубже снизу), вокруг мягкое кольцо того же цвета.
+   Один и тот же кружок в плашке типа, в режиме «Точка», в легенде и в редакторе пары. */
+.pair-type::before, .pair-dot, .lg-legend i, .lg-subj-dot {
+  --ring: 2.5px;
+  /* спокойнее: цвет чуть приглушён, объём едва заметный, кольцо прозрачнее */
+  --kc: color-mix(in srgb, var(--k) 82%, #9a9aa0);
+  background: radial-gradient(circle at 50% 32%, color-mix(in srgb, var(--kc) 86%, #fff) 0%, var(--kc) 60%, color-mix(in srgb, var(--kc) 92%, #000) 100%);
+  box-shadow: 0 0 0 var(--ring) color-mix(in srgb, var(--k) 13%, transparent), inset 0 0.5px 0.5px rgba(255, 255, 255, 0.3);
+}
+body.dark-theme :is(.pair-dot, .lg-legend i, .lg-subj-dot) { --kc: color-mix(in srgb, var(--k) 80%, #6e6e73); box-shadow: 0 0 0 var(--ring) color-mix(in srgb, var(--k) 20%, transparent), inset 0 0.5px 0.5px rgba(255, 255, 255, 0.2); }
+body.dark-theme .pair-type::before { --kc: color-mix(in srgb, var(--k) 80%, #6e6e73); box-shadow: 0 0 0 var(--ring) color-mix(in srgb, var(--k) 20%, transparent), inset 0 0.5px 0.5px rgba(255, 255, 255, 0.2); }
+/* в плашке «Лекция / Практика / Лабораторная» */
+.pair-type::before { --ring: 2px; width: 7px; height: 7px; margin: 0 2px 0 2px; }
+.pair-type { padding-left: 8px; }
+/* режим «Точка»: кружок крупнее, слева от названия — объясняет тип без подписи */
+.pair-dot { --ring: 3px; width: 10px; height: 10px; margin: 0 12px 0 3px; vertical-align: 0; }
+/* легенда над расписанием */
+.lg-legend i { --ring: 2.5px; width: 8px; height: 8px; margin-right: 2px; }
+.lg-legend > span { gap: 8px; }
+/* редактор пары */
+.lg-subj-dot { --ring: 3px; transition: box-shadow 0.3s ease, transform 0.4s var(--spring); }
+
+/* ===== 47. Предметы: фильтр по типу занятий и закладка «важный» ===== */
+/* Фильтр лежит в прозрачной шапке вместе с заголовком: строки уезжают под оба */
+.lg-kind-seg { position: absolute; top: 48px; left: 12px; right: 12px; z-index: 5; display: flex; padding: 3px; border-radius: 999px; background: var(--fill); }
+.lg-subjects:has(#subjKindSeg:not([hidden])) .subject-list { padding-top: 92px; }
+.lg-subjects:has(#subjKindSeg:not([hidden])) > .panel-title-row::before { bottom: -60px; }
+.lg-kind-seg[hidden] { display: none; }
+.lg-kind-seg button {
+  flex: 1 1 0; min-width: 0; display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+  padding: 6px 4px; border: 0; border-radius: 999px; background: transparent; color: var(--label-2); cursor: pointer;
+  font: 500 calc(12.5px * var(--ts)) var(--font); white-space: nowrap; transition: color 0.2s;
+}
+.lg-kind-seg button.selected { color: var(--label); font-weight: 600; }
+.lg-kind-seg:not(.lg-thumb) button.selected { background: var(--thumb); box-shadow: var(--thumb-shadow); }
+.lg-kind-dot { flex-shrink: 0; width: 6px; height: 6px; border-radius: 50%; background: color-mix(in srgb, var(--k, #8e8e93) 85%, #9a9aa0); }
+.lg-kind-dot[data-kind="lecture"] { --k: var(--orange); }
+.lg-kind-dot[data-kind="practice"] { --k: var(--green); }
+.lg-kind-dot[data-kind="lab"] { --k: var(--pink); }
+.lg-kind-seg button { gap: 4px; padding: 6px 2px; font-size: calc(12px * var(--ts)); letter-spacing: -0.01em; }
+.lg-kind-seg button.selected { font-weight: 600; }
+
+.lg-kind-seg button { flex: 1 1 auto; padding: 6px 7px; }
+
+/* Фильтры-таблетки типа занятий: отдельные капсулы; выбранную накрывает жидкая капля, на ней «×» */
+.lg-kind-seg { gap: 6px; padding: 0; background: transparent; justify-content: flex-start; }
+.lg-kind-seg button { flex: 0 0 auto; padding: 6px 11px; background: var(--fill-2); transition: color 0.2s, background 0.25s; }
+.lg-kind-seg button:hover { background: var(--fill); }
+.lg-kind-seg.lg-thumb button.selected { background: transparent; }
+.lg-kind-seg .lg-knob { transition: opacity 0.3s ease; }
+.lg-kind-x { display: inline-grid; place-items: center; width: 0; margin-left: -4px; opacity: 0; overflow: hidden; color: var(--label-2); transition: width 0.3s var(--ease), margin 0.3s var(--ease), opacity 0.2s; }
+.lg-kind-seg button.selected .lg-kind-x { width: 12px; margin-left: 0; opacity: 1; }
+.lg-kind-x { transition: opacity 0.25s ease 0.1s; }   /* ширина меняется сразу, чтобы капля сразу легла по размеру таблетки */
+
+/* ===== 48. Правая колонка свободнее ===== */
+/* Ширина по окну: в стандартном окне ≈340, на весь экран до 380; в узком окне — как раньше */
+.layout-grid { grid-template-columns: minmax(0, 1fr) clamp(316px, 28vw, 380px); }
+@media (max-width: 1080px) { .layout-grid { grid-template-columns: minmax(0, 1fr) 288px; } }
+/* Предметы: строки выше, название в одну строку с многоточием, процент отделён */
+.subject-item { gap: 10px; padding: 13px 14px 14px 16px; }
+.subject-item + .subject-item::before { left: 16px; right: 14px; }
+.subj-header { gap: 16px; }
+.subj-name { display: block; -webkit-line-clamp: unset; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; min-width: 0; }
+.subj-stat { flex-shrink: 0; min-width: 40px; text-align: right; }
+.subject-item .prog-track { height: 3px !important; }
+/* Фильтры — по центру, с воздухом, без крестика */
+.lg-kind-seg { justify-content: center; gap: 8px; left: 14px; right: 14px; }
+.lg-kind-x { display: none !important; }
+
+/* Таблетки фильтра уходят при прокрутке вниз и возвращаются у верха */
+.lg-kind-seg { transition: opacity 0.3s ease, transform 0.45s var(--spring), visibility 0.3s; }
+.lg-subjects.kinds-away .lg-kind-seg { opacity: 0; transform: translateY(-8px) scale(0.96); visibility: hidden; pointer-events: none; }
+.lg-subjects > .panel-title-row::before { transition: opacity 0.3s ease, bottom 0.4s var(--ease); }
+.lg-subjects.kinds-away > .panel-title-row::before { bottom: -16px; }
+
+/* ===== 49. Расписание уходит до самого низа окна; точка типа у предметов — прежняя ===== */
+@media (min-width: 761px) {
+  .layout-grid { padding-bottom: 0; }
+  .sidebar-panel { padding-bottom: 22px; }           /* правая колонка сохраняет отступ снизу */
+}
+/* Режим «Точка» и легенда: снова простая плоская точка (кружок как в «Напоминаниях» остался в плашках типа) */
+.pair-dot, .lg-legend i { background: var(--k); box-shadow: none; }
+.pair-dot { width: 8px; height: 8px; margin: 0 9px 0 1px; vertical-align: 1px; }
+.lg-legend i { width: 7px; height: 7px; margin-right: 0; }
+.lg-legend > span { gap: 6px; }
+body.dark-theme :is(.pair-dot, .lg-legend i) { box-shadow: none; }
+
+/* ===== 50. Шапка: серия и место в лиге; число на колокольчике ===== */
+.lg-topbar .sc-head { cursor: pointer; transition: transform 0.35s var(--spring), filter 0.2s; }
+.lg-topbar .sc-head:hover { filter: brightness(1.03); }
+.lg-topbar .sc-head:active { transform: scale(0.97); }
+.lg-topbar .sc-head .sc-chip { pointer-events: auto; }
+.lg-topbar .sc-streak:not(.on) { padding: 0 9px; }
+.lg-topbar .sc-streak:not(.on) svg { color: var(--label-3); }
+.sc-place { color: var(--label); }
+.sc-place svg { color: var(--label-2); }
+.sc-place.top svg { color: #e0a100; }
+.sc-place b { font-weight: 600; font-variant-numeric: tabular-nums; }
+.sc-place small { margin-left: -2px; font-size: calc(12px * var(--ts)); color: var(--label-2); }
+/* между огоньком и кубком — тонкий разделитель */
+.lg-topbar .sc-place { position: relative; }
+.lg-topbar .sc-place::before { content: ""; position: absolute; left: 0; top: 10px; bottom: 10px; width: 1px; background: var(--sep); }
+/* Больше одного непрочитанного — число в красном кружке */
+.bell-dot.num {
+  top: 2px; right: 0; width: auto; min-width: 17px; height: 17px; padding: 0 4px; border-radius: 999px;
+  display: grid; place-items: center; color: #fff; font: 700 10.5px/1 var(--font); font-variant-numeric: tabular-nums;
+}
+
+/* ===== 51. Верхняя панель: все капсулы одной высоты и радиуса, как у «уведомления + настройки» ===== */
+.lg-tb-left { gap: 10px; }
+.profile-pill, .lg-topbar .sc-head, .lg-group { box-sizing: border-box; height: 52px; border-radius: 26px; }
+.lg-group { padding: 0 8px; }
+.profile-pill .pf-avatar { --av: 38px; }
+/* Огонёк и кубок — отдельные кнопки внутри капсулы: подсветка под курсором, как у колокольчика и настроек */
+.lg-topbar .sc-head { padding: 0 8px; gap: 2px; cursor: default; }
+.lg-topbar .sc-head:hover { filter: none; }
+.lg-topbar .sc-head:active { transform: none; }
+.lg-topbar .sc-chip {
+  height: 36px; padding: 0 11px; border-radius: 18px; cursor: pointer;
+  transition: background 0.2s, transform 0.35s var(--spring);
+}
+.lg-topbar .sc-chip:hover { background: var(--fill-2); }
+.lg-topbar .sc-chip:active { transform: scale(0.92); }
+.lg-topbar .sc-chip:focus-visible { outline: 2px solid color-mix(in srgb, var(--tint) 55%, transparent); outline-offset: 0; }
+.lg-topbar .sc-streak:not(.on) { width: 36px; padding: 0; justify-content: center; }
+.lg-topbar .sc-place::before { left: -2px; }
+.lg-topbar .sc-place:hover::before { opacity: 0; }
+@media (max-width: 760px) {
+  .profile-pill, .lg-topbar .sc-head, .lg-group { height: 46px; border-radius: 23px; }
+  .profile-pill { width: 46px; }
+}
+
+/* ===== 52. Капсулы верхней панели — тот же материал, что у бара недель ===== */
+.profile-pill, .profile-pill:hover, .lg-topbar .sc-head, .lg-topbar .lg-group {
+  --glass-blur: 16px; --glass-sat: 1.9;
+  background: color-mix(in srgb, var(--card-solid) 46%, transparent);
+}
+body.dark-theme :is(.profile-pill, .profile-pill:hover, .lg-topbar .sc-head, .lg-topbar .lg-group) { background: color-mix(in srgb, var(--card-solid) 58%, transparent); }
+
+/* ===== 53. Верхняя панель симметрична колонкам ниже ===== */
+@media (min-width: 761px) {
+  /* та же ширина, что у расписания и правой колонки: левая капсула над баром недель, правая — над карточками справа */
+  #mainApp .lg-topbar { width: 100%; max-width: var(--content-max); margin-left: auto; margin-right: auto; box-sizing: border-box; }
+  /* больше воздуха между капсулами и окнами ниже */
+  #mainApp .lg-topbar { height: 78px; align-items: start; padding-top: 6px; }
+}
+/* Все капсулы панели — одно и то же стекло, как у бара недель: без линзы-преломления, которая их высветляла */
+.lg-topbar :is(.profile-pill, .sc-head, .lg-group).lg-refract {
+  -webkit-backdrop-filter: blur(16px) saturate(1.9) !important; backdrop-filter: blur(16px) saturate(1.9) !important;
+}
+
+/* ===== 54. Расшифровка цветов типа занятия — в настройках, под переключателем «Подпись / Точка» ===== */
+.lg-row-type { flex-wrap: wrap; }
+.lg-type-legend { flex: 1 1 100%; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px 14px; margin-top: -2px; font-size: calc(12.5px * var(--ts)); color: var(--label-3); }
+.lg-type-legend > span { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.lg-type-legend i { --k: #8e8e93; width: 7px; height: 7px; border-radius: 50%; background: var(--k); }
+.lg-type-legend i[data-kind="lecture"] { --k: var(--orange); }
+.lg-type-legend i[data-kind="practice"] { --k: var(--green); }
+.lg-type-legend i[data-kind="lab"] { --k: var(--pink); }
+
+/* ===== 55. Режим «Точка»: точка висит слева, текст названия и строка «Важный» не заходят под неё ===== */
+body.type-dot .pair-title { display: flex; align-items: flex-start; gap: 0; }
+body.type-dot .pair-dot { flex-shrink: 0; margin-top: calc(0.65em - 4px); vertical-align: 0; }
+body.type-dot .pair-meta { padding-left: 18px; }   /* 8 точка + 9 отступ + 1 */
+/* Капсула огонька и кубка: без разделителя, кнопки разведены небольшим промежутком */
+.lg-topbar .sc-place::before { display: none; }
+.lg-topbar .sc-head { gap: 4px; }
+
+/* ===== 56. Профиль «тихий», как Apple Fitness / Apple ID ===== */
+/* Обложка: мягкое сияние в цветах аватара, по центру за ним, растворяется вниз */
+#pfHero { position: relative; }
+#pfHero:has(.pf-pop) { z-index: 25; }   /* открытое меню — поверх прилипших вкладок */
+.pf-cover {
+  /* уходит далеко вверх: при оттягивании прокрутки вниз сверху тоже цветной фон, а не пустая полоса */
+  position: absolute; top: -260px; left: -56px; right: -56px; height: 560px; z-index: 0; pointer-events: none;
+  background:
+    radial-gradient(330px 300px at 50% 362px, color-mix(in srgb, var(--cv1) 50%, transparent), transparent 72%),
+    radial-gradient(290px 250px at 38% 290px, color-mix(in srgb, var(--cv2) 30%, transparent), transparent 72%),
+    radial-gradient(290px 250px at 62% 290px, color-mix(in srgb, var(--cv1) 24%, transparent), transparent 72%),
+    radial-gradient(900px 340px at 50% 250px, color-mix(in srgb, var(--cv1) 14%, transparent), transparent 80%),
+    /* ровная подложка во всю ширину: верх окна одного тона, сквозь стекло не просвечивают кнопки приложения */
+    linear-gradient(to bottom, color-mix(in srgb, color-mix(in srgb, var(--cv1) 10%, var(--sheet)) 88%, transparent) 0%, color-mix(in srgb, color-mix(in srgb, var(--cv1) 10%, var(--sheet)) 88%, transparent) 62%, transparent 92%);
+  -webkit-mask-image: linear-gradient(#000 70%, transparent 100%); mask-image: linear-gradient(#000 70%, transparent 100%);
+  opacity: 0.85;
+}
+body.dark-theme .pf-cover { opacity: 0.55; }
+
+/* Окно «выше» на полосу стекла: в покое содержимое начинается под ней, при прокрутке уезжает под стекло */
+#profileBackdrop .pf-v2 .pf-scroll { padding-top: 56px !important; }
+/* прилипшие вкладки встают в саму полосу стекла (липкость отсчитывается от отступа, поэтому минус его высота) */
+#profileBackdrop .pf-v2 .pf-tabbar { top: -56px; }
+
+/* Шапка по центру: аватар → имя → одна серая строка → о себе → статус */
+.pf-hero3 { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; text-align: center; padding: 32px 0 0; }
+.pf-hero3 .pf-avatar-edit { position: relative; display: block; padding: 0; border: 0; background: none; cursor: pointer; border-radius: 50%; }
+.pf-hero3 .pf-avatar {
+  --av: 112px; --dot-ring: var(--sheet); transition: transform 0.4s var(--spring);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--sheet) 70%, transparent), 0 18px 40px -18px rgba(0, 0, 0, 0.5);
+}
+.pf-hero3 .pf-avatar-edit:hover .pf-avatar { transform: scale(1.03); }
+.pf-hero3 .pf-avatar-edit:active .pf-avatar { transform: scale(0.97); }
+.pf-hero3 .pf-hero-name { margin: 18px 0 0; font: 700 calc(30px * var(--ts))/1.12 var(--font-display); letter-spacing: -0.026em; }
+.pf-hero-sub { margin-top: 6px; font-size: calc(15px * var(--ts)); color: var(--label-2); }
+.pf-hero-tag { color: var(--tone-fg); font-weight: 600; }
+.pf-sub-dot { margin: 0 7px; font-style: normal; color: var(--label-3); }
+.pf-hero3 .pf-bio-row { position: relative; justify-content: center; margin-top: 8px; max-width: 520px; }
+.pf-hero3 .pf-bio-row .pf-bio-count { position: absolute; right: 14px; margin: 0; white-space: nowrap; pointer-events: none; font-variant-numeric: tabular-nums; }   /* счётчик внутри поля, в одну строку */
+.pf-hero3 .pf-bio-view { margin-left: 0; text-align: center; }
+.pf-hero3 .pf-bio-view .pf-bio-pen { position: absolute; right: -18px; }
+.pf-hero3 .pf-bio-view { position: relative; }
+.pf-hero3 .pf-bio-inline { margin: 0; padding: 0 58px; text-align: center; }
+/* поле «о себе» без акцентной рамки: спокойная серая подложка */
+.pf-hero3 #pfBio, .pf-hero3 #pfBio:focus { border-color: transparent; background: var(--fill-2); box-shadow: inset 0 0 0 1px var(--sep); }
+/* длинный текст переносится, а не уезжает за край окна */
+.pf-hero3 .pf-bio-view { display: inline-block; max-width: 440px; white-space: normal; overflow-wrap: anywhere; line-height: 1.4; }
+/* Тег в строке под именем: нажимается, при наведении — лёгкая стеклянная подложка его цвета */
+.pf-hero-sub { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; }
+.pf-tag-btn {
+  margin: -3px -2px -3px -9px; padding: 3px 9px; border: 0; border-radius: 999px; cursor: pointer;   /* справа подложка не доходит до точки-разделителя */
+  background: transparent; color: var(--tone-fg); font: 600 calc(15px * var(--ts)) var(--font);
+  transition: background 0.25s, box-shadow 0.25s, transform 0.35s var(--spring);
+}
+.pf-tag-btn:hover, .pf-hero-sub:has(.pf-pop-tag) .pf-tag-btn {
+  background: color-mix(in srgb, var(--tone-fg) 12%, transparent);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55), inset 0 0 0 0.5px color-mix(in srgb, var(--tone-fg) 22%, transparent);
+}
+body.dark-theme .pf-tag-btn:hover, body.dark-theme .pf-hero-sub:has(.pf-pop-tag) .pf-tag-btn { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), inset 0 0 0 0.5px color-mix(in srgb, var(--tone-fg) 30%, transparent); }
+.pf-tag-btn:active { transform: scale(0.95); }
+.pf-tag-btn.empty { --tone-fg: var(--label-3); font-weight: 500; }
+
+/* Статус — точка на аватаре. Наведение раздувает её в стеклянный кружок, как каплю на светофоре */
+.pf-hero3 .pf-avatar .pf-dot { display: none; }
+.pf-st-btn {
+  --d: 22px; position: absolute; right: 2px; bottom: 2px; z-index: 4; width: var(--d); height: var(--d); padding: 3px; border: 0; border-radius: 50%;
+  cursor: pointer; background: var(--sheet); box-sizing: border-box;
+  transition: transform 0.45s var(--spring), background 0.3s, box-shadow 0.3s;
+}
+.pf-st-btn::before { content: ""; position: absolute; inset: -7px; border-radius: 50%; }   /* зона нажатия больше точки */
+.pf-st-disc {
+  position: relative; display: grid; place-items: center; width: 100%; height: 100%; border-radius: 50%; color: #fff;
+  background: radial-gradient(circle at 50% 30%, color-mix(in srgb, var(--sc) 70%, #fff), var(--sc) 62%);
+}
+.pf-st-btn[data-st="online"] { --sc: var(--green); }
+.pf-st-btn[data-st="offline"] { --sc: #aeaeb2; }
+.pf-st-btn[data-st="sleep"] { --sc: var(--purple, #af52de); }
+.pf-st-disc svg { width: 11px; height: 11px; transform: rotate(-12deg); }
+.pf-st-moon { color: var(--purple, #af52de); }
+.pf-st-gloss { position: absolute; inset: 0; border-radius: 50%; pointer-events: none; opacity: 0; transition: opacity 0.3s; background: radial-gradient(46% 30% at 50% 16%, rgba(255, 255, 255, 0.9), transparent 72%); }
+.pf-st-btn:hover, .pf-st-btn.on, .pf-st-btn:focus-visible {
+  transform: scale(1.5);
+  background: rgba(255, 255, 255, 0.22);
+  -webkit-backdrop-filter: blur(6px) saturate(1.6) brightness(1.06); backdrop-filter: blur(6px) saturate(1.6) brightness(1.06);
+  box-shadow:
+    0 4px 10px -3px rgba(20, 30, 60, 0.32), 0 0 0 0.5px rgba(0, 0, 0, 0.08),
+    inset 0 1.5px 1px rgba(255, 255, 255, 0.95), inset 0 -1.5px 1.5px rgba(255, 255, 255, 0.55),
+    inset 1.5px 0 1px rgba(255, 255, 255, 0.35), inset -1.5px 0 1px rgba(255, 255, 255, 0.35);
+}
+.pf-st-btn:hover .pf-st-gloss, .pf-st-btn.on .pf-st-gloss, .pf-st-btn:focus-visible .pf-st-gloss { opacity: 0.8; }
+.pf-st-btn:active { transform: scale(1.35); }
+body.dark-theme .pf-st-btn:is(:hover, .on, :focus-visible) {
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 4px 10px -3px rgba(0, 0, 0, 0.6), 0 0 0 0.5px rgba(255, 255, 255, 0.16),
+    inset 0 1.5px 1px rgba(255, 255, 255, 0.45), inset 0 -1px 1.5px rgba(255, 255, 255, 0.2);
+}
+body.dark-theme .pf-st-gloss { background: radial-gradient(46% 30% at 50% 16%, rgba(255, 255, 255, 0.45), transparent 72%); }
+
+/* Меню по центру под аватаром / строкой */
+.pf-hero3 .pf-pop { left: 50%; transform-origin: top center; }
+.pf-hero3 .pf-pop-avatar { width: 408px; margin-left: -204px; padding: 14px 16px 16px; transform-origin: 50% -40px; }
+.pf-hero3 .pf-pop-avatar.in { animation: pfPopFromDot 0.5s var(--spring); }
+
+/* Выбор аватара: кружки без плиток; подпись сверху; закрытые — бледные */
+.pf-avp-cap { display: flex; flex-direction: column; align-items: center; gap: 2px; min-height: 40px; margin-bottom: 12px; text-align: center; }
+.pf-avp-cap b { font: 600 calc(15px * var(--ts)) var(--font-display); color: var(--label); }
+.pf-avp-cap span { min-height: 1.3em; font-size: calc(12.5px * var(--ts)); color: var(--label-3); }
+.pf-avp-grid { display: flex; flex-wrap: wrap; justify-content: center; gap: 14px 12.8px; }   /* ряды по центру — неполный ряд не «съезжает» влево */
+.pf-avp { position: relative; width: 52px; height: 52px; padding: 0; border: 0; border-radius: 50%; background: none; cursor: pointer; transition: transform 0.4s var(--spring); }
+.pf-avp:hover { transform: scale(1.08); }
+.pf-avp:active { transform: scale(0.95); }
+.pf-avp-img { display: grid; place-items: center; width: 100%; height: 100%; border-radius: 50%; overflow: hidden; color: #fff; font: 700 22px var(--font-display); }
+.pf-avp-img .av-svg { width: 100%; height: 100%; display: block; }
+.pf-avp-img:not(:has(.av-svg)) { background: linear-gradient(180deg, #a1a1a6, #7c7c80); }
+.pf-avp.selected { outline: 2.5px solid var(--tint); outline-offset: 3px; }
+.pf-avp.locked { cursor: default; }
+.pf-avp.locked:hover { transform: none; }
+.pf-avp.locked .pf-avp-img { filter: grayscale(1); opacity: 0.32; }
+.pf-avp-lock {
+  position: absolute; right: -2px; bottom: -2px; width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center;
+  color: var(--label-2); background: var(--sheet-card); box-shadow: 0 0 0 0.5px var(--sep), 0 2px 6px -2px rgba(0, 0, 0, 0.2);
+}
+.pf-avp-sep { display: flex; align-items: center; gap: 10px; margin: 18px 0 12px; font-size: calc(12px * var(--ts)); font-weight: 500; color: var(--label-3); }
+.pf-avp-sep::after { content: ""; flex: 1; height: 0.5px; background: var(--sep); }
+.pf-hero3 .pf-pop-status { width: 280px; margin-left: -140px; }
+/* На компьютере окно статуса «вырастает» из точки и уходит вправо */
+@media (min-width: 761px) {
+  .pf-hero3 .pf-pop-status { left: calc(100% + 6px); top: calc(100% - 30px); margin-left: 0; transform-origin: -14px 18px; }
+  .pf-hero3 .pf-pop-status.in { animation: pfPopFromDot 0.5s var(--spring); }
+}
+@keyframes pfPopFromDot { from { opacity: 0; transform: scale(0.15); } 40% { opacity: 1; } }
+.pf-hero3 .pf-pop-tag { width: 372px; left: -14px; margin-left: 0; top: calc(100% + 10px); padding: 14px 16px 16px; transform-origin: 36px -12px; }
+.pf-hero3 .pf-pop-tag.in { animation: pfPopFromDot 0.5s var(--spring); }
+
+/* Выбор тега: облако капсул в цветах тегов */
+.pf-tgc { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.pf-tgc-opt {
+  display: inline-flex; align-items: center; gap: 5px; height: 30px; padding: 0 12px; border: 0; border-radius: 999px; cursor: pointer;
+  background: var(--tone-bg); color: var(--tone-fg); font: 600 calc(13.5px * var(--ts)) var(--font);
+  transition: transform 0.35s var(--spring), box-shadow 0.2s;
+}
+.pf-tgc-opt:hover { transform: scale(1.05); }
+.pf-tgc-opt:active { transform: scale(0.95); }
+.pf-tgc-opt.none { background: transparent; color: var(--label-2); font-weight: 500; box-shadow: inset 0 0 0 1.5px var(--sep-strong); }
+.pf-tgc-opt.locked { cursor: default; background: var(--fill-2); color: var(--label-3); font-weight: 500; }
+.pf-tgc-opt.locked:hover { transform: none; }
+.pf-tgc-lock { display: grid; place-items: center; opacity: 0.8; }
+
+/* Заголовки разделов — крупные, как в «Здоровье»; ссылка «Все ›» справа */
+.pf-v2 .pf-section-title { margin: 0 4px 12px; font: 700 calc(21px * var(--ts)) var(--font-display); letter-spacing: -0.018em; color: var(--label); }
+.pf-v2 .pf-section-title .pf-link-btn { font: 500 calc(15px * var(--ts)) var(--font); letter-spacing: 0; color: var(--tint); }
+.pf-v2 .pf-section-title .pf-since { font: 500 calc(14px * var(--ts)) var(--font); letter-spacing: 0; color: var(--label-3); }
+
+/* «Эта неделя»: две одинаковые карточки рядом — серия и лига */
+.pf-wk-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.pf-wk-grid.one { grid-template-columns: 1fr; }
+.pf-wk { --wc: var(--orange); display: flex; flex-direction: column; gap: 14px; padding: 18px 20px 16px; min-width: 0; text-align: left; font: inherit; color: inherit; border: 0; }
+button.pf-wk { cursor: pointer; transition: transform 0.35s var(--spring); }
+button.pf-wk:hover { transform: translateY(-1px); }
+button.pf-wk:active { transform: scale(0.985); }
+.pf-wk-top { display: flex; align-items: center; gap: 12px; }
+.pf-wk-top > div { flex: 1; min-width: 0; }
+.pf-wk-ico { flex-shrink: 0; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; color: var(--wc); background: color-mix(in srgb, var(--wc) 15%, transparent); }
+.pf-wk-num { font: 700 calc(26px * var(--ts))/1.05 var(--font-display); letter-spacing: -0.02em; font-variant-numeric: tabular-nums; color: var(--label); }
+.pf-wk-num small { margin-left: 0; font-size: 0.6em; font-weight: 600; color: var(--label-2); letter-spacing: -0.01em; }
+.pf-wk-label { margin-top: 2px; font-size: calc(13px * var(--ts)); color: var(--label-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pf-wk-hint { margin-top: auto; font-size: calc(12.5px * var(--ts)); line-height: 1.35; color: var(--label-3); }   /* подсказки обеих карточек на одной линии снизу */
+.pf-wk-chev { flex-shrink: 0; display: grid; place-items: center; color: var(--label-3); transform: rotate(-90deg); }
+.pf-streak.zero .pf-wk-ico { color: var(--label-3); background: var(--fill-2); }
+.pf-streak.zero .pf-wk-num { color: var(--label-3); }
+.pf-league { --wc: var(--tint); }
+.pf-league.top { --wc: #f5a300; }
+.pf-wk-bar { height: 6px; margin: 0; }
+.pf-wk-bar .prog-fill { background: var(--wc); }
+/* Лига: полоска на уровне кружков дней (центр кружка 13px), подписи — на линии подписей дней */
+.pf-lg-mid { display: flex; flex-direction: column; gap: 15px; padding-top: 10px; }
+.pf-lg-vs { display: flex; justify-content: space-between; gap: 8px; font-size: calc(11px * var(--ts)); line-height: 13px; color: var(--label-3); white-space: nowrap; }
+.pf-lg-vs .me { color: var(--label); font-weight: 600; }
+.pf-league .pf-wk-num { font-variant-numeric: proportional-nums; }   /* «1-е» слитно: у табличной единицы широкий пустой отступ */
+.pf-league .pf-wk-num small { margin-left: 0.22em; }
+/* Вкладка «Достижения»: полоска и счётчик на одной линии, награда — серой строкой */
+.pf-ach-prog { display: flex; align-items: center; gap: 12px; margin-top: 6px; }
+.pf-row .pf-ach-prog .prog-track { flex: 1; margin: 0; }
+.pf-ach-num { flex-shrink: 0; min-width: 52px; text-align: right; font-size: calc(12px * var(--ts)); color: var(--label-3); font-variant-numeric: tabular-nums; }
+.pf-sec-n { margin-left: 4px; font-weight: 500; color: var(--label-3); }
+/* Вкладка «Лига»: шапка как в других вкладках, правила раскрываются на месте */
+#pfPaneLeague > section { margin: 0; }
+.pf-v2 .sc-lg-title { margin-bottom: 2px; }
+.sc-lg-sub { margin: 0 6px 14px; font-size: calc(13px * var(--ts)); color: var(--label-3); font-variant-numeric: tabular-nums; }
+.sc-invite { display: block; margin: 14px auto 0; padding: 6px 12px; border: 0; border-radius: 999px; background: transparent; font: 500 calc(13px * var(--ts)) var(--font); color: var(--label-2); cursor: pointer; transition: background 0.2s, color 0.2s; }
+.sc-invite:hover { background: var(--fill-2); color: var(--label); }
+.sc-rules > summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; list-style: none; cursor: pointer; font-size: calc(15px * var(--ts)); font-weight: 500; color: var(--label); }
+.sc-rules > summary::-webkit-details-marker { display: none; }
+.sc-rules-chev { width: 28px; height: 28px; margin: -6px -6px -6px 0; border-radius: 50%; display: grid; place-items: center; color: var(--label-3); transform: rotate(180deg); transition: transform 0.35s var(--ease), background 0.2s, color 0.2s; }
+.sc-rules > summary:hover .sc-rules-chev { background: var(--fill-2); color: var(--label-2); }   /* при наведении серым выделяется только стрелка */
+.sc-rules[open] .sc-rules-chev { transform: rotate(270deg); }
+.sc-rules-body { display: flex; flex-direction: column; gap: 8px; padding: 2px 16px 16px; }
+.sc-rule { display: flex; align-items: baseline; gap: 10px; font-size: calc(14px * var(--ts)); color: var(--label-2); }
+.sc-rule b { min-width: 30px; font-weight: 600; color: var(--label); font-variant-numeric: tabular-nums; }
+.sc-rules-note { margin: 6px 0 0; font-size: calc(12px * var(--ts)); line-height: 1.45; color: var(--label-3); }
+/* Вкладка «Друзья»: сначала список, ниже добавление и приватность; без ярких кнопок */
+#pfPaneFriends > section { margin: 0; }
+.sc-add { position: relative; display: block; }
+.sc-add-input { width: 100%; box-sizing: border-box; height: 48px; padding: 0 56px 0 18px; border: 0; border-radius: 24px; outline: none; background: var(--fill-2); color: var(--label); font: 400 calc(15px * var(--ts)) var(--font); box-shadow: none; transition: background 0.2s; }
+.sc-add-input:focus, .sc-add-input:focus-visible { background: var(--fill); box-shadow: none; outline: none; }   /* без акцентной подсветки при вводе */
+.sc-add-input.input-error { box-shadow: 0 0 0 2px color-mix(in srgb, var(--red) 45%, transparent) !important; }
+.sc-send { position: absolute; top: 6px; right: 6px; width: 36px; height: 36px; padding: 0; border: 0; border-radius: 50%; display: grid; place-items: center; cursor: pointer; color: var(--label); background: var(--fill-3); opacity: 0; transform: scale(0.6); pointer-events: none; transition: opacity 0.2s ease, transform 0.35s var(--spring), background 0.2s; }
+.sc-add.has-text .sc-send { opacity: 1; transform: none; pointer-events: auto; }
+.sc-send:hover { background: color-mix(in srgb, var(--label) 16%, transparent); }
+.sc-nick { display: inline-flex; align-items: center; gap: 6px; margin: 12px 0 0 6px; padding: 6px 12px; border: 0; border-radius: 999px; background: transparent; cursor: pointer; font: 400 calc(13px * var(--ts)) var(--font); color: var(--label-3); transition: background 0.2s, color 0.2s; }
+.sc-nick b { font-weight: 600; color: var(--label-2); }
+.sc-nick svg { color: var(--label-3); }
+.sc-nick:hover { background: var(--fill-2); color: var(--label-2); }
+.sc-toggle-note { margin: 8px 16px 0; font-size: calc(12px * var(--ts)); color: var(--label-3); }
+.sc-act:not(.ghost) { background: var(--fill-2); color: var(--label); }
+.sc-act:not(.ghost):hover { background: var(--fill); }
+
+/* Дни текущей недели под серией */
+.pf-wd-row { display: flex; justify-content: space-between; gap: 4px; }
+.pf-wd { display: flex; flex-direction: column; align-items: center; gap: 5px; min-width: 0; }
+.pf-wd i { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; color: #fff; background: transparent; box-shadow: inset 0 0 0 1.5px var(--fill-3); }
+.pf-wd span { font-size: calc(11px * var(--ts)); color: var(--label-3); }
+.pf-wd.done i { background: var(--orange); box-shadow: none; }
+.pf-wd.off i { box-shadow: none; background: color-mix(in srgb, var(--fill-2) 60%, transparent); transform: scale(0.42); }
+.pf-wd.future i { box-shadow: inset 0 0 0 1.5px var(--fill-2); }
+.pf-wd.wait i { box-shadow: inset 0 0 0 2px var(--orange); }
+.pf-wd.today span { color: var(--label); font-weight: 600; }
+
+/* Семестр одной строкой — ведёт в «Динамику за семестр» */
+.pf-sem { display: flex; align-items: center; gap: 12px; width: 100%; padding: 16px 20px; border: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; transition: transform 0.35s var(--spring); }
+.pf-sem:hover { transform: translateY(-1px); }
+.pf-sem:active { transform: scale(0.99); }
+.pf-sem-line { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; row-gap: 4px; font-size: calc(14px * var(--ts)); color: var(--label-2); }
+.pf-sem-line b { margin-right: 4px; font: 700 calc(17px * var(--ts)) var(--font-display); color: var(--label); font-variant-numeric: tabular-nums; }
+
+/* Награды: ряд медалей без карточек */
+/* медали — мягкий круг в цвете самого достижения, как значки карточек «Эта неделя» (без яркого акцента) */
+.pf-award[data-tone] .pf-award-ico { color: var(--tone-fg); background: var(--tone-bg); box-shadow: none; }
+.pf-sec-links { display: flex; align-items: center; gap: 16px; }
+.pf-shw.selected { outline: 0; }   /* выбранные отмечены галочкой, без акцентной рамки */
+.pf-award.add { padding: 0; border: 0; background: none; font: inherit; cursor: pointer; }
+.pf-award.add .pf-award-ico { color: var(--label-3); background: transparent; box-shadow: inset 0 0 0 1.5px var(--sep-strong); }
+.pf-award.add .pf-award-title { color: var(--label-3); font-weight: 500; }
+.pf-award.add:hover .pf-award-ico { color: var(--label-2); background: var(--fill-2); }
+.pf-pane > section:has(.pf-pop) { position: relative; z-index: 6; }
+/* Меню витрины: выбор до 4 достижений, вырастает из «Изменить» */
+.pf-pop-show { left: auto; right: -10px; top: calc(100% + 10px); width: 376px; padding: 14px 16px 16px; transform-origin: calc(100% - 90px) -10px; }
+.pf-pop-show.in { animation: pfPopFromDot 0.5s var(--spring); }
+.pf-pop-show .pf-avp-cap b { letter-spacing: -0.01em; }
+.pf-shw-ico { display: grid; place-items: center; width: 100%; height: 100%; border-radius: 50%; color: var(--tone-fg); background: var(--tone-bg); transition: opacity 0.2s; }
+.pf-shw:not(.selected) .pf-shw-ico { opacity: 0.55; }
+.pf-shw-mark { position: absolute; right: -2px; bottom: -2px; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; color: var(--sheet-card); background: var(--label); box-shadow: 0 0 0 2px var(--sheet-card); }
+.pf-avp-cap.shake { animation: pfShake 0.4s ease; }
+@keyframes pfShake { 20%, 60% { transform: translateX(-5px); } 40%, 80% { transform: translateX(5px); } }
+
+.pf-awards { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; padding: 4px 0 0; }
+.pf-award { display: flex; flex-direction: column; align-items: center; gap: 9px; text-align: center; min-width: 0; }
+.pf-award-ico {
+  width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; color: #fff;
+  background: radial-gradient(120% 120% at 30% 20%, color-mix(in srgb, var(--tint) 62%, #fff), var(--tint) 58%, color-mix(in srgb, var(--tint) 80%, #000));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), inset 0 -2px 6px rgba(0, 0, 0, 0.15), 0 10px 22px -12px color-mix(in srgb, var(--tint) 80%, transparent);
+  transition: transform 0.4s var(--spring);
+}
+.pf-award:hover .pf-award-ico { transform: translateY(-2px) scale(1.04); }
+.pf-award-title { font-size: calc(13px * var(--ts)); font-weight: 600; line-height: 1.3; color: var(--label); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.pf-award-sub { margin-top: -5px; font-size: calc(12px * var(--ts)); color: var(--label-3); font-variant-numeric: tabular-nums; }
+.pf-award.next .pf-award-ico { color: var(--label-3); background: var(--fill-2); box-shadow: inset 0 0 0 1.5px var(--fill-3); }
+.pf-award.next .pf-award-title { color: var(--label-2); font-weight: 500; }
+
+.pf-foot { margin: -12px 0 4px; text-align: center; font-size: calc(12px * var(--ts)); color: var(--label-3); }
+
+@media (max-width: 760px) {
+  .pf-cover { left: -16px; right: -16px; }
+  .pf-hero3 { padding-top: 22px; }
+  #profileBackdrop .pf-v2 .pf-scroll { padding-top: 56px !important; }
+  .pf-hero3 .pf-avatar { --av: 96px; }
+  .pf-hero3 .pf-hero-name { font-size: calc(26px * var(--ts)); }
+  .pf-hero3 .pf-pop { margin-left: 0; }
+  .pf-avp-grid { gap: 12px 10px; }
+  .pf-awards { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+  .pf-wk-grid { grid-template-columns: 1fr; }
+  #profileBackdrop .pf-v2 .pf-tabbar.is-stuck { padding-right: 64px; }   /* прилипшие вкладки не уходят под крестик */
+  .pf-award-ico { width: 54px; height: 54px; }
+}
+
+/* Вкладки профиля как переключатели в других окнах: полоса не обрезает раздутую каплю (без прокрутки),
+   при нажатии капля — прозрачная линза без размытия */
+.pf-v2 .pf-tabs { overflow: visible; }
+@media (max-width: 760px) { .pf-v2 .pf-tab { padding-left: 5px; padding-right: 5px; } }   /* телефон: вкладки помещаются без прокрутки и рядом с крестиком (свободное место всё равно делится поровну) */

@@ -150,6 +150,7 @@
     if (e.avatar) delete e.avatar;              // старое загруженное фото: теперь только готовые аватары
     if (typeof e.avatarId !== 'string') e.avatarId = '';
     if (typeof e.shareAttendance !== 'boolean') e.shareAttendance = false;
+    if (!Array.isArray(e.showcase)) e.showcase = [];   // витрина: до 4 достижений, выбранных самим
     return e;
   }
 
@@ -276,6 +277,8 @@
     clearTimeout(evalTimer);
     evalTimer = setTimeout(evaluate, 400);
   }
+  // Лига загрузилась — обновить карточку «Лига недели» на обзоре
+  function onLeague() { if (bound && hasUser() && modalOpen() && activeTab === 'overview') renderOverview(); }
   function onServerState() {
     if (!bound || !hasUser()) return;
     onDataSaved();
@@ -293,46 +296,51 @@
     const face = window.Avatars ? Avatars.html(myAvatarId(e), name) : esc(name.charAt(0).toUpperCase() || 'С');
     return face + '<span class="pf-dot"></span><span class="pf-zzz" aria-hidden="true"><i>z</i><i>z</i><i>z</i></span>';
   }
+  /* Выбор аватара: только кружки, без плиток и подписей. Имя и условие открытия — в строке сверху,
+     она меняется при наведении (на телефоне — при нажатии). Сначала открытые, ниже закрытые. */
   function avatarPickerHtml(e) {
     if (!window.Avatars) return '';
     const name = database.userProfile.name || 'С';
     const cur = myAvatarId(e);
     const opt = (id, inner, open, title, sub) => `
-      <button type="button" class="pf-av-opt ${cur === id ? 'selected' : ''} ${open ? '' : 'locked'}" data-avatar="${id}" ${open ? '' : 'aria-disabled="true"'} title="${esc(title)}">
-        <span class="pf-av-img">${inner}</span>${open ? '' : `<span class="pf-av-lock">${svg(P.lock, 12, 2.6)}</span>`}
-        <span class="pf-av-name">${esc(sub)}</span>
+      <button type="button" class="pf-avp ${cur === id ? 'selected' : ''} ${open ? '' : 'locked'}" data-avatar="${id}" data-cap="${esc(title)}" data-sub="${esc(sub)}" ${open ? '' : 'aria-disabled="true"'} aria-label="${esc(title)}">
+        <span class="pf-avp-img">${inner}</span>${open ? '' : `<span class="pf-avp-lock">${svg(P.lock, 9, 2.6)}</span>`}
       </button>`;
-    const items = [opt('', Avatars.html('', name), true, 'Буква ника', 'Буква')].concat(Avatars.list.map(a => {
+    const all = [{ id: '', html: Avatars.html('', name), open: true, title: 'Буква ника', sub: '' }].concat(Avatars.list.map(a => {
       const open = Avatars.isUnlocked(a, e.achievements);
       const ach = a.unlock ? achById(a.unlock) : null;
-      const how = ach ? (ach.secret && !open ? 'Скрытое достижение' : `Достижение «${ach.title}»`) : '';
-      return opt(a.id, Avatars.html(a.id), open, open ? a.name : `${a.name}. Откроется за ${how.charAt(0).toLowerCase() + how.slice(1)}`, a.name);
+      const how = !ach ? '' : ach.secret && !open ? 'откроется за скрытое достижение' : `${open ? 'за' : 'откроется за'} «${ach.title}»`;
+      return { id: a.id, html: Avatars.html(a.id), open, title: a.name, sub: how };
     }));
-    return `<div class="pf-pop-title">Аватар</div>
-      <div class="pf-av-grid">${items.join('')}</div>
-      <p class="pf-pop-note">Закрытые аватары открываются за достижения. Наведи на замочек, чтобы узнать за какое.</p>`;
+    const opened = all.filter(x => x.open), locked = all.filter(x => !x.open);
+    const curItem = all.find(x => x.id === cur) || all[0];
+    return `<div class="pf-avp-cap" data-def-cap="${esc(curItem.title)}" data-def-sub="сейчас на аватаре"><b>${esc(curItem.title)}</b><span>сейчас на аватаре</span></div>
+      <div class="pf-avp-grid">${opened.map(x => opt(x.id, x.html, true, x.title, x.sub)).join('')}</div>
+      ${locked.length ? `<div class="pf-avp-sep">Закрытые · ${locked.length}</div>
+      <div class="pf-avp-grid">${locked.map(x => opt(x.id, x.html, false, x.title, x.sub)).join('')}</div>` : ''}`;
   }
-  // Меню тега: открытые можно надеть, закрытые показывают, за что откроются
+  // Строка-подпись над аватарами: показывает то, на что навели (или вернуть текущий)
+  function avatarCaption(btn) {
+    const cap = document.querySelector('.pf-avp-cap'); if (!cap) return;
+    const t = btn ? btn.dataset.cap : cap.dataset.defCap, sub = btn ? btn.dataset.sub : cap.dataset.defSub;
+    cap.innerHTML = `<b>${esc(t)}</b><span>${esc(sub || (btn && !btn.classList.contains('locked') ? 'нажми, чтобы выбрать' : ''))}</span>`;
+  }
+  // Меню тега — «близнец» выбора аватара: облако капсул, подпись сверху, сначала открытые, ниже закрытые
   function tagPopHtml(e) {
-    const row = t => {
-      const owned = !!e.tags[t.id], equipped = e.tag === t.id;
+    const opt = (t, owned) => {
       const a = t.ach ? achById(t.ach) : null;
-      const sub = owned ? (a ? `За «${esc(a.title)}»` : esc(t.hint || ''))
-        : (a && a.secret ? 'За скрытое достижение' : `Откроется за «${esc(a ? a.title : '')}»`);
-      return `<button type="button" class="pf-tag-opt ${owned ? '' : 'locked'} ${equipped ? 'selected' : ''}" data-tag="${t.id}" ${owned ? '' : 'aria-disabled="true"'} role="radio" aria-checked="${equipped}">
-        <span class="pf-chip" data-tone="${owned ? t.tone : 'gray'}">${esc(t.name)}</span>
-        <span class="pf-tag-sub">${sub}</span>
-        <span class="pf-tag-mark">${owned ? svg(P.check, 14, 2.6) : svg(P.lock, 13, 2.2)}</span>
-      </button>`;
+      const sub = owned ? (a ? `за «${a.title}»` : (t.hint || '')) : (a && a.secret ? 'откроется за скрытое достижение' : `откроется за «${a ? a.title : ''}»`);
+      return `<button type="button" class="pf-tgc-opt ${owned ? '' : 'locked'} ${e.tag === t.id ? 'selected' : ''}" data-tone="${owned ? t.tone : 'gray'}" data-tag="${t.id}" data-cap="${esc(t.name)}" data-sub="${esc(sub)}" ${owned ? '' : 'aria-disabled="true"'}>${esc(t.name)}${owned ? '' : `<span class="pf-tgc-lock">${svg(P.lock, 10, 2.6)}</span>`}</button>`;
     };
-    const got = Object.keys(e.tags).filter(id => tagById(id)).length;
-    return `<div class="pf-pop-title">Тег под ником <span>${got} из ${TAGS.length}</span></div>
-      <div class="pf-tag-list" role="radiogroup">
-        <button type="button" class="pf-tag-opt ${e.tag ? '' : 'selected'}" data-tag="" role="radio" aria-checked="${!e.tag}">
-          <span class="pf-tag-none">Без тега</span><span class="pf-tag-sub">Под ником ничего</span><span class="pf-tag-mark">${svg(P.check, 14, 2.6)}</span>
-        </button>
-        ${TAGS.map(row).join('')}
-      </div>`;
+    const opened = TAGS.filter(t => e.tags[t.id]), locked = TAGS.filter(t => !e.tags[t.id]);
+    const cur = e.tag ? tagById(e.tag) : null;
+    const capName = cur ? cur.name : 'Без тега';
+    return `<div class="pf-avp-cap" data-def-cap="${esc(capName)}" data-def-sub="сейчас под ником"><b>${esc(capName)}</b><span>сейчас под ником</span></div>
+      <div class="pf-tgc">
+        <button type="button" class="pf-tgc-opt none ${e.tag ? '' : 'selected'}" data-tag="" data-cap="Без тега" data-sub="под ником ничего">Без тега</button>
+        ${opened.map(t => opt(t, true)).join('')}
+      </div>
+      ${locked.length ? `<div class="pf-avp-sep">Закрытые · ${locked.length}</div><div class="pf-tgc">${locked.map(t => opt(t, false)).join('')}</div>` : ''}`;
   }
   function statusPopHtml(e) {
     return STATUS_MODES.map(m => `
@@ -365,13 +373,16 @@
 
     const unread = unreadCount();
     $('bellBtn').classList.toggle('has-unread', unread > 0);
+    // Больше одного непрочитанного — число вместо точки
+    const dot = $('bellBtn').querySelector('.bell-dot');
+    if (dot) { dot.textContent = unread > 1 ? (unread > 9 ? '9+' : String(unread)) : ''; dot.classList.toggle('num', unread > 1); }
     $('bellBtn').title = unread ? `Уведомления: ${unread} новых` : 'Уведомления';
     lastShownStatus = st;
   }
 
   function statusIcon(id) {
     if (id === 'auto') return `<span class="pf-st-ico pf-st-auto">${svg(P.zap, 14)}</span>`;
-    if (id === 'sleep') return '<span class="pf-st-ico"><span class="pf-st-z">zzz</span></span>';
+    if (id === 'sleep') return `<span class="pf-st-ico pf-st-moon">${svg(P.moon, 14, 0).replace('fill="none"', 'fill="currentColor"')}</span>`;   // луна — как точка «Спит» на аватаре
     return `<span class="pf-st-ico"><span class="pf-st-dot ${id === 'online' ? 'online' : ''}"></span></span>`;
   }
 
@@ -419,46 +430,45 @@
   }
 
   /* ---------- Окно профиля ---------- */
+  // Цвета обложки берём из фона выбранного аватара; без аватара — акцентный цвет приложения
+  function coverStyle(e) {
+    const a = window.Avatars && myAvatarId(e) ? Avatars.byId(myAvatarId(e)) : null;
+    const stops = a && a.svg ? [...a.svg.matchAll(/stop-color="(#[0-9a-fA-F]{3,8})"/g)].map(m => m[1]) : [];
+    const c1 = stops[0] || 'var(--tint)', c2 = stops[stops.length - 1] || 'var(--tint)';
+    return `--cv1:${c1};--cv2:${c2}`;
+  }
+
   function renderHero() {
     const e = ext(), st = effectiveStatus();
     const curInp = $('pfBio'), draft = bioEdit && curInp ? curInp.value : null;   // не теряем набранный текст при перерисовке
     const tag = e.tag ? tagById(e.tag) : null;
     const up = database.userProfile;
-    const meta = [up.group ? `Группа ${up.group}` : '', up.university || ''].filter(Boolean).join(', ');
-    const stLabel = STATUS_LABEL[st] + (e.status === 'auto' ? ' · авто' : '');
+    // Под именем одна тихая строка: тег · группа · вуз. Тег — кнопка: по нажатию список тегов
+    const tagBtn = `<button type="button" class="pf-tag-btn ${tag ? '' : 'empty'}" ${tag ? `data-tone="${tag.tone}"` : ''} data-act="pop" data-pop="tag" aria-label="Тег под ником">${tag ? esc(tag.name) : 'Выбрать тег'}</button>`;
+    const sub = [tagBtn, esc(up.group || ''), esc(up.university || '')].filter(Boolean).join('<i class="pf-sub-dot">·</i>');
+    const stLabel = STATUS_LABEL[st] + (e.status === 'auto' ? ', авто' : '');
     const popBox = (kind, html) => pop === kind ? `<div class="pf-pop pf-pop-${kind} ${popFresh ? 'in' : ''}" role="dialog">${html}</div>` : '';
     const bio = bioEdit
       ? `<input type="text" id="pfBio" class="pf-bio pf-bio-inline" maxlength="80" value="${esc(draft !== null ? draft : e.bio)}" aria-label="О себе"><span class="pf-bio-count" id="pfBioCount">${(draft !== null ? draft : e.bio).length} / 80</span>`
       : `<button type="button" class="pf-bio-view ${e.bio ? '' : 'empty'}" data-act="bio">${e.bio ? esc(e.bio) : 'Добавить пару слов о себе'}<span class="pf-bio-pen">${svg(P.pen, 13, 2.2)}</span></button>`;
 
     $('pfHero').innerHTML = `
-      <div class="pf-hero2">
+      <div class="pf-cover" aria-hidden="true" style="${coverStyle(e)}"></div>
+      <div class="pf-hero3">
         <div class="pf-pop-anchor pf-av-anchor">
           <button type="button" class="pf-avatar-edit" data-act="pop" data-pop="avatar" aria-label="Выбрать аватар" title="Выбрать аватар">
             <span class="pf-avatar" data-status="${st}">${avatarInner(e)}</span>
             <span class="pf-av-badge">${svg(P.pen, 13, 2.2)}</span>
           </button>
+          <button type="button" class="pf-st-btn ${pop === 'status' ? 'on' : ''}" data-st="${st}" data-act="pop" data-pop="status" aria-label="Статус: ${esc(stLabel)}">
+            <span class="pf-st-disc">${st === 'sleep' ? svg(P.moon, 12, 0).replace('fill="none"', 'fill="currentColor"') : ''}</span><i class="pf-st-gloss"></i>
+          </button>
           ${popBox('avatar', avatarPickerHtml(e))}
+          ${popBox('status', `<div class="pf-pop-title">Статус</div>${statusPopHtml(e)}`)}
         </div>
-        <div class="pf-hero-info">
-          <h2 class="pf-hero-name">${esc(up.name || 'Студент')}</h2>
-          <div class="pf-hero-line">
-            <div class="pf-pop-anchor">
-              <button type="button" class="pf-pill" data-act="pop" data-pop="tag" aria-label="Тег под ником">
-                ${tag ? `<span class="pf-chip" data-tone="${tag.tone}">${esc(tag.name)}</span>` : '<span class="pf-pill-txt">Без тега</span>'}${svg(P.chev, 14, 2.4)}
-              </button>
-              ${popBox('tag', tagPopHtml(e))}
-            </div>
-            <div class="pf-pop-anchor">
-              <button type="button" class="pf-pill" data-act="pop" data-pop="status" aria-label="Статус">
-                ${statusIcon(st)}<span class="pf-pill-txt">${esc(stLabel)}</span>${svg(P.chev, 14, 2.4)}
-              </button>
-              ${popBox('status', statusPopHtml(e))}
-            </div>
-          </div>
-          <div class="pf-hero-meta">${esc(meta)}${meta ? ' · ' : ''}в приложении с ${fmtDate(e.createdAt)}</div>
-          <div class="pf-bio-row">${bio}</div>
-        </div>
+        <h2 class="pf-hero-name">${esc(up.name || 'Студент')}</h2>
+        <div class="pf-pop-anchor pf-hero-sub">${sub}${popBox('tag', tagPopHtml(e))}</div>
+        <div class="pf-bio-row">${bio}</div>
       </div>`;
     popFresh = false;
     if (bioEdit) { const inp = $('pfBio'); if (inp) { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); } }
@@ -494,54 +504,156 @@
   function renderOverview() {
     const e = ext(), s = computeStats(), soc = !!window.Social;
     const plural = (n, f) => { const a = Math.abs(n) % 100, b = a % 10; return (a > 10 && a < 20) ? f[2] : b > 1 && b < 5 ? f[1] : b === 1 ? f[0] : f[2]; };
-    // Одна серия: учебные дни подряд с отметками (без сервера — пары подряд)
+    // Серия: учебные дни подряд с отметками (считает сервер; без сервера — пары подряд)
     const streak = soc ? s.dayStreak : s.streak;
-    const tiles = [
-      { tone: 'orange', icon: 'flame', num: streak, label: soc ? `${plural(streak, ['день', 'дня', 'дней'])} в серии` : 'пар подряд', sub: soc && s.bestDayStreak ? `лучшая: ${s.bestDayStreak}` : '' },
-      soc ? { tone: 'blue', icon: 'zap', num: s.weekXp, label: 'очков за неделю', sub: `всего ${s.xpTotal}` } : null,
-      { tone: 'green', icon: 'cal', num: s.perfectWeeks, label: plural(s.perfectWeeks, ['идеальная неделя', 'идеальные недели', 'идеальных недель']), sub: 'все пары посещены' },
-      { tone: 'violet', icon: 'clip', num: s.hwDone, label: `из ${s.hwTotal} домашек`, sub: 'выполнено' }
-    ].filter(Boolean);
+    const SH = { 'Понедельник': 'Пн', 'Вторник': 'Вт', 'Среда': 'Ср', 'Четверг': 'Чт', 'Пятница': 'Пт', 'Суббота': 'Сб', 'Воскресенье': 'Вс' };
 
-    // Витрина: последние полученные; свободные места — ближайшие цели с прогрессом
-    const got = ACH.filter(a => e.achievements[a.id]).sort((a, b) => e.achievements[b.id] - e.achievements[a.id]).slice(0, 3);
-    const cards = got.map(a => `
-      <div class="pf-medal" data-tone="${a.tone}">
-        <span class="pf-ico">${svg(P[a.icon], 22)}</span>
-        <span class="pf-medal-title">${esc(a.title)}</span>
-        <span class="pf-medal-sub">получено ${fmtDate(e.achievements[a.id])}</span>
-      </div>`);
-    if (cards.length < 3) {
-      const next = ACH.filter(a => !e.achievements[a.id] && !a.secret)
-        .map(a => { const [c, t] = a.progress(s, e, database); return { a, c, t, r: t ? c / t : 0 }; })
-        .sort((x, y) => y.r - x.r).slice(0, 3 - cards.length);
-      next.forEach(({ a, c, t }) => cards.push(`
-        <div class="pf-medal next" data-tone="${a.tone}">
-          <span class="pf-ico">${svg(P[a.icon], 22)}</span>
-          <span class="pf-medal-title">${esc(a.title)}</span>
-          <div class="prog-track"><div class="prog-fill" data-w="${Math.round(c / t * 100)}" style="width:0%"></div></div>
-          <span class="pf-medal-sub">${c} из ${t}</span>
-        </div>`));
+    // Полоска текущей недели: в какие дни пары отмечены (это и держит серию)
+    let weekStrip = '', todayState = '';
+    if (typeof calculateCurrentSemesterWeek === 'function' && typeof getDateForDay === 'function') {
+      const cw = Math.max(1, calculateCurrentSemesterWeek());
+      const wd = (database.weeks || {})[String(cw)] || {};
+      const now = new Date(); now.setHours(0, 0, 0, 0);
+      const days = ALL_DAYS.filter(d => (database.activeDays || ALL_DAYS).includes(d));
+      weekStrip = days.map(day => {
+        const date = getDateForDay(cw, day); date.setHours(0, 0, 0, 0);
+        const today = date.getTime() === now.getTime();
+        const pairs = (wd[day] || []).filter(p => !p.cancelled);
+        const marked = pairs.some(p => p.attended === true || p.attended === false);
+        const st = marked ? 'done' : !pairs.length ? 'off' : today ? 'wait' : date < now ? 'miss' : 'future';
+        if (today) todayState = st;
+        const tip = { done: 'пары отмечены', off: 'пар нет', wait: 'отметь пары сегодня', miss: 'пары не отмечены', future: 'впереди' }[st];
+        return `<div class="pf-wd ${st} ${today ? 'today' : ''}" title="${SH[day]} — ${tip}"><i>${st === 'done' ? svg(P.check, 13, 3) : ''}</i><span>${SH[day]}</span></div>`;
+      }).join('');
     }
+    const streakHint = todayState === 'wait' ? 'Отметь сегодняшние пары, чтобы серия не прервалась'
+      : todayState === 'done' ? 'Сегодня отмечено — серия продолжается'
+      : streak ? (soc && s.bestDayStreak ? `Лучшая серия: ${s.bestDayStreak}` : '') : 'Отметь пары в учебный день, чтобы начать серию';
+    const streakCard = `
+        <div class="pf-box pf-wk pf-streak ${streak ? '' : 'zero'}">
+          <div class="pf-wk-top">
+            <span class="pf-wk-ico">${svg(P.flame, 20, 2.2)}</span>
+            <div><div class="pf-wk-num"><span data-count="${streak}">${streak}</span></div>
+            <div class="pf-wk-label">${soc ? `${plural(streak, ['день', 'дня', 'дней'])} подряд с отметками` : 'пар подряд'}</div></div>
+          </div>
+          ${weekStrip ? `<div class="pf-wd-row">${weekStrip}</div>` : ''}
+          ${streakHint ? `<div class="pf-wk-hint">${esc(streakHint)}</div>` : ''}
+        </div>`;
+
+    // Лига недели: место, очки и сколько не хватает до следующего места
+    let leagueCard = '';
+    if (soc) {
+      const L = Social.league ? Social.league() : null;
+      const me = L && Array.isArray(L.members) ? L.members.find(m => m.id === database.userProfile.id) : null;
+      const rank = me && me.rank != null ? me.rank : null;
+      let line = 'Место появится, когда загрузится лига', bar = '', rival = null;
+      if (rank === 1) {
+        rival = L.members.find(m => m.rank === 2) || null;
+        const gap = rival ? Math.max(0, me.week_xp - rival.week_xp) : 0;
+        line = rival ? `Ты лидер недели, отрыв ${gap} ${plural(gap, ['очко', 'очка', 'очков'])}` : 'Ты лидер недели';
+      } else if (rank) {
+        rival = L.members.find(m => m.rank === rank - 1) || null;
+        if (rival) {
+          const need = Math.max(1, rival.week_xp - me.week_xp + 1);
+          line = `ещё ${need} ${plural(need, ['очко', 'очка', 'очков'])} до ${rank - 1}-го места`;
+        }
+      }
+      // Полоска «я против соседа»: своя доля закрашена, доля соседа (второго у лидера, следующего места у остальных) — серая
+      if (me && rank) {
+        const mine = Math.max(0, me.week_xp || 0), theirs = rival ? Math.max(0, rival.week_xp || 0) : 0;
+        bar = rival ? (mine + theirs ? Math.round(mine / (mine + theirs) * 100) : 50) : 100;
+      }
+      leagueCard = `
+        <button type="button" class="pf-box pf-wk pf-league ${rank && rank <= 3 ? 'top' : ''}" data-tab="league">
+          <div class="pf-wk-top">
+            <span class="pf-wk-ico">${svg(P.trophy || P.star, 20, 2.2)}</span>
+            <div><div class="pf-wk-num">${rank ? `${rank}-е<small>место</small>` : '—'}</div>
+            <div class="pf-wk-label"><span data-count="${s.weekXp}">${s.weekXp}</span> ${plural(s.weekXp, ['очко', 'очка', 'очков'])} за неделю</div></div>
+            <span class="pf-wk-chev">${svg(P.chev, 16, 2.4)}</span>
+          </div>
+          ${bar !== '' ? `<div class="pf-lg-mid">
+            <div class="prog-track pf-wk-bar"><div class="prog-fill" data-w="${bar}" style="width:0%"></div></div>
+            <div class="pf-lg-vs"><span class="me">Ты · ${me.week_xp || 0}</span>${rival ? `<span>${rival.rank}-е · ${rival.week_xp || 0}</span>` : ''}</div>
+          </div>` : ''}
+          <div class="pf-wk-hint">${esc(line)}</div>
+        </button>`;
+    }
+
+    // Награды: витрина, выбранная самим; если ничего не выбрано — последние полученные и ближайшие цели
+    const pinned = e.showcase.filter(id => e.achievements[id] && achById(id)).map(achById);
+    const got = pinned.length ? pinned : ACH.filter(a => e.achievements[a.id]).sort((a, b) => e.achievements[b.id] - e.achievements[a.id]).slice(0, 4);
+    const medals = got.map(a => `
+      <div class="pf-award" data-tone="${a.tone}" title="${esc(a.title)}, получено ${fmtDate(e.achievements[a.id])}">
+        <span class="pf-award-ico">${svg(P[a.icon], 24)}</span>
+        <span class="pf-award-title">${esc(a.title)}</span>
+      </div>`);
+    // Витрина заполнена не до конца — пустые места с «+», нажатие открывает выбор
+    if (pinned.length) for (let i = pinned.length; i < 4; i++) medals.push(`
+      <button type="button" class="pf-award add" data-act="pop" data-pop="show"><span class="pf-award-ico">${svg(P.plus || '<path d="M12 5v14"/><path d="M5 12h14"/>', 22, 2.2)}</span><span class="pf-award-title">Добавить</span></button>`);
+    if (!pinned.length && medals.length < 4) {
+      ACH.filter(a => !e.achievements[a.id] && !a.secret)
+        .map(a => { const [c, t] = a.progress(s, e, database); return { a, c, t, r: t ? c / t : 0 }; })
+        .sort((x, y) => y.r - x.r).slice(0, 4 - medals.length)
+        .forEach(({ a, c, t }) => medals.push(`
+      <div class="pf-award next" title="${esc(a.desc || a.title)}">
+        <span class="pf-award-ico">${svg(P[a.icon], 24)}</span>
+        <span class="pf-award-title">${esc(a.title)}</span>
+        <span class="pf-award-sub">${c} из ${t}</span>
+      </div>`));
+    }
+    // Меню витрины: все полученные достижения кружками; выбранные — с галочкой
+    const owned = ACH.filter(a => e.achievements[a.id]);
+    const showPop = pop === 'show' ? `<div class="pf-pop pf-pop-show ${popFresh ? 'in' : ''}" role="dialog">
+        <div class="pf-avp-cap" data-def-cap="Витрина" data-def-sub="выбрано ${pinned.length} из 4${pinned.length ? '' : ' · сейчас показываются последние'}"><b>Витрина</b><span>выбрано ${pinned.length} из 4${pinned.length ? '' : ' · сейчас показываются последние'}</span></div>
+        ${owned.length ? `<div class="pf-avp-grid">${owned.map(a => `<button type="button" class="pf-avp pf-shw ${e.showcase.includes(a.id) ? 'selected' : ''}" data-tone="${a.tone}" data-show="${a.id}" data-cap="${esc(a.title)}" data-sub="получено ${fmtDate(e.achievements[a.id])}" aria-pressed="${e.showcase.includes(a.id)}"><span class="pf-shw-ico">${svg(P[a.icon], 22)}</span>${e.showcase.includes(a.id) ? `<span class="pf-shw-mark">${svg(P.check, 10, 3.2)}</span>` : ''}</button>`).join('')}</div>`
+          : '<p class="pf-pop-note">Пока нет полученных достижений</p>'}
+      </div>` : '';
+    popFresh = false;
+
+    // Семестр одной строкой; подробности — в отчёте «Динамика за семестр»
+    const sd = semesterDays();
+    const semItems = [
+      `<span><b>${s.total ? s.pct + '%' : '—'}</b> посещаемость</span>`,
+      `<span><b>${sd.clean}</b> ${plural(sd.clean, ['день', 'дня', 'дней'])} без пропусков</span>`,
+      `<span><b>${s.hwDone}/${s.hwTotal}</b> ДЗ</span>`
+    ].join('<i class="pf-sub-dot">·</i>');
 
     $('pfPaneOverview').innerHTML = `
       <section>
-        <h3 class="pf-section-title"><span>Прогресс</span></h3>
-        <div class="pf-stats">${tiles.map(t => `
-          <div class="pf-stat" data-tone="${t.tone}">
-            <span class="pf-stat-ico">${svg(P[t.icon], 16, 2.2)}</span>
-            <div class="pf-stat-num" data-count="${t.num}">${t.num}</div>
-            <div class="pf-stat-label">${t.label}</div>
-            ${t.sub ? `<div class="pf-stat-sub">${esc(t.sub)}</div>` : ''}
-          </div>`).join('')}
-        </div>
+        <h3 class="pf-section-title"><span>Эта неделя</span></h3>
+        <div class="pf-wk-grid ${leagueCard ? '' : 'one'}">${streakCard}${leagueCard}</div>
       </section>
       <section>
-        <h3 class="pf-section-title"><span>Витрина достижений</span><button type="button" class="pf-link-btn" data-tab="achievements">Все достижения</button></h3>
-        <div class="pf-showcase">${cards.join('')}</div>
-      </section>`;
+        <h3 class="pf-section-title"><span>Награды</span><span class="pf-sec-links pf-pop-anchor"><button type="button" class="pf-link-btn" data-act="pop" data-pop="show">Изменить</button><button type="button" class="pf-link-btn" data-tab="achievements">Все ›</button>${showPop}</span></h3>
+        <div class="pf-awards">${medals.join('')}</div>
+      </section>
+      <section>
+        <h3 class="pf-section-title"><span>Семестр</span></h3>
+        <button type="button" class="pf-box pf-sem" data-act="report" title="Открыть «Динамику за семестр»">
+          <span class="pf-sem-line">${semItems}</span><span class="pf-wk-chev">${svg(P.chev, 16, 2.4)}</span>
+        </button>
+      </section>
+      <p class="pf-foot">В приложении с ${fmtDate(e.createdAt)}</p>`;
     if (animNext) animateIn($('pfPaneOverview'));
     else $('pfPaneOverview').querySelectorAll('.prog-fill[data-w]').forEach(f => { f.style.width = f.dataset.w + '%'; });
+  }
+
+  /* Дни семестра с отметками: сколько из них прошли без единого пропуска */
+  function semesterDays() {
+    const r = { clean: 0, marked: 0 };
+    if (typeof calculateCurrentSemesterWeek !== 'function') return r;
+    const cw = Math.max(1, calculateCurrentSemesterWeek());
+    const act = database.activeDays || ALL_DAYS;
+    for (let w = 1; w <= cw; w++) {
+      const wd = (database.weeks || {})[String(w)] || {};
+      ALL_DAYS.filter(d => act.includes(d)).forEach(day => {
+        const ps = (wd[day] || []).filter(p => !p.cancelled && (p.attended === true || p.attended === false));
+        if (!ps.length) return;
+        r.marked++;
+        if (ps.every(p => p.attended === true)) r.clean++;
+      });
+    }
+    return r;
   }
 
   // Цифры досчитывают, полоски прогресса заполняются — при каждом показе
@@ -555,6 +667,8 @@
       const step = now => { const k = Math.min(1, (now - t0) / dur); el.textContent = Math.round(to * (1 - Math.pow(1 - k, 3))); if (k < 1 && el.isConnected) requestAnimationFrame(step); };
       el.textContent = '0'; requestAnimationFrame(step);
     });
+    const rings = root.querySelectorAll('.pf-ring-fg[data-off]');
+    requestAnimationFrame(() => requestAnimationFrame(() => rings.forEach(r => { if (reduce) r.style.transition = 'none'; r.style.strokeDashoffset = r.dataset.off; })));
     const fills = root.querySelectorAll('.prog-fill[data-w]');
     if (!fills.length) return;
     requestAnimationFrame(() => requestAnimationFrame(() => fills.forEach((f, i) => {
@@ -564,48 +678,58 @@
   }
 
   const avatarFor = achId => (window.Avatars ? Avatars.list.find(a => a.unlock === achId) : null) || null;
+  // Награда за достижение одной серой строкой: «тег «…» и аватар «…»»
+  function rewardText(a) {
+    const tag = a.tag ? tagById(a.tag) : null, av = avatarFor(a.id);
+    const parts = [];
+    if (tag) parts.push(`тег «${esc(tag.name)}»`);
+    if (av) parts.push(`аватар «${esc(av.name)}»`);
+    return parts.join(' и ');
+  }
   function renderAchievements() {
     const e = ext(), s = computeStats();
-    const got = ACH.filter(a => e.achievements[a.id]).length;
-    const rows = ACH.map(a => {
+    const done = [], todo = [];
+    ACH.forEach(a => {
       const unlockedAt = e.achievements[a.id];
-      const tag = a.tag ? tagById(a.tag) : null;
+      const reward = rewardText(a);
       if (unlockedAt) {
-        return `<div class="pf-row" data-tone="${a.tone}">
+        done.push({ at: new Date(unlockedAt).getTime() || 0, html: `<div class="pf-row" data-tone="${a.tone}">
           <span class="pf-ico">${svg(P[a.icon], 20)}</span>
           <div class="pf-row-body">
             <span class="pf-row-title">${esc(a.title)}</span>
             <span class="pf-row-desc">${esc(a.desc)}</span>
-            <span class="pf-row-meta">Получено ${fmtDate(unlockedAt)}</span>
+            <span class="pf-row-meta">Получено ${fmtDate(unlockedAt)}${reward ? ` · открыт ${reward}` : ''}</span>
           </div>
-          ${tag ? `<span class="pf-chip pf-reward" data-tone="${tag.tone}">Тег «${esc(tag.name)}»</span>` : ''}
-          ${avatarFor(a.id) ? `<span class="pf-av-reward" title="Открыт аватар «${esc(avatarFor(a.id).name)}»">${Avatars.html(avatarFor(a.id).id)}</span>` : ''}
-        </div>`;
+        </div>` });
+        return;
       }
       if (a.secret) {
-        return `<div class="pf-row locked" data-tone="gray">
+        todo.push({ k: -1, html: `<div class="pf-row locked" data-tone="gray">
           <span class="pf-ico">${svg(P.lock, 20)}</span>
-          <div class="pf-row-body"><span class="pf-row-title">Скрытое достижение</span><span class="pf-row-desc">Условие откроется после получения</span></div>
-          ${tag ? '<span class="pf-lock">' + svg(P.tag, 16) + '</span>' : ''}
-        </div>`;
+          <div class="pf-row-body"><span class="pf-row-title">Скрытое достижение</span><span class="pf-row-desc">Условие откроется после получения</span>
+          ${a.tag || avatarFor(a.id) ? '<span class="pf-row-meta">Откроет награду</span>' : ''}</div>
+        </div>` });
+        return;
       }
       const [cur, tar] = a.progress(s, e, database);
       const note = a.note ? a.note(s) : '';
-      return `<div class="pf-row locked" data-tone="${a.tone}">
+      const meta = [note ? esc(note) : '', reward ? `Откроет ${reward}` : ''].filter(Boolean).join(' · ');
+      todo.push({ k: tar ? cur / tar : 0, html: `<div class="pf-row locked" data-tone="${a.tone}">
         <span class="pf-ico">${svg(P[a.icon], 20)}</span>
         <div class="pf-row-body">
           <span class="pf-row-title">${esc(a.title)}</span>
           <span class="pf-row-desc">${esc(a.desc)}</span>
-          <div class="prog-track"><div class="prog-fill" data-w="${Math.round(cur / tar * 100)}" style="width:0%"></div></div>
-          <span class="pf-row-meta">${cur} / ${tar}${note ? ', ' + esc(note) : ''}</span>
+          <div class="pf-ach-prog"><div class="prog-track"><div class="prog-fill" data-w="${Math.round(cur / tar * 100)}" style="width:0%"></div></div><span class="pf-ach-num">${cur} / ${tar}</span></div>
+          ${meta ? `<span class="pf-row-meta">${meta}</span>` : ''}
         </div>
-        ${tag ? `<span class="pf-lock" title="Награда: тег «${esc(tag.name)}»">${svg(P.tag, 16)}</span>` : ''}
-        ${avatarFor(a.id) ? `<span class="pf-av-reward locked" title="Награда: аватар «${esc(avatarFor(a.id).name)}»">${Avatars.html(avatarFor(a.id).id)}</span>` : ''}
-      </div>`;
-    }).join('');
+      </div>` });
+    });
+    // Сначала полученные (новые сверху), ниже — те, что ближе всего к цели
+    done.sort((x, y) => y.at - x.at);
+    todo.sort((x, y) => y.k - x.k);
     $('pfPaneAchievements').innerHTML = `
-      <p class="pf-tags-note">Получено ${got} из ${ACH.length}. Значок тега у достижения означает, что за него откроется тег под ником.</p>
-      <div class="pf-list">${rows}</div>`;
+      ${done.length ? `<section><h3 class="pf-section-title"><span>Получено <span class="pf-sec-n">${done.length}</span></span></h3><div class="pf-list">${done.map(r => r.html).join('')}</div></section>` : ''}
+      ${todo.length ? `<section><h3 class="pf-section-title"><span>В процессе <span class="pf-sec-n">${todo.length}</span></span></h3><div class="pf-list">${todo.map(r => r.html).join('')}</div></section>` : ''}`;
     if (activeTab === 'achievements' && animNext) animateIn($('pfPaneAchievements'));
     else $('pfPaneAchievements').querySelectorAll('.prog-fill[data-w]').forEach(f => { f.style.width = f.dataset.w + '%'; });
   }
@@ -632,6 +756,13 @@
     renderModal();
     $('profileBackdrop').classList.add('open');
     const sc = $('profileBackdrop').querySelector('.pf-scroll'); if (sc) sc.scrollTop = 0;
+  }
+  // Открыть/закрыть всплывающее меню; меню витрины живёт в «Обзоре», его тоже перерисовываем
+  function setPop(k) {
+    const prev = pop; pop = k; popFresh = !!k; bioEdit = false;
+    const fresh = popFresh;
+    if (prev === 'show' || k === 'show') renderOverview();
+    popFresh = fresh; renderHero();
   }
   function closeProfile() { pop = null; bioEdit = false; $('profileBackdrop').classList.remove('open'); }
 
@@ -662,14 +793,23 @@
     modal.addEventListener('click', e => {
       if (e.target === modal) { closeProfile(); return; }
       // щелчок мимо открытого меню закрывает его
-      if (pop && !e.target.closest('.pf-pop, [data-act="pop"]')) { pop = null; renderHero(); }
-      const t = e.target.closest('[data-act], [data-tab], [data-status], [data-tag], [data-avatar]'); if (!t) return;
+      if (pop && !e.target.closest('.pf-pop, [data-act="pop"]')) setPop(null);
+      const t = e.target.closest('[data-act], [data-tab], button[data-status], [data-tag], [data-avatar], [data-show]'); if (!t) return;   // у самого аватара тоже есть data-status — это не кнопка
       if (t.dataset.act === 'close') closeProfile();
-      else if (t.dataset.act === 'pop') { const k = t.dataset.pop; pop = pop === k ? null : k; popFresh = !!pop; bioEdit = false; renderHero(); }
+      else if (t.dataset.act === 'report') { closeProfile(); if (window.Report) Report.open(); }
+      else if (t.dataset.act === 'pop') { const k = t.dataset.pop; setPop(pop === k ? null : k); }
+      else if (t.dataset.show) {
+        // Витрина: нажатие добавляет или убирает достижение; больше 4 нельзя
+        const e2 = ext(), id = t.dataset.show, i = e2.showcase.indexOf(id);
+        if (i >= 0) e2.showcase.splice(i, 1);
+        else if (e2.showcase.length < 4) e2.showcase.push(id);
+        else { const cap = document.querySelector('.pf-pop-show .pf-avp-cap'); if (cap) { cap.classList.remove('shake'); void cap.offsetWidth; cap.classList.add('shake'); } return; }
+        saveData(); renderOverview();
+      }
       else if (t.dataset.act === 'bio') { pop = null; bioEdit = true; renderHero(); }
       else if (t.dataset.avatar !== undefined) {
         const e2 = ext(), id = t.dataset.avatar, a = id && window.Avatars ? Avatars.byId(id) : null;
-        if (id && !Avatars.isUnlocked(a, e2.achievements)) return;
+        if (id && !Avatars.isUnlocked(a, e2.achievements)) { avatarCaption(t); return; }   // на телефоне нажатие показывает, за что откроется
         e2.avatarId = id; lastHeaderSig = ''; saveData(); renderAll();
       }
       else if (t.dataset.tab) {
@@ -682,9 +822,13 @@
         const id = t.dataset.tag, e2 = ext();
         if (id === '' ) e2.tag = null;
         else if (e2.tags[id]) e2.tag = id;
-        else return;
+        else { avatarCaption(t); return; }   // закрытый: на телефоне нажатие показывает, за что откроется
         pop = null; saveData(); renderAll();
       }
+    });
+    modal.addEventListener('pointerover', e => {
+      if (!e.target.closest || !e.target.closest('.pf-pop-avatar, .pf-pop-tag, .pf-pop-show')) return;
+      avatarCaption(e.target.closest('.pf-avp, .pf-tgc-opt'));
     });
     modal.addEventListener('input', e => {
       if (e.target.id === 'pfBio') $('pfBioCount').textContent = `${e.target.value.length} / 80`;
@@ -707,7 +851,7 @@
     document.addEventListener('keydown', e => {
       if (e.key !== 'Escape') return;
       if (document.querySelector('.pf-popover.open')) closePops();
-      else if (modalOpen() && pop) { pop = null; renderHero(); }
+      else if (modalOpen() && pop) setPop(null);
       else if (modalOpen()) closeProfile();
     });
 
@@ -745,6 +889,6 @@
   // Для social.js: данные профиля, вид достижений и тегов, текущий статус
   const achInfo = id => { const a = achById(id); return a ? { title: a.title, icon: svg(P[a.icon] || P.star, 18), tone: a.tone } : null; };
   const tagInfo = id => { const t = tagById(id); return t ? { name: t.name, tone: t.tone } : null; };
-  window.Profile = { init, refresh, teardown, onDataSaved, onServerState, open: openProfile, notify, ext, computeStats, achInfo, tagInfo,
+  window.Profile = { init, refresh, teardown, onDataSaved, onServerState, onLeague, open: openProfile, notify, ext, computeStats, achInfo, tagInfo,
     myAvatarId: () => myAvatarId(ext()), status: () => ext().status, rerender: () => renderAll(), activeTab: () => activeTab };
 })();

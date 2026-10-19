@@ -24,9 +24,10 @@
     flame: '<path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>',
     back: '<path d="m15 18-6-6 6-6"/>',
     x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+    arrow: '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
     copy: '<rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
     users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
-    trophy: '<path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/>'
+    trophy: '<path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/>'
   };
 
   /* ---------- Даты ---------- */
@@ -113,7 +114,7 @@
       keys.slice(0, 150).forEach(k => { if (queue[k] === batch[keys.indexOf(k)]) delete queue[k]; });
       saveQueue();
       setState(st);
-      if (st.gained > 0) flashGain(st.gained);
+      if (st.gained > 0) { flashGain(st.gained); setTimeout(refreshRank, 2000); }
     } catch (e) {
       if (e.status === 401) { queue = {}; saveQueue(); }      // сессия кончилась — копить бессмысленно
       else flushTimer = setTimeout(flush, 15000);            // нет сети — повторим
@@ -146,6 +147,7 @@
   }
 
   let syncTimer = null, pingTimer = null, resyncTimer = null, started = false, online = null, lastSyncSig = '';
+  let myRank = null, rankTimer = null;     // место в лиге недели — для капсулы в шапке
   const canTalk = () => hasUser() && localStorage.getItem('tracker_token') && (typeof cloudPullDone === 'undefined' || cloudPullDone);
 
   // Внешний вид публичного профиля. Цифры прогресса сервер считает сам и отсюда их не берёт.
@@ -185,15 +187,30 @@
     try { setState(await api('/api/social/state')); } catch (e) { /* позже */ }
   }
 
-  /* ---------- Шапка: серия и онлайн ---------- */
+  /* ---------- Шапка: серия и место в лиге недели ----------
+     Капсула ведёт в профиль на вкладку «Лига». Серия 0 — огонёк без цифры с подсказкой, как её начать. */
+  let lastLeague = null;   // последняя загруженная лига — для карточки «Лига недели» в профиле
+  function setRank(L) {
+    if (L && Array.isArray(L.members)) { lastLeague = L; if (window.Profile && Profile.onLeague) Profile.onLeague(); }
+    const me = L && Array.isArray(L.members) && database.userProfile ? L.members.find(m => m.id === database.userProfile.id) : null;
+    const r = me && me.rank != null ? me.rank : null;
+    if (r !== myRank) { myRank = r; renderHead(); }
+  }
+  async function refreshRank() {
+    if (!canTalk()) return;
+    try { setRank(await api('/api/league')); } catch (e) { /* позже */ }
+  }
   function renderHead() {
     const box = $('scHead');
     if (!box) return;
     if (!hasUser()) { box.innerHTML = ''; return; }
     const s = stats();
+    const streakTip = s.streak
+      ? `Серия: ${s.streak} ${plural(s.streak, ['учебный день', 'учебных дня', 'учебных дней'])} подряд с отметками`
+      : 'Отметь сегодняшние пары, чтобы начать серию';
     box.innerHTML = `
-      <span class="sc-chip sc-streak ${s.streak ? 'on' : ''}" title="Серия учебных дней с отметками">${svg(I.flame, 15, 2.2)}<b>${s.streak}</b></span>
-      ${online != null ? `<span class="sc-chip sc-online" title="Сейчас в приложении"><i></i>${online} в сети</span>` : ''}`;
+      <span class="sc-chip sc-streak ${s.streak ? 'on' : ''}" role="button" tabindex="0" data-open="overview" title="${streakTip}">${s.streak ? `<b>${s.streak}</b>` : ''}${svg(I.flame, 15, 2.2)}</span>
+      ${myRank != null ? `<span class="sc-chip sc-place ${myRank <= 3 ? 'top' : ''}" role="button" tabindex="0" data-open="league" title="Место в лиге недели: ${myRank}-е"><b>${myRank}</b>${svg(I.trophy, 15, 2.2)}</span>` : ''}`;
   }
 
   /* ---------- Вкладки профиля: лига и друзья ---------- */
@@ -251,51 +268,72 @@
       <span class="sc-av">${avatarHtml(m.avatar, m.name)}${statusDot(m.status)}</span>
       <span class="pf-row-body">
         <span class="sc-name">${esc(m.name)}${me ? '<span class="sc-you">это ты</span>' : ''}</span>
-        <span class="sc-sub">${tagChip(m.tag)}${m.streak ? `<span class="sc-mini-streak">${svg(I.flame, 12, 2.4)}${m.streak}</span>` : ''}${extra}</span>
+        <span class="sc-sub">${tagChip(m.tag)}${m.streak ? `<span class="sc-mini-streak">${m.streak}${svg(I.flame, 12, 2.4)}</span>` : ''}${extra}</span>
       </span>
       <span class="sc-xp"><b>${m.week_xp}</b><small>очков</small></span>
     </div>`;
   }
 
+  // «До итогов 6 дн. 2 ч» — коротко, без даты (время итогов — в правилах)
+  function leftShort(iso) {
+    if (!iso) return '';
+    const ms = new Date(iso) - Date.now();
+    if (ms <= 0) return 'Подводим итоги';
+    const d = Math.floor(ms / 86400000), h = Math.floor(ms % 86400000 / 3600000), m = Math.floor(ms % 3600000 / 60000);
+    return 'До итогов ' + (d > 0 ? `${d} дн. ${h} ч` : h > 0 ? `${h} ч ${m} мин` : `${Math.max(1, m)} мин`);
+  }
   function renderLeague(el, L) {
-    const s = stats();
-    const rows = L.members.map((m, i) => personRow(m) + (i === 2 && L.members.length > 3 ? '<div class="sc-zone">Выше черты — призёры недели</div>' : '')).join('');
+    setRank(L);
+    const rows = L.members.map((m, i) => personRow(m) + (i === 2 && L.members.length > 3 ? '<div class="sc-zone"><span>Выше — призёры недели</span></div>' : '')).join('');
+    const others = L.members.filter(m => m.id !== database.userProfile.id).length;
     el.innerHTML = `
-      <div class="sc-league-head">
-        <div><div class="sc-h">${svg(I.trophy, 18)}Лига недели</div><div class="sc-muted">Итоги в понедельник в 00:00 по Москве, ${timeLeft(L.ends_at)}</div></div>
-        <div class="sc-me"><b>${s.weekXp}</b><small>твоих очков</small></div>
-      </div>
-      <div class="pf-list">${rows || '<div class="pf-empty">На этой неделе пока никто не набрал очков</div>'}</div>
-      <p class="pf-tags-note">Очки: +${XP_PAIR} за отмеченную пару, будь то посещение или честный пропуск, +${XP_TASK} за пункт ДЗ, +${XP_FULL_DAY} за полностью отмеченный день. Засчитываются отметки, сделанные в течение суток после пары, до 8 пар и 8 пунктов ДЗ в день. Пункт ДЗ приносит очки, если с его добавления прошло хотя бы 30 минут. Тройка недели получает достижение «Призёр лиги».</p>`;
+      <section>
+        <h3 class="pf-section-title sc-lg-title"><span>Лига недели</span></h3>
+        <div class="sc-lg-sub">${esc(leftShort(L.ends_at))}</div>
+        <div class="pf-list">${rows || '<div class="pf-empty">На этой неделе пока никто не набрал очков</div>'}</div>
+        ${others ? '' : '<button type="button" class="sc-invite" data-tab="friends">Позови друзей — соревноваться веселее ›</button>'}
+      </section>
+      <details class="pf-list sc-rules">
+        <summary>Как начисляются очки<span class="sc-rules-chev">${svg(I.back, 14, 2.6)}</span></summary>
+        <div class="sc-rules-body">
+          <div class="sc-rule"><b>+${XP_PAIR}</b><span>отмеченная пара — посещение или честный пропуск</span></div>
+          <div class="sc-rule"><b>+${XP_TASK}</b><span>пункт ДЗ</span></div>
+          <div class="sc-rule"><b>+${XP_FULL_DAY}</b><span>полностью отмеченный день</span></div>
+          <p class="sc-rules-note">Засчитываются отметки в течение суток после пары, до 8 пар и 8 пунктов ДЗ в день. Пункт ДЗ приносит очки, если с его добавления прошло 30 минут. Итоги — в понедельник в 00:00 по Москве, тройка недели получает достижение «Призёр лиги».</p>
+        </div>
+      </details>`;
   }
 
   function renderFriends(el, F) {
     const e = Profile.ext();
     const nick = database.userProfile.name || '';
+    // Слова одни на всё окно: «Друг», «Ждёт ответа», «Хочет дружить» (под капотом — те же подписки)
     const rows = F.friends.map(f => {
-      const rel = f.mutual ? '<span class="sc-rel ok">Друзья</span>' : f.you_follow ? '<span class="sc-rel">Ты подписан</span>' : '<span class="sc-rel">Подписан на тебя</span>';
+      const rel = f.mutual ? '<span class="sc-rel ok">Друг</span>' : f.you_follow ? '<span class="sc-rel">Ждёт ответа</span>' : '<span class="sc-rel">Хочет дружить</span>';
       const btn = !f.you_follow
-        ? `<span class="sc-act" role="button" tabindex="0" data-sc="follow" data-name="${esc(f.name)}">Подписаться</span>`
-        : `<span class="sc-act ghost" role="button" tabindex="0" data-sc="unfollow" data-id="${f.id}" title="Отписаться">${svg(I.x, 14, 2.6)}</span>`;
+        ? `<span class="sc-act" role="button" tabindex="0" data-sc="follow" data-accept="1" data-name="${esc(f.name)}">Принять</span>`
+        : `<span class="sc-act ghost" role="button" tabindex="0" data-sc="unfollow" data-id="${f.id}" title="${f.mutual ? 'Удалить из друзей' : 'Отменить заявку'}">${svg(I.x, 14, 2.6)}</span>`;
       return personRow(f, rel + btn);
     }).join('');
     el.innerHTML = `
       <section>
-        <h3 class="pf-section-title"><span>Добавить друга</span></h3>
-        <label class="sc-label" for="scFriendInput">Ник друга в трекере</label>
-        <div class="sc-add">
-          <input type="text" id="scFriendInput" class="pf-bio" maxlength="40" autocomplete="off" spellcheck="false">
-          <button type="button" class="btn btn-primary sc-add-btn" data-sc="add">Подписаться</button>
-        </div>
-        <div class="sc-mynick">Твой ник для друзей: <b>${esc(nick)}</b>
-          <button type="button" class="pf-link-btn" data-sc="copy">${svg(I.copy, 13)} Скопировать</button></div>
+        <h3 class="pf-section-title"><span>Друзья <span class="pf-sec-n">${F.mutual_count}</span></span></h3>
+        <div class="pf-list">${rows || `<div class="pf-empty">${svg(I.users, 26, 1.8)}<span>Добавь друга по нику. Когда он примет заявку, вы станете друзьями.</span></div>`}</div>
       </section>
       <section>
-        <h3 class="pf-section-title"><span>Подписки и друзья</span><span class="pf-since">${F.mutual_count} ${plural(F.mutual_count, ['друг', 'друга', 'друзей'])}</span></h3>
-        <div class="pf-list">${rows || `<div class="pf-empty">${svg(I.users, 26, 1.8)}<span>Подпишись на друга по нику. Когда он подпишется в ответ, вы станете друзьями.</span></div>`}</div>
+        <h3 class="pf-section-title"><span>Добавить друга</span></h3>
+        <div class="sc-add">
+          <input type="text" id="scFriendInput" class="sc-add-input" maxlength="40" autocomplete="off" spellcheck="false" aria-label="Ник друга">
+          <button type="button" class="sc-send" data-sc="add" title="Добавить" aria-label="Добавить">${svg(I.arrow, 16, 2.6)}</button>
+        </div>
+        <button type="button" class="sc-nick" data-sc="copy" title="Скопировать ник">Твой ник<b>${esc(nick)}</b>${svg(I.copy, 13)}</button>
       </section>
-      <label class="sc-toggle"><input type="checkbox" id="scShareToggle" ${e.shareAttendance ? 'checked' : ''}>
-        <span>Показывать мой процент посещаемости в профиле для других</span></label>`;
+      <section>
+        <h3 class="pf-section-title"><span>Приватность</span></h3>
+        <label class="sc-toggle"><input type="checkbox" id="scShareToggle" ${e.shareAttendance ? 'checked' : ''}>
+          <span>Показывать посещаемость в профиле</span></label>
+        <p class="sc-toggle-note">Её увидят все, кто откроет твой профиль</p>
+      </section>`;
   }
 
   async function openPublic(tab, name) {
@@ -324,8 +362,8 @@
     const sd = p.since ? new Date(p.since) : null;
     const since = sd && !isNaN(sd) ? `${MONTHS[sd.getMonth()]} ${sd.getFullYear()}` : '';
     const followBtn = p.you_follow
-      ? `<button type="button" class="btn btn-secondary" data-sc="unfollow" data-id="${p.id}">Отписаться</button>`
-      : `<button type="button" class="btn btn-primary" data-sc="follow" data-name="${esc(p.name)}">${p.follows_you ? 'Подписаться в ответ' : 'Подписаться'}</button>`;
+      ? `<button type="button" class="btn btn-secondary" data-sc="unfollow" data-id="${p.id}">${p.follows_you ? 'Удалить из друзей' : 'Отменить заявку'}</button>`
+      : `<button type="button" class="btn btn-primary" data-sc="follow" ${p.follows_you ? 'data-accept="1"' : ''} data-name="${esc(p.name)}">${p.follows_you ? 'Принять' : 'Добавить в друзья'}</button>`;
     el.innerHTML = `
       <button type="button" class="pf-link-btn sc-back" data-sc="back">${svg(I.back, 14, 2.6)} ${tab === 'league' ? 'К лиге' : 'К друзьям'}</button>
       <div class="pf-hero sc-pub-hero">
@@ -348,12 +386,12 @@
         ${medals.length ? `<div class="pf-showcase sc-medals">${medals.join('')}</div>` : '<div class="pf-empty">Пока без достижений</div>'}</section>`;
   }
 
-  async function follow(name, tab) {
+  async function follow(name, tab, accept) {
     name = (name || '').trim();
     if (!name) { const i = $('scFriendInput'); if (i) { i.classList.add('input-error'); i.focus(); } return; }
     try {
       await api('/api/friends/follow', { method: 'POST', body: { username: name } });
-      showElegantToast('Друзья', `Ты подписан на ${name}`);
+      showElegantToast('Друзья', accept ? `Теперь вы друзья с ${name}` : `Заявка отправлена: ${name}`);
       if (view[tab]) await openPublic(tab, view[tab].name); else renderPane(tab);
       if (tab !== 'friends') { const f = paneEl('friends'); if (f) delete f.dataset.loaded; }
       refreshState();
@@ -369,6 +407,12 @@
 
   /* ---------- События ---------- */
   function bind() {
+    const head = $('scHead');
+    // Огонёк — профиль (серия и прогресс), кубок — лига недели
+    if (head) head.addEventListener('click', e => {
+      const c = e.target.closest('[data-open]');
+      if (c && window.Profile) Profile.open(c.dataset.open);
+    });
     const modal = $('profileBackdrop');
     if (!modal) return;
     const tabOf = el => (el.closest('.pf-pane') || {}).dataset ? el.closest('.pf-pane').dataset.pane : 'friends';
@@ -378,7 +422,7 @@
       else if (a === 'back') { view[tab] = null; renderPane(tab); }
       else if (a === 'retry') renderPane(tab);
       else if (a === 'add') follow(($('scFriendInput') || {}).value, tab);
-      else if (a === 'follow') follow(t.dataset.name, tab);
+      else if (a === 'follow') follow(t.dataset.name, tab, !!t.dataset.accept);
       else if (a === 'unfollow') unfollow(t.dataset.id, tab);
       else if (a === 'copy') {
         const nick = database.userProfile.name || '';
@@ -396,7 +440,11 @@
       if (e.target.id === 'scFriendInput' && e.key === 'Enter') { e.preventDefault(); follow(e.target.value, 'friends'); }
       else if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('[data-sc][role="button"]')) { e.preventDefault(); act(e.target); }
     });
-    modal.addEventListener('input', e => { if (e.target.id === 'scFriendInput') e.target.classList.remove('input-error'); });
+    modal.addEventListener('input', e => {
+      if (e.target.id !== 'scFriendInput') return;
+      e.target.classList.remove('input-error');
+      const box = e.target.closest('.sc-add'); if (box) box.classList.toggle('has-text', !!e.target.value.trim());   // кнопка-стрелка видна, только когда есть ник
+    });
     modal.addEventListener('change', e => {
       if (e.target.id === 'scShareToggle') { Profile.ext().shareAttendance = e.target.checked; saveData(); }
     });
@@ -412,9 +460,10 @@
     if (!started) {
       started = true;
       pingTimer = setInterval(ping, PING_EVERY);
+      rankTimer = setInterval(refreshRank, 5 * 60000);
       resyncTimer = setInterval(() => sync(true), RESYNC_EVERY);
     }
-    setTimeout(async () => { await flush(); await sync(true); ping(); refreshState(); }, 1500);
+    setTimeout(async () => { await flush(); await sync(true); ping(); refreshState(); refreshRank(); }, 1500);
   }
   function onDataSaved() {
     renderHead();
@@ -422,7 +471,7 @@
     syncTimer = setTimeout(sync, SYNC_DELAY);
   }
   function teardown() {
-    clearInterval(pingTimer); clearInterval(resyncTimer); clearTimeout(syncTimer);
+    clearInterval(pingTimer); clearInterval(resyncTimer); clearTimeout(syncTimer); clearInterval(rankTimer); myRank = null;
     clearTimeout(flushTimer);
     started = false; online = null; lastSyncSig = ''; state = null; queue = {};
     try { localStorage.removeItem(STATE_KEY); localStorage.removeItem(QUEUE_KEY); } catch (e) { /* не страшно */ }
@@ -431,5 +480,5 @@
     renderHead();
   }
 
-  window.Social = { init, teardown, onDataSaved, stats, serverAch, renderPane, weekKey, queueMark, queueTask, flush };
+  window.Social = { init, teardown, onDataSaved, stats, serverAch, renderPane, weekKey, queueMark, queueTask, flush, league: () => lastLeague };
 })();

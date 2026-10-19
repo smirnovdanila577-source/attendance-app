@@ -800,38 +800,45 @@ function rebuildSummaryText(sum) {
 
 function jumpToCurrentWeek() {
   const realWeek = calculateCurrentSemesterWeek();
-  const weekChanged = (currentWeek !== realWeek);
+  const container = document.getElementById('mainScroll');
+  const reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  if (weekChanged) {
-    currentWeek = realWeek;
-    render();
-  }
-
-  setTimeout(() => {
-    const livePair = document.querySelector('.pair-card.is-live');
-    const todayBadge = document.querySelector('.today-badge');
-    
-    const target = livePair || (todayBadge ? todayBadge.closest('.day-group') : null);
-
-    if (!target) return;
-
-    // Прокручиваются только дни (колонка расписания)
-    const container = document.getElementById('mainScroll') || target.closest('.scroll-container');
-    if (!container) return;
-
-    const containerRect = container.getBoundingClientRect();
-    const targetRect = target.getBoundingClientRect();
-    // Над днями лежит стеклянная капсула недель: останавливаемся чуть ниже неё
+  // Куда прокрутить, чтобы сегодняшний день (или идущая пара) встал под капсулой недель
+  const todayTop = () => {
+    const target = document.querySelector('.pair-card.is-live') || (document.querySelector('.today-badge') || { closest: () => null }).closest('.day-group');
+    if (!target || !container) return null;
     const bar = document.querySelector('#mainApp .lg-weekbar');
     const offset = (bar ? bar.offsetHeight : 0) + 18;
+    return Math.max(0, target.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop - offset);
+  };
 
-    const targetScrollTop = (targetRect.top - containerRect.top) + container.scrollTop - offset;
+  // Та же неделя — просто плавно доезжаем до сегодняшнего дня
+  if (currentWeek === realWeek || reduce) {
+    if (currentWeek !== realWeek) { currentWeek = realWeek; render(); }
+    setTimeout(() => { const t = todayTop(); if (t !== null) container.scrollTo({ top: t, behavior: reduce ? 'auto' : 'smooth' }); }, 10);
+    return;
+  }
 
-    container.scrollTo({
-      top: Math.max(0, targetScrollTop),
-      behavior: 'smooth'
-    });
-  }, weekChanged ? 80 : 10);
+  // Другая неделя: страница уезжает в сторону сегодняшней недели и растворяется, новая въезжает
+  // уже сразу на сегодняшнем дне — без телепорта и без долгой прокрутки после
+  const diff = realWeek - currentWeek;
+  const wrapper = document.getElementById("scheduleAnimationWrapper");
+  const prev = document.getElementById("prevBtn"), next = document.getElementById("nextBtn");
+  prev.disabled = next.disabled = true;
+  wrapper.classList.remove('slide-in-right', 'slide-in-left');
+  wrapper.classList.add(diff > 0 ? 'slide-out-left' : 'slide-out-right');
+  setTimeout(() => {
+    currentWeek = realWeek; render();
+    const t = todayTop();
+    if (t !== null && container) { container.scrollTop = t; if (container.__lgs) container.__lgs.cur = container.__lgs.target = container.__lgs.wrote = container.scrollTop; }
+    wrapper.classList.remove('slide-out-left', 'slide-out-right');
+    const inClass = diff > 0 ? 'slide-in-right' : 'slide-in-left';
+    wrapper.classList.add(inClass);
+    setTimeout(() => {
+      wrapper.classList.remove(inClass);
+      prev.disabled = currentWeek <= 1; next.disabled = false;
+    }, 500);
+  }, 180);
 }
 
 function markEntireDay(dayName) {
@@ -955,13 +962,43 @@ function clearFutureMarks() {
   return n;
 }
 
+// Вид кружка отметки: класс, подсказка, значок
+function statusView(p) {
+  if (p.attended === true) return { cls: "lg-status attended", txt: "Посещено. Нажми, чтобы отметить пропуск",
+    icn: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path class="lg-draw" d="M5 12.5l4.5 4.5L19 7.5"/></svg>` };
+  if (p.attended === false) return { cls: "lg-status missed", txt: "Пропуск. Нажми, чтобы снять отметку",
+    icn: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path class="lg-draw" d="M6 6l12 12M18 6L6 18"/></svg>` };
+  return { cls: "lg-status", txt: "Отметить посещение", icn: "" };
+}
+
+// Отметка меняет только сам кружок и статистику, а не перерисовывает всё расписание:
+// иначе строка теряла подсветку под курсором, подсказка пропадала и появлялась заново — всё «мигало»
+function updateStatusInPlace(p) {
+  const btn = document.querySelector(`.pair-card[data-pair-id="${p.id}"] .lg-status`);
+  if (!btn) return false;
+  const v = statusView(p);
+  btn.className = v.cls;
+  btn.innerHTML = v.icn;
+  btn.setAttribute("aria-label", v.txt);
+  btn.setAttribute("title", v.txt);            // стеклянная подсказка сама подхватит новый текст
+  void btn.offsetWidth; btn.classList.add("pop");
+  renderSubjectStats(); renderOverallStats();
+  return true;
+}
+
 function toggleAttendance(pairId) { 
   const week = getWeekData(currentWeek); 
   for (const d of ALL_DAYS) { 
     const p = week[d]?.find(i => i.id === pairId); 
     if (p && p.cancelled) return;
     if (p && !pairHasEnded(currentWeek, d, p.time)) { showElegantToast("Рано", "Отметить пару можно после её окончания", "error"); return; }
-    if (p) { p.attended = p.attended === null ? true : p.attended === true ? false : null; lastToggledPair = p.id; if (window.Social) Social.queueMark(currentWeek, d, p); saveData(); render(); return; } 
+    if (p) {
+      p.attended = p.attended === null ? true : p.attended === true ? false : null;
+      if (window.Social) Social.queueMark(currentWeek, d, p);
+      saveData();
+      if (!updateStatusInPlace(p)) { lastToggledPair = p.id; render(); }
+      return;
+    } 
   } 
 }
 
@@ -1426,15 +1463,7 @@ function render() {
         const p = item.pair;
         const isImp = isSubjectImportant(p.subject || ""), cln = jsArg(p.subject || ""); 
         // Отметка — круглая кнопка: пусто → посещено (зелёная галочка) → пропуск (красный крестик) → пусто
-        let stCls = "lg-status", stTxt = "Отметить посещение";
-        let stIcn = '';
-        if (p.attended === true) {
-          stCls += " attended"; stTxt = "Посещено. Нажми, чтобы отметить пропуск";
-          stIcn = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path class="lg-draw" d="M5 12.5l4.5 4.5L19 7.5"/></svg>`;
-        } else if (p.attended === false) {
-          stCls += " missed"; stTxt = "Пропуск. Нажми, чтобы снять отметку";
-          stIcn = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path class="lg-draw" d="M6 6l12 12M18 6L6 18"/></svg>`;
-        }
+        let { cls: stCls, txt: stTxt, icn: stIcn } = statusView(p);
         const notEnded = !p.cancelled && !pairHasEnded(currentWeek, day, p.time);
         if (notEnded) { stCls += " not-yet"; stTxt = "Отметить можно после окончания пары"; }
         if (p.id === lastToggledPair) stCls += " pop";   // пружинка только у той пары, которую сейчас отметили
@@ -1525,6 +1554,16 @@ function renderSubjectStats() {
       });
     });
   });
+  // Переключатель над списком: все занятия или только лекции / практики / лабы.
+  // Показывается, только если в расписании есть хотя бы два разных типа.
+  const present = KIND_ORDER.filter(k => k !== "other" && Object.values(stats).some(s => s.kinds[k]));
+  let kind = database.subjectKind || "all";
+  if (kind !== "all" && !present.includes(kind)) kind = "all";
+  renderKindSeg(present, kind);
+  // Дальше всё (проценты, полоски, сортировка) считается по выбранному типу
+  if (kind !== "all") {
+    Object.keys(stats).forEach(n => { if (stats[n].kinds[kind]) stats[n] = stats[n].kinds[kind]; else delete stats[n]; });
+  }
   const list = document.getElementById("subjectsList"); list.innerHTML = "";
   const pctOf = i => i.t > 0 ? Math.round((i.a / i.t) * 100) : null;
   // Сортировка: «по важности» — важные сверху, затем от худшей посещаемости; «по посещаемости» — от худшей к лучшей.
@@ -1555,6 +1594,44 @@ function renderSubjectStats() {
       </div>
       <div class="prog-track" style="height: 4px;"><div class="prog-fill" style="width: ${pct}%; background: ${c}"></div></div>`;
     list.appendChild(b);
+  });
+}
+
+const KIND_TAB = { lecture: "Лекции", practice: "Практики", lab: "Лабы" };
+function renderKindSeg(present, kind) {
+  const seg = document.getElementById("subjKindSeg");
+  if (!seg) return;
+  if (present.length < 2) { seg.hidden = true; return; }
+  seg.hidden = false;
+  // Фильтры-таблетки: ни одна не выбрана — показываем всё; повторное нажатие снимает фильтр
+  const ids = present;
+  if (!seg.dataset.bound) {
+    seg.dataset.bound = "1";
+    // Щелчок ловим на всём ряду: жидкая капля захватывает указатель, и щелчок приходит ряду, а не таблетке
+    seg.addEventListener("click", e => {
+      const el = document.elementFromPoint(e.clientX, e.clientY);
+      const b = (el && el.closest && el.closest("#subjKindSeg button")) || (e.target.closest && e.target.closest("button"));
+      if (!b || !b.dataset.kind) return;
+      database.subjectKind = database.subjectKind === b.dataset.kind ? "all" : b.dataset.kind;
+      saveData(); renderSubjectStats();
+    });
+  }
+  const sig = ids.join("|");
+  // Пункты пересоздаём, только если поменялся набор типов: иначе меняется лишь «selected», и капля перетекает
+  if (seg.dataset.sig !== sig) {
+    seg.dataset.sig = sig;
+    seg.querySelectorAll("button").forEach(b => b.remove());
+    ids.forEach(id => {
+      const b = document.createElement("button");
+      b.type = "button"; b.dataset.kind = id; b.setAttribute("role", "radio");
+      b.innerHTML = `<i class="lg-kind-dot" data-kind="${id}"></i>${KIND_TAB[id]}`;
+      b.title = `Только ${KIND_TAB[id].toLowerCase()}`;
+      seg.appendChild(b);
+    });
+  }
+  seg.querySelectorAll("button").forEach(b => {
+    const on = b.dataset.kind === kind;
+    b.classList.toggle("selected", on); b.setAttribute("aria-checked", on);
   });
 }
 
