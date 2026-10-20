@@ -965,9 +965,12 @@ function clearFutureMarks() {
 // Вид кружка отметки: класс, подсказка, значок
 function statusView(p) {
   if (p.attended === true) return { cls: "lg-status attended", txt: "Посещено. Нажми, чтобы отметить пропуск",
-    icn: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path class="lg-draw" d="M5 12.5l4.5 4.5L19 7.5"/></svg>` };
+    icn: `<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path class="lg-draw" pathLength="1" d="M5 12.5l4.5 4.5L19 7.5"/></svg>` };
   if (p.attended === false) return { cls: "lg-status missed", txt: "Пропуск. Нажми, чтобы снять отметку",
-    icn: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path class="lg-draw" d="M6 6l12 12M18 6L6 18"/></svg>` };
+    // Крестик 13×13 в кружке 31×31: середина крестика попадает ровно в центральный пиксель кружка,
+    // поэтому он и по центру, и чёткий (при чётном размере середина ложилась между пикселями и «слипалась»).
+    // Две отдельные линии с pathLength="1": каждая прорисовывается равномерно всё время анимации
+    icn: `<svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path class="lg-draw" pathLength="1" d="M3 3l7 7"/><path class="lg-draw" pathLength="1" d="M10 3l-7 7"/></svg>` };
   return { cls: "lg-status", txt: "Отметить посещение", icn: "" };
 }
 
@@ -1271,7 +1274,8 @@ function openModal(day, pair = null) {
   
   const defaultTime = `${database.bellSchedule[0].start} - ${database.bellSchedule[0].end}`;
   setCustomSelectValue('timeSelect', pair ? pair.time : defaultTime);
-  setCustomSelectValue('typeSelect', pair ? pair.type : "Лекция");
+  // Тип из расписания вуза («Семинар», «Практическое занятие»…) показываем ближайшим пунктом: семинар = практика
+  setCustomSelectValue('typeSelect', pair ? ({ lecture: "Лекция", practice: "Практика", lab: "Лабораторная" }[pairKind(pair.type)] || pair.type) : "Лекция");
 }
 
 function closeModal() { document.getElementById("modalBackdrop").classList.remove("open"); editingState = null; }
@@ -1566,13 +1570,13 @@ function renderSubjectStats() {
   }
   const list = document.getElementById("subjectsList"); list.innerHTML = "";
   const pctOf = i => i.t > 0 ? Math.round((i.a / i.t) * 100) : null;
-  // Сортировка: «по важности» — важные сверху, затем от худшей посещаемости; «по посещаемости» — от худшей к лучшей.
+  // Сортировка: «по важности» — важные сверху, затем от лучшей посещаемости к худшей; «по посещаемости» — от лучшей к худшей.
   // Предметы без отметок — в конце; при равенстве — по алфавиту.
   const mode = database.subjectSort || "importance";
   const byPct = (x, y) => {
     const px = pctOf(stats[x]), py = pctOf(stats[y]);
     if (px === null || py === null) return (px === null) - (py === null);
-    return px - py;
+    return py - px;
   };
   const keys = Object.keys(stats).sort((x, y) =>
     (mode === "importance" ? isSubjectImportant(y) - isSubjectImportant(x) : 0) || byPct(x, y) || x.localeCompare(y, "ru"));

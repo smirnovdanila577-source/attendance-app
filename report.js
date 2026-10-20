@@ -35,14 +35,37 @@
 
   let viewWeek = 1, bound = false;
 
+  /* ---------- Фильтр по типу занятий: те же таблетки и тот же выбор, что в «Предметах» на главном экране ---------- */
+  const KINDS = [['lecture', 'Лекции'], ['practice', 'Практики'], ['lab', 'Лабы']];
+  const kindOf = p => (typeof pairKind === 'function' ? pairKind(p.type) : 'other');
+  function presentKinds() {
+    const seen = new Set(), act = database.activeDays || ALL_DAYS;
+    Object.values(database.weeks || {}).forEach(w => act.forEach(d => (w[d] || []).forEach(p => { if (!p.cancelled && p.subject) seen.add(kindOf(p)); })));
+    return KINDS.filter(([k]) => seen.has(k)).map(([k]) => k);
+  }
+  // Выбранный тип; «all», если фильтр не выбран или такого типа в расписании нет
+  function curKind() {
+    const k = database.subjectKind || 'all';
+    return k !== 'all' && presentKinds().includes(k) ? k : 'all';
+  }
+  function kindSegHtml() {
+    const present = presentKinds();
+    if (present.length < 2) return '';
+    const k = curKind();
+    return `<div class="rp-kinds-wrap"><div class="pf-seg lg-kind-seg rp-kinds" id="rpKindSeg" role="radiogroup" aria-label="Показать только один тип занятий">${KINDS.filter(([id]) => present.includes(id)).map(([id, name]) =>
+      `<button type="button" data-kind="${id}" role="radio" aria-checked="${k === id}" class="${k === id ? 'selected' : ''}" title="Только ${name.toLowerCase()}"><i class="lg-kind-dot" data-kind="${id}"></i>${name}</button>`).join('')}</div></div>`;
+  }
+
   /* ---------- Подсчёт недели (данные только читаем, не создаём) ---------- */
-  function weekStats(w) {
+  function weekStats(w, kind = curKind()) {
     const wd = (database.weeks || {})[String(w)] || {};
+    const fits = p => kind === 'all' || kindOf(p) === kind;   // фильтр «Лекции / Практики / Лабы»
     const act = database.activeDays || ALL_DAYS;
     const s = { week: w, days: [], subjects: {}, a: 0, m: 0, u: 0, total: 0, hwDone: 0, hwTotal: 0 };
     ALL_DAYS.filter(d => act.includes(d)).forEach(day => {
       const d = { day, a: 0, m: 0, u: 0, total: 0, list: [] };
       (wd[day] || []).forEach(p => {
+        if (!fits(p)) return;
         if (p.cancelled) { (p.tasks || []).forEach(t => { s.hwTotal++; if (t.done) s.hwDone++; }); return; } // убранная пара: только её ДЗ
         d.total++;
         const key = (p.subject || 'Без названия').trim();
@@ -64,7 +87,7 @@
 
   function buildInsights(cur, prev, isCurrentWeek) {
     const out = [];
-    if (cur.pct !== null && prev && prev.pct !== null) {
+    if (!isCurrentWeek && cur.pct !== null && prev && prev.pct !== null) {   // идущую неделю не сравниваем: она ещё не закончилась
       const d = cur.pct - prev.pct;
       if (d > 0) out.push({ icon: 'up', tone: 'green', text: `Посещаемость выросла на ${d}% по сравнению с прошлой неделей.` });
       else if (d < 0) out.push({ icon: 'down', tone: 'red', text: `Посещаемость снизилась на ${-d}% по сравнению с прошлой неделей.` });
@@ -104,7 +127,8 @@
       if (!startW && s.marked > 0) startW = w;   // учёт начинается с первой недели, где есть отметки
       if (startW) {
         const wd = (database.weeks || {})[String(w)] || {};
-        s.days.forEach(d => (wd[d.day] || []).forEach(p => { if (!p.cancelled && ended(w, d.day, p)) past++; }));
+        const k = curKind();
+        s.days.forEach(d => (wd[d.day] || []).forEach(p => { if (!p.cancelled && (k === 'all' || kindOf(p) === k) && ended(w, d.day, p)) past++; }));
       }
       weeks.push({ week: w, a: s.a, m: s.m, marked: s.marked, pct: s.pct });
       a += s.a; m += s.m;
@@ -219,15 +243,18 @@
   /* ---------- Окно: семестр сверху, под графиком — отчёт за выбранную неделю ---------- */
   let semWeeks = null;
 
-  function render() {
+  function render(keepSeg) {
     if (!hasUser()) return;
+    // При смене фильтра таблетки не пересоздаём: стекло плавно перетекает с текущего места, без рывка назад
+    const oldWrap = keepSeg && $('rpHead') ? $('rpHead').querySelector('.rp-kinds-wrap') : null;
+    const segHtml = kindSegHtml();
     const S = semesterStats();
     semWeeks = S.weeks;
     viewWeek = Math.min(Math.max(1, viewWeek), S.cw);
-    const range = `${weekRangeShort(1).split(' – ')[0]} – ${weekRangeShort(S.cw).split(' – ')[1]}`;
     $('rpHead').innerHTML = `<div class="lg-pblur rp-pb" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
       <h2 class="rp-title">Динамика за семестр</h2>
-      <div class="rp-sub">${S.cw === 1 ? 'Неделя 1' : `Недели 1–${S.cw}`} · ${esc(range)}</div>`;
+      ${oldWrap && segHtml ? '<div id="rpKindsSlot"></div>' : segHtml}`;
+    if (oldWrap && segHtml) $('rpKindsSlot').replaceWith(oldWrap);   // таблетки в стеклянной шапке, справа от заголовка
 
     const hint = S.startW > 1
       ? (S.startW === 2 ? 'Неделя 1 не отмечена' : `Недели 1–${S.startW - 1} не отмечены`) + ' и в статистику не входят. Отметь их, чтобы картина была полной.'
@@ -251,6 +278,7 @@
         </section>`;
 
     $('rpBody').innerHTML = `<div class="rp-body"><div class="rp-glow" aria-hidden="true"><i></i><i></i><i></i></div>${semester}<section class="rp-week" id="rpWeek"></section></div>`;
+    syncGlassInsets();   // на узком окне таблетки под подзаголовком — шапка выше, отступ содержимого подстраивается
     // График рисуем, когда карточка уже на месте: ширина берётся настоящая
     if ($('seTrend')) $('seTrend').insertAdjacentHTML('afterbegin', trendSvg(S.weeks, chartWidth(), viewWeek, true));
     countUp($('rpBody').querySelector('.rp-sem'));
@@ -283,7 +311,7 @@
 
     // Главная цифра и сравнение
     let delta = '';
-    if (cur.pct !== null && prev && prev.pct !== null) {
+    if (!isCur && cur.pct !== null && prev && prev.pct !== null) {   // идущую неделю не сравниваем: она ещё не закончилась
       const d = cur.pct - prev.pct;
       delta = d === 0
         ? `<span class="rp-delta">Как на прошлой неделе</span>`
@@ -672,8 +700,35 @@
     if (bound) return;
     bound = true;
     const m = $('reportBackdrop');
+    // Окно закрыли (любым способом) — фильтр «Лекции / Практики / Лабы» сбрасывается, и в «Предметах» тоже
+    let wasOpen = m.classList.contains('open');
+    new MutationObserver(() => {
+      const isOpen = m.classList.contains('open');
+      if (wasOpen && !isOpen && database && (database.subjectKind || 'all') !== 'all') {
+        database.subjectKind = 'all';
+        saveData();
+        if (typeof renderSubjectStats === 'function') renderSubjectStats();
+      }
+      wasOpen = isOpen;
+    }).observe(m, { attributes: true, attributeFilter: ['class'] });
     m.addEventListener('click', e => {
       if (e.target === m) { close(); return; }
+      // Таблетки типа: щелчок ловим по точке под курсором — капля захватывает указатель, и щелчок приходит ряду
+      const seg = e.target.closest('#rpKindSeg');
+      if (seg) {
+        const el = e.isTrusted ? document.elementFromPoint(e.clientX, e.clientY) : null;
+        const b = (el && el.closest && el.closest('#rpKindSeg button')) || e.target.closest('button');
+        if (!b || !b.dataset.kind) return;
+        database.subjectKind = curKind() === b.dataset.kind ? 'all' : b.dataset.kind;   // повторное нажатие снимает фильтр
+        // Сначала переключаем таблетки на месте — стекло перетекает от текущей к новой
+        seg.querySelectorAll('button').forEach(x => { const on = x.dataset.kind === database.subjectKind; x.classList.toggle('selected', on); x.setAttribute('aria-checked', on); });
+        saveData();
+        if (typeof renderSubjectStats === 'function') renderSubjectStats();          // тот же выбор в «Предметах»
+        const sc = $('rpBody'), top = sc ? sc.scrollTop : 0;
+        render(true);
+        if (sc) sc.scrollTop = top;
+        return;
+      }
       const wk = e.target.closest('[data-week]');
       if (wk) { selectWeek(Number(wk.dataset.week), true); return; }
       const nav = e.target.closest('[data-nav]');
@@ -695,7 +750,7 @@
     if (typeof cloudPullDone !== 'undefined' && !cloudPullDone) { setTimeout(check, 800); return; }
     const prevWeek = calculateCurrentSemesterWeek() - 1;
     if (prevWeek < 1 || (database.reportNotified || 0) >= prevWeek) return;
-    const st = weekStats(prevWeek);
+    const st = weekStats(prevWeek, 'all');   // уведомление — по всем занятиям, без фильтра
     database.reportNotified = prevWeek;
     if (st.marked > 0 && window.Profile) {
       Profile.notify(`Отчёт за неделю ${prevWeek} готов`,

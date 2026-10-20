@@ -90,11 +90,11 @@
     { id: 'profile_done', title: 'Свой человек', desc: 'Выбери аватар и расскажи о себе в профиле', icon: 'user', tone: 'blue', tag: 'person',
       progress: (s, e) => prog((e.avatarId ? 1 : 0) + (e.bio && e.bio.trim().length >= 3 ? 1 : 0), 2) },
     // Серия учебных дней и очки — считает social.js
-    { id: 'streak_3', title: 'Разгон', desc: 'Отмечай пары 3 учебных дня подряд', icon: 'flame', tone: 'yellow',
+    { id: 'streak_3', title: 'Разгон', desc: 'Закрывай все пары 3 учебных дня подряд', icon: 'flame', tone: 'yellow',
       progress: s => prog(s.bestDayStreak, 3) },
-    { id: 'streak_7', title: 'Неделя в огне', desc: 'Отмечай пары 7 учебных дней подряд', icon: 'flame', tone: 'yellow', tag: 'ogonek',
+    { id: 'streak_7', title: 'Неделя в огне', desc: 'Закрывай все пары 7 учебных дней подряд', icon: 'flame', tone: 'yellow', tag: 'ogonek',
       progress: s => prog(s.bestDayStreak, 7) },
-    { id: 'streak_30', title: 'Месяц без перерыва', desc: 'Отмечай пары 30 учебных дней подряд', icon: 'flame', tone: 'red',
+    { id: 'streak_30', title: 'Месяц без перерыва', desc: 'Закрывай все пары 30 учебных дней подряд', icon: 'flame', tone: 'red',
       progress: s => prog(s.bestDayStreak, 30) },
     { id: 'xp_1000', title: 'Тысяча очков', desc: 'Набери 1000 очков опыта', icon: 'zap', tone: 'blue',
       progress: s => prog(s.xpTotal, 1000) },
@@ -504,12 +504,12 @@
   function renderOverview() {
     const e = ext(), s = computeStats(), soc = !!window.Social;
     const plural = (n, f) => { const a = Math.abs(n) % 100, b = a % 10; return (a > 10 && a < 20) ? f[2] : b > 1 && b < 5 ? f[1] : b === 1 ? f[0] : f[2]; };
-    // Серия: учебные дни подряд с отметками (считает сервер; без сервера — пары подряд)
+    // Серия: учебные дни подряд, закрытые полностью (считает сервер; без сервера — пары подряд)
     const streak = soc ? s.dayStreak : s.streak;
     const SH = { 'Понедельник': 'Пн', 'Вторник': 'Вт', 'Среда': 'Ср', 'Четверг': 'Чт', 'Пятница': 'Пт', 'Суббота': 'Сб', 'Воскресенье': 'Вс' };
 
-    // Полоска текущей недели: в какие дни пары отмечены (это и держит серию)
-    let weekStrip = '', todayState = '';
+    // Полоска текущей недели: какие дни закрыты — отмечены все пары (это и держит серию)
+    let weekStrip = '', todayState = '', todayLeft = 0;
     if (typeof calculateCurrentSemesterWeek === 'function' && typeof getDateForDay === 'function') {
       const cw = Math.max(1, calculateCurrentSemesterWeek());
       const wd = (database.weeks || {})[String(cw)] || {};
@@ -519,61 +519,68 @@
         const date = getDateForDay(cw, day); date.setHours(0, 0, 0, 0);
         const today = date.getTime() === now.getTime();
         const pairs = (wd[day] || []).filter(p => !p.cancelled);
-        const marked = pairs.some(p => p.attended === true || p.attended === false);
-        const st = marked ? 'done' : !pairs.length ? 'off' : today ? 'wait' : date < now ? 'miss' : 'future';
-        if (today) todayState = st;
-        const tip = { done: 'пары отмечены', off: 'пар нет', wait: 'отметь пары сегодня', miss: 'пары не отмечены', future: 'впереди' }[st];
+        const left = pairs.filter(p => p.attended !== true && p.attended !== false).length;
+        const closed = pairs.length > 0 && left === 0;
+        const st = closed ? 'done' : !pairs.length ? 'off' : today ? 'wait' : date < now ? 'miss' : 'future';
+        if (today) { todayState = st; todayLeft = left; }
+        const tip = { done: 'день закрыт', off: 'пар нет', wait: 'отметь все пары, чтобы закрыть день', miss: 'день не закрыт', future: 'впереди' }[st];
         return `<div class="pf-wd ${st} ${today ? 'today' : ''}" title="${SH[day]} — ${tip}"><i>${st === 'done' ? svg(P.check, 13, 3) : ''}</i><span>${SH[day]}</span></div>`;
       }).join('');
     }
-    const streakHint = todayState === 'wait' ? 'Отметь сегодняшние пары, чтобы серия не прервалась'
-      : todayState === 'done' ? 'Сегодня отмечено — серия продолжается'
-      : streak ? (soc && s.bestDayStreak ? `Лучшая серия: ${s.bestDayStreak}` : '') : 'Отметь пары в учебный день, чтобы начать серию';
+    const streakHint = todayState === 'wait' ? `Осталось отметить ${todayLeft} ${plural(todayLeft, ['пару', 'пары', 'пар'])}, чтобы зажечь огонёк`
+      : todayState === 'done' ? 'День закрыт — серия продолжается'
+      : streak ? (soc && s.bestDayStreak ? `Лучшая серия: ${s.bestDayStreak}` : '') : 'Отметь все пары учебного дня, чтобы начать серию';
     const streakCard = `
         <div class="pf-box pf-wk pf-streak ${streak ? '' : 'zero'}">
           <div class="pf-wk-top">
             <span class="pf-wk-ico">${svg(P.flame, 20, 2.2)}</span>
             <div><div class="pf-wk-num"><span data-count="${streak}">${streak}</span></div>
-            <div class="pf-wk-label">${soc ? `${plural(streak, ['день', 'дня', 'дней'])} подряд с отметками` : 'пар подряд'}</div></div>
+            <div class="pf-wk-label">${soc ? `${plural(streak, ['закрытый день', 'закрытых дня', 'закрытых дней'])} подряд` : 'пар подряд'}</div></div>
           </div>
           ${weekStrip ? `<div class="pf-wd-row">${weekStrip}</div>` : ''}
           ${streakHint ? `<div class="pf-wk-hint">${esc(streakHint)}</div>` : ''}
         </div>`;
 
-    // Лига недели: место, очки и сколько не хватает до следующего места
+    // Лига недели: место по проценту от возможного и сколько не хватает до следующего места
     let leagueCard = '';
     if (soc) {
       const L = Social.league ? Social.league() : null;
       const me = L && Array.isArray(L.members) ? L.members.find(m => m.id === database.userProfile.id) : null;
+      const pct = me ? me.score != null : false;                 // новый сервер присылает процент
+      const val = m => Math.max(0, (pct ? m.score : m.week_xp) || 0);
+      const unit = n => pct ? `${n}%` : `${n} ${plural(n, ['очко', 'очка', 'очков'])}`;
       const rank = me && me.rank != null ? me.rank : null;
-      let line = 'Место появится, когда загрузится лига', bar = '', rival = null;
+      let line = me ? (pct ? `Место появится, когда за неделю наберётся ${(L.rules || {}).min_pairs || 6} пар` : '') : 'Место появится, когда загрузится лига', bar = '', rival = null;
       if (rank === 1) {
         rival = L.members.find(m => m.rank === 2) || null;
-        const gap = rival ? Math.max(0, me.week_xp - rival.week_xp) : 0;
-        line = rival ? `Ты лидер недели, отрыв ${gap} ${plural(gap, ['очко', 'очка', 'очков'])}` : 'Ты лидер недели';
+        line = rival ? `Ты лидер недели, отрыв ${unit(Math.max(0, val(me) - val(rival)))}` : 'Ты лидер недели';
       } else if (rank) {
-        rival = L.members.find(m => m.rank === rank - 1) || null;
-        if (rival) {
-          const need = Math.max(1, rival.week_xp - me.week_xp + 1);
-          line = `ещё ${need} ${plural(need, ['очко', 'очка', 'очков'])} до ${rank - 1}-го места`;
-        }
+        rival = L.members.find(m => m.rank != null && m.rank < rank && !L.members.some(x => x.rank != null && x.rank < rank && x.rank > m.rank)) || null;
+        if (rival) line = `ещё ${unit(Math.max(1, val(rival) - val(me) + (pct ? 0 : 1)))} до ${rival.rank}-го места`;
       }
       // Полоска «я против соседа»: своя доля закрашена, доля соседа (второго у лидера, следующего места у остальных) — серая
       if (me && rank) {
-        const mine = Math.max(0, me.week_xp || 0), theirs = rival ? Math.max(0, rival.week_xp || 0) : 0;
+        const mine = val(me), theirs = rival ? val(rival) : 0;
         bar = rival ? (mine + theirs ? Math.round(mine / (mine + theirs) * 100) : 50) : 100;
       }
+      // Без зачёта: та же полоска показывает, сколько пар недели уже есть из нужных для зачёта
+      const minPairs = (L && L.rules || {}).min_pairs || 6;
+      const off = me && pct && !rank;
+      if (off) bar = Math.min(100, Math.round((me.pairs_total || 0) / minPairs * 100));
+      const label = pct ? `${me.score}% возможного · ${me.pairs_done} из ${me.pairs_total} ${plural(me.pairs_total, ['пары', 'пар', 'пар'])}`
+        : `<span data-count="${s.weekXp}">${s.weekXp}</span> ${plural(s.weekXp, ['очко', 'очка', 'очков'])} за неделю`;
       leagueCard = `
-        <button type="button" class="pf-box pf-wk pf-league ${rank && rank <= 3 ? 'top' : ''}" data-tab="league">
+        <button type="button" class="pf-box pf-wk pf-league ${rank && rank <= 3 ? 'top' : ''} ${off ? 'off' : ''}" data-tab="league">
           <div class="pf-wk-top">
             <span class="pf-wk-ico">${svg(P.trophy || P.star, 20, 2.2)}</span>
-            <div><div class="pf-wk-num">${rank ? `${rank}-е<small>место</small>` : '—'}</div>
-            <div class="pf-wk-label"><span data-count="${s.weekXp}">${s.weekXp}</span> ${plural(s.weekXp, ['очко', 'очка', 'очков'])} за неделю</div></div>
+            <div><div class="pf-wk-num ${off ? 'off' : ''}">${rank ? `${rank}-е<small>место</small>` : off ? 'Без зачёта' : '—'}</div>
+            <div class="pf-wk-label">${label}</div></div>
             <span class="pf-wk-chev">${svg(P.chev, 16, 2.4)}</span>
           </div>
           ${bar !== '' ? `<div class="pf-lg-mid">
             <div class="prog-track pf-wk-bar"><div class="prog-fill" data-w="${bar}" style="width:0%"></div></div>
-            <div class="pf-lg-vs"><span class="me">Ты · ${me.week_xp || 0}</span>${rival ? `<span>${rival.rank}-е · ${rival.week_xp || 0}</span>` : ''}</div>
+            <div class="pf-lg-vs">${off ? `<span class="me">${me.pairs_total || 0} ${plural(me.pairs_total || 0, ['пара', 'пары', 'пар'])}</span><span>нужно ${minPairs}</span>`
+              : `<span class="me">Ты · ${unit(val(me))}</span>${rival ? `<span>${rival.rank}-е · ${unit(val(rival))}</span>` : ''}`}</div>
           </div>` : ''}
           <div class="pf-wk-hint">${esc(line)}</div>
         </button>`;

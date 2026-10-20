@@ -102,6 +102,37 @@
     else if (!queue[k]) queueEvent(k, { type: 'task_add', key: taskId });
   }
 
+  // Расписание дней недели для сервера: сколько пар в дне и сколько уже закончилось. Из этого сервер знает
+  // «возможное» для лиги (процент) и какие прошедшие дни не закрыты (они рвут серию). Окончательные дни
+  // (не позже позавчера) отправляются один раз, вчера и сегодня — при каждом обновлении.
+  const daysSentKey = () => 'tracker_days_sent2_' + ((database.userProfile || {}).id || '');
+  function reportStudyDays() {
+    if (!hasUser() || typeof getDateForDay !== 'function' || typeof calculateCurrentSemesterWeek !== 'function') return;
+    let sent = {};
+    try { sent = JSON.parse(localStorage.getItem(daysSentKey()) || '{}') || {}; } catch (e) { sent = {}; }
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const final = new Date(today); final.setDate(final.getDate() - 2);
+    const active = database.activeDays || ALL_DAYS;
+    const cw = Math.max(1, calculateCurrentSemesterWeek());
+    let added = 0;
+    for (let w = 1; w <= cw; w++) {
+      const wk = (database.weeks || {})[String(w)] || (typeof getWeekType === 'function' ? (database.templates || {})[getWeekType(w)] : null) || {};
+      ALL_DAYS.forEach(day => {
+        if (!active.includes(day)) return;
+        const d = getDateForDay(w, day); d.setHours(0, 0, 0, 0);
+        if (d > today) return;
+        const date = dayKey(d), isFinal = d <= final;
+        if (isFinal && sent[date]) return;
+        const pairs = (wk[day] || []).filter(p => !p.cancelled);
+        if (!pairs.length) return;
+        const ended = typeof pairHasEnded === 'function' ? pairs.filter(p => pairHasEnded(w, day, p.time)).length : pairs.length;
+        if (isFinal) { sent[date] = 1; added++; }
+        queueEvent('d:' + date, { type: 'day', date, total: Math.min(pairs.length, 8), ended: Math.min(ended, 8) });
+      });
+    }
+    if (added) try { localStorage.setItem(daysSentKey(), JSON.stringify(sent)); } catch (e) { /* не страшно */ }
+  }
+
   async function flush() {
     clearTimeout(flushTimer); flushTimer = null;
     const keys = Object.keys(queue);
@@ -116,7 +147,7 @@
       setState(st);
       if (st.gained > 0) { flashGain(st.gained); setTimeout(refreshRank, 2000); }
     } catch (e) {
-      if (e.status === 401) { queue = {}; saveQueue(); }      // сессия кончилась — копить бессмысленно
+      if (e.status === 401) { queue = {}; saveQueue(); try { localStorage.removeItem(daysSentKey()); } catch (e2) { /* не страшно */ } }      // сессия кончилась — копить бессмысленно; дни отправим заново после входа
       else flushTimer = setTimeout(flush, 15000);            // нет сети — повторим
     } finally {
       flushing = false;
@@ -206,8 +237,8 @@
     if (!hasUser()) { box.innerHTML = ''; return; }
     const s = stats();
     const streakTip = s.streak
-      ? `Серия: ${s.streak} ${plural(s.streak, ['учебный день', 'учебных дня', 'учебных дней'])} подряд с отметками`
-      : 'Отметь сегодняшние пары, чтобы начать серию';
+      ? `Серия: ${s.streak} ${plural(s.streak, ['закрытый учебный день', 'закрытых учебных дня', 'закрытых учебных дней'])} подряд`
+      : 'Отметь все сегодняшние пары, чтобы начать серию';
     box.innerHTML = `
       <span class="sc-chip sc-streak ${s.streak ? 'on' : ''}" role="button" tabindex="0" data-open="overview" title="${streakTip}">${s.streak ? `<b>${s.streak}</b>` : ''}${svg(I.flame, 15, 2.2)}</span>
       ${myRank != null ? `<span class="sc-chip sc-place ${myRank <= 3 ? 'top' : ''}" role="button" tabindex="0" data-open="league" title="Место в лиге недели: ${myRank}-е"><b>${myRank}</b>${svg(I.trophy, 15, 2.2)}</span>` : ''}`;
@@ -261,16 +292,20 @@
     return d > 0 ? `ещё ${d} ${plural(d, ['день', 'дня', 'дней'])} ${h} ч` : `ещё ${h} ${plural(h, ['час', 'часа', 'часов'])}`;
   }
 
+  // Результат недели: процент от возможного и «23 из 25 пар» (старый сервер присылал только очки)
+  const weekScore = m => m.score != null
+    ? `<span class="sc-xp"><b>${m.score}%</b><small>${m.pairs_done || 0} из ${m.pairs_total || 0} ${plural(m.pairs_total || 0, ['пары', 'пар', 'пар'])}</small></span>`
+    : `<span class="sc-xp"><b>${m.week_xp}</b><small>очков</small></span>`;
   function personRow(m, extra = '') {
     const me = m.id === database.userProfile.id;
-    return `<div class="pf-row sc-person ${me ? 'me' : 'pickable'}" ${me ? '' : `role="button" tabindex="0" data-sc="open" data-name="${esc(m.name)}"`}>
-      ${m.rank != null ? `<span class="sc-rank" data-place="${m.rank <= 3 ? m.rank : ''}">${m.rank}</span>` : ''}
+    return `<div class="pf-row sc-person ${me ? 'me' : 'pickable'} ${m.score != null && !m.ranked ? 'unranked' : ''}" ${me ? '' : `role="button" tabindex="0" data-sc="open" data-name="${esc(m.name)}"`}>
+      ${m.rank != null ? `<span class="sc-rank" data-place="${m.rank <= 3 ? m.rank : ''}">${m.rank}</span>` : m.score != null && 'ranked' in m && extra === '' ? '<span class="sc-rank">—</span>' : ''}
       <span class="sc-av">${avatarHtml(m.avatar, m.name)}${statusDot(m.status)}</span>
       <span class="pf-row-body">
         <span class="sc-name">${esc(m.name)}${me ? '<span class="sc-you">это ты</span>' : ''}</span>
         <span class="sc-sub">${tagChip(m.tag)}${m.streak ? `<span class="sc-mini-streak">${m.streak}${svg(I.flame, 12, 2.4)}</span>` : ''}${extra}</span>
       </span>
-      <span class="sc-xp"><b>${m.week_xp}</b><small>очков</small></span>
+      ${weekScore(m)}
     </div>`;
   }
 
@@ -284,7 +319,13 @@
   }
   function renderLeague(el, L) {
     setRank(L);
-    const rows = L.members.map((m, i) => personRow(m) + (i === 2 && L.members.length > 3 ? '<div class="sc-zone"><span>Выше — призёры недели</span></div>' : '')).join('');
+    const R = L.rules || {}, minPairs = R.min_pairs || 6, maxPairs = R.week_pairs || 30;
+    const newRules = L.members.some(m => m.score != null);
+    const ranked = newRules ? L.members.filter(m => m.rank != null) : L.members;
+    const rest = newRules ? L.members.filter(m => m.rank == null) : [];
+    const me = L.members.find(m => m.id === database.userProfile.id);
+    const rows = ranked.map((m, i) => personRow(m) + (i === 2 && ranked.length > 3 ? '<div class="sc-zone"><span>Выше — призёры недели</span></div>' : '')).join('')
+      + (rest.length ? `<div class="sc-zone"><span>Без зачёта — меньше ${minPairs} пар за неделю</span></div>` + rest.map(m => personRow(m)).join('') : '');
     const others = L.members.filter(m => m.id !== database.userProfile.id).length;
     el.innerHTML = `
       <section>
@@ -294,12 +335,14 @@
         ${others ? '' : '<button type="button" class="sc-invite" data-tab="friends">Позови друзей — соревноваться веселее ›</button>'}
       </section>
       <details class="pf-list sc-rules">
-        <summary>Как начисляются очки<span class="sc-rules-chev">${svg(I.back, 14, 2.6)}</span></summary>
+        <summary>Как считается место<span class="sc-rules-chev">${svg(I.back, 14, 2.6)}</span></summary>
         <div class="sc-rules-body">
+          <p class="sc-rules-lead">Место — по проценту от возможного за неделю. У кого пар меньше, у того и максимум меньше, поэтому шансы у всех равные.</p>
           <div class="sc-rule"><b>+${XP_PAIR}</b><span>отмеченная пара — посещение или честный пропуск</span></div>
-          <div class="sc-rule"><b>+${XP_TASK}</b><span>пункт ДЗ</span></div>
           <div class="sc-rule"><b>+${XP_FULL_DAY}</b><span>полностью отмеченный день</span></div>
-          <p class="sc-rules-note">Засчитываются отметки в течение суток после пары, до 8 пар и 8 пунктов ДЗ в день. Пункт ДЗ приносит очки, если с его добавления прошло 30 минут. Итоги — в понедельник в 00:00 по Москве, тройка недели получает достижение «Призёр лиги».</p>
+          <p class="sc-rules-note">Возможное — те же очки за все уже закончившиеся пары и дни недели. В зачёт идут недели от ${minPairs} пар, больше ${maxPairs} пар в неделю не засчитывается. При равном проценте выше тот, кто набрал его раньше.</p>
+          <p class="sc-rules-note">Отметки засчитываются в течение суток после пары. ДЗ даёт +${XP_TASK} очков опыта для достижений, но в лигу не входит: за неделю засчитывается не больше 2 пунктов на пару, через 30 минут после добавления.</p>
+          <p class="sc-rules-note">Итоги — в понедельник в 00:00 по Москве, тройка недели получает достижение «Призёр лиги».</p>
         </div>
       </details>`;
   }
@@ -377,7 +420,8 @@
       </div>
       <div class="pf-box"><div class="pf-mini-grid sc-pub-stats">
         <div><div class="pf-mini-num">${p.streak}</div><div class="pf-mini-label">дней в серии</div></div>
-        <div><div class="pf-mini-num">${p.week_xp}</div><div class="pf-mini-label">очков за неделю</div></div>
+        ${p.score != null ? `<div><div class="pf-mini-num">${p.score}%</div><div class="pf-mini-label">недели в лиге</div></div>`
+          : `<div><div class="pf-mini-num">${p.week_xp}</div><div class="pf-mini-label">очков за неделю</div></div>`}
         <div><div class="pf-mini-num">${p.xp_total}</div><div class="pf-mini-label">очков всего</div></div>
         ${p.attendance_pct != null ? `<div><div class="pf-mini-num">${p.attendance_pct}%</div><div class="pf-mini-label">посещаемость</div></div>` : ''}
       </div></div>
@@ -448,7 +492,7 @@
     modal.addEventListener('change', e => {
       if (e.target.id === 'scShareToggle') { Profile.ext().shareAttendance = e.target.checked; saveData(); }
     });
-    document.addEventListener('visibilitychange', () => { if (!document.hidden) ping(); });
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) { ping(); reportStudyDays(); } });   // окно могло простоять открытым несколько дней
   }
 
   /* ---------- Публичный интерфейс ---------- */
@@ -460,13 +504,14 @@
     if (!started) {
       started = true;
       pingTimer = setInterval(ping, PING_EVERY);
-      rankTimer = setInterval(refreshRank, 5 * 60000);
+      rankTimer = setInterval(() => { reportStudyDays(); refreshRank(); }, 5 * 60000);   // пары заканчиваются — растёт «возможное»
       resyncTimer = setInterval(() => sync(true), RESYNC_EVERY);
     }
-    setTimeout(async () => { await flush(); await sync(true); ping(); refreshState(); refreshRank(); }, 1500);
+    setTimeout(async () => { reportStudyDays(); await flush(); await sync(true); ping(); refreshState(); refreshRank(); }, 1500);
   }
   function onDataSaved() {
     renderHead();
+    reportStudyDays();
     clearTimeout(syncTimer);
     syncTimer = setTimeout(sync, SYNC_DELAY);
   }

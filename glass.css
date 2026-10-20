@@ -248,6 +248,10 @@ body.dark-theme .lg-wallpaper i { opacity: 0.85; }
   opacity: 0; transition: opacity 0.45s ease;
 }
 .lg-glass.is-lit::before { opacity: 1; }
+/* Тёмная тема: без светящейся кромки — вместо яркого блика по краю ровная едва заметная линия */
+body.dark-theme .lg-glass::after, body.dark-theme .lg-circle::after { background: rgba(255, 255, 255, 0.07); }
+body.dark-theme .lg-glass { box-shadow: var(--glass-shadow), inset 0 0 0 0.5px rgba(255, 255, 255, 0.03); }
+body.dark-theme .lg-glass::before { display: none; }   /* и без блика под курсором */
 /* Нажатие: капля стекла чуть «набухает» */
 .lg-glass.is-press { transform: scale(1.035); }
 /* Преломление у края (glass.js строит карту для каждого элемента; только Chromium) */
@@ -261,8 +265,8 @@ body.dark-theme .lg-wallpaper i { opacity: 0.85; }
    Под пальцем или курсором капля становится прозрачной линзой с бликом. */
 .lg-thumb { position: relative; isolation: isolate; }
 .lg-thumb > :not(.lg-knob) { position: relative; z-index: 1; }
-.lg-thumb > .selected { touch-action: none; cursor: grab; }
-.lg-thumb.is-drag, .lg-thumb.is-drag * { cursor: grabbing !important; }
+.lg-thumb > .selected { touch-action: none; }
+.lg-thumb.is-drag, .lg-thumb.is-drag * { cursor: default !important; }   /* тянут каплю — обычная стрелка, без руки */
 .lg-knob {
   position: absolute; left: 0; top: 0; z-index: 0; pointer-events: none;
   border-radius: 999px; background: var(--thumb); box-shadow: var(--thumb-shadow);
@@ -499,6 +503,7 @@ body.dark-theme .lg-appicon { background: linear-gradient(180deg, #48484c 0%, #2
 body.dark-theme .pf-avatar, body.dark-theme .sc-av, body.dark-theme .pf-av-img { background: linear-gradient(180deg, #636366, #48484a); }
 .pf-name { font-size: calc(14px * var(--ts)); font-weight: 600; letter-spacing: -0.01em; max-width: 130px; }
 .pf-tag { font-size: calc(12px * var(--ts)); font-weight: 600; max-width: 130px; }
+.pf-tag[data-tone], .pf-chip[data-tone] { color: var(--tone-fg); }   /* тег везде одного цвета: в шапке, в профиле, в лиге и у друзей */
 .pf-dot { border-color: var(--dot-ring, var(--card-solid)); }
 .pf-avatar[data-status="online"] .pf-dot { background: var(--green); }
 .profile-pill:hover { --dot-ring: var(--card-solid); }
@@ -718,7 +723,7 @@ body.type-dot .pair-meta:not(:has(.pair-flag, .live-indicator, .cancelled-note))
 
 /* Отметка посещения: кружок как в «Напоминаниях» */
 .lg-status {
-  position: relative; justify-self: end; width: 30px; height: 30px; padding: 0;
+  position: relative; justify-self: end; width: 31px; height: 31px; padding: 0;   /* нечётный размер: значки встают ровно в центральный пиксель */
   display: grid; place-items: center; border-radius: 50%;
   border: 1.5px solid var(--label-3); background: transparent; color: #fff; cursor: pointer;
   transition: border-color 0.2s, background 0.25s, box-shadow 0.25s, transform 0.4s var(--spring);
@@ -732,10 +737,10 @@ body.type-dot .pair-meta:not(:has(.pair-flag, .live-indicator, .cancelled-note))
 .lg-status.not-yet { border-style: dashed; opacity: 0.45; cursor: default; }
 .lg-status.not-yet:hover { border-color: var(--label-3); background: transparent; }
 .lg-status.pop { animation: lgPop 0.55s var(--spring); }
-.lg-status.pop .lg-draw { stroke-dasharray: 30; stroke-dashoffset: 30; animation: lgDraw 0.32s 0.1s ease-out forwards; }
+.lg-status.pop .lg-draw { stroke-dasharray: 1; stroke-dashoffset: 1; animation: lgDraw 0.32s 0.1s ease-out forwards; }   /* длина значков приведена к 1 (pathLength) */
 @keyframes lgPop { 0% { transform: scale(0.7); } 100% { transform: scale(1); } }
 @keyframes lgDraw { to { stroke-dashoffset: 0; } }
-.lg-status-gap { width: 30px; }
+.lg-status-gap { width: 31px; }
 .pair-card.is-cancelled { opacity: 0.55; }
 
 /* Пустой день */
@@ -950,6 +955,15 @@ body.dark-theme .lg-menu { background: var(--glass-pop); box-shadow: var(--glass
 /* Затемнение проявляется через цвет фона, а не прозрачность: так лист над ним по-настоящему размывает страницу */
 .modal-overlay.open { animation: lgDim 0.3s ease; }
 @keyframes lgDim { from { background-color: transparent; } }
+/* Фон под открытым окном плавно замыливается. Размытие — на отдельном слое под листом (::before), а не на самом
+   затемнении: иначе стекло листа перестало бы видеть страницу и стало бы плоским */
+.modal-overlay::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none; border-radius: inherit;
+  -webkit-backdrop-filter: blur(8px) saturate(1.1); backdrop-filter: blur(8px) saturate(1.1);
+}
+.modal-overlay.open::before { animation: lgBackBlur 0.45s var(--ease) both; }
+@keyframes lgBackBlur { from { -webkit-backdrop-filter: blur(0px) saturate(1); backdrop-filter: blur(0px) saturate(1); } }
+body.glass-lite .modal-overlay::before { -webkit-backdrop-filter: none; backdrop-filter: none; animation: none; }
 .modal-content {
   position: relative; display: flex; flex-direction: column; width: 100%; max-width: 560px;
   max-height: min(86vh, 860px); margin: auto; padding: 0; overflow: hidden; clip-path: none;
@@ -1465,7 +1479,7 @@ button.pf-row.pickable:hover { background: var(--fill-2); }
 /* ---------- 16. Доступность ---------- */
 @media (prefers-reduced-motion: reduce) {
   .lg-wallpaper i, .lg-enter > .day-group, .lg-status.pop, .lg-status.pop .lg-draw, .live-indicator::before,
-  .modal-overlay.open .modal-content, .modal-overlay.open, .screen,
+  .modal-overlay.open .modal-content, .modal-overlay.open, .modal-overlay.open::before, .screen,
   #scheduleAnimationWrapper.slide-in-right, #scheduleAnimationWrapper.slide-in-left { animation: none !important; }
   .lg-status.pop .lg-draw { stroke-dashoffset: 0; }
   .lg-ring-fill, .elegant-toast, .lg-menu, .pf-popover, .lg-glass { transition: none !important; }
@@ -2376,6 +2390,12 @@ body.onb-preview:has(#landingScreen.active, #authScreen.active) .lg-onb-exit { d
 #profileBackdrop .pf-modal.pf-v2 { max-width: 860px !important; height: min(90vh, 980px); }
 #profileBackdrop .pf-v2 .pf-scroll { position: relative; padding: 0 56px 44px !important; }
 .pf-v2 .rp-glow { inset: 0 -56px 0; }
+/* Слой пятен высотой в одно окно: к низу пятна растворяются, а не обрываются жёсткой границей при прокрутке */
+.pf-v2 .rp-glow { -webkit-mask-image: linear-gradient(#000 45%, transparent 100%); mask-image: linear-gradient(#000 45%, transparent 100%); }
+/* «Динамика за семестр»: те же таблетки «Лекции / Практики / Лабы», что в «Предметах», — в стеклянной шапке
+   под заголовком, по левому краю (на одной линии с заголовком и карточками); всегда видны при прокрутке */
+.rp-kinds-wrap { display: flex; margin-top: 14px; }
+.lg-kind-seg.rp-kinds { position: relative; top: auto; left: auto; right: auto; width: 330px; max-width: 100%; }
 
 /* Шапка: аватар слева, справа имя, тег, статус, группа и «о себе» */
 .pf-hero2 { display: flex; align-items: center; gap: 28px; padding: 44px 0 6px; }
@@ -2582,6 +2602,7 @@ body.dark-theme .pair-type::before { --kc: color-mix(in srgb, var(--k) 80%, #6e6
 .lg-kind-seg button { flex: 0 0 auto; padding: 6px 11px; background: var(--fill-2); transition: color 0.2s, background 0.25s; }
 .lg-kind-seg button:hover { background: var(--fill); }
 .lg-kind-seg.lg-thumb button.selected { background: transparent; }
+.lg-kind-seg.lg-thumb.knob-up button.selected { background: var(--fill-2); }   /* капля уехала или поднята линзой — у выбранной таблетки остаётся серая подложка */
 .lg-kind-seg .lg-knob { transition: opacity 0.3s ease; }
 .lg-kind-x { display: inline-grid; place-items: center; width: 0; margin-left: -4px; opacity: 0; overflow: hidden; color: var(--label-2); transition: width 0.3s var(--ease), margin 0.3s var(--ease), opacity 0.2s; }
 .lg-kind-seg button.selected .lg-kind-x { width: 12px; margin-left: 0; opacity: 1; }
@@ -2600,6 +2621,9 @@ body.dark-theme .pair-type::before { --kc: color-mix(in srgb, var(--k) 80%, #6e6
 .subject-item .prog-track { height: 3px !important; }
 /* Фильтры — по центру, с воздухом, без крестика */
 .lg-kind-seg { justify-content: center; gap: 8px; left: 14px; right: 14px; }
+/* Таблетки одной ширины и ровно по краям полосок под ними — симметрично */
+.lg-kind-seg { left: 22px; right: 20px; }
+.lg-kind-seg button { flex: 1 1 0; min-width: 0; justify-content: center; padding-left: 4px; padding-right: 4px; }
 .lg-kind-x { display: none !important; }
 
 /* Таблетки фильтра уходят при прокрутке вниз и возвращаются у верха */
@@ -2619,6 +2643,8 @@ body.dark-theme .pair-type::before { --kc: color-mix(in srgb, var(--k) 80%, #6e6
 .lg-legend i { width: 7px; height: 7px; margin-right: 0; }
 .lg-legend > span { gap: 6px; }
 body.dark-theme :is(.pair-dot, .lg-legend i) { box-shadow: none; }
+/* Точка в окне пары — такая же плоская, как в расписании и в переключателе типа под ней */
+.lg-subj-dot, body.dark-theme span.lg-subj-dot { width: 8px; height: 8px; background: var(--k); box-shadow: none; }
 
 /* ===== 50. Шапка: серия и место в лиге; число на колокольчике ===== */
 .lg-topbar .sc-head { cursor: pointer; transition: transform 0.35s var(--spring), filter 0.2s; }
@@ -2901,6 +2927,10 @@ button.pf-wk:active { transform: scale(0.985); }
 .sc-rule { display: flex; align-items: baseline; gap: 10px; font-size: calc(14px * var(--ts)); color: var(--label-2); }
 .sc-rule b { min-width: 30px; font-weight: 600; color: var(--label); font-variant-numeric: tabular-nums; }
 .sc-rules-note { margin: 6px 0 0; font-size: calc(12px * var(--ts)); line-height: 1.45; color: var(--label-3); }
+.sc-rules-lead { margin: 0 0 4px; font-size: calc(14px * var(--ts)); line-height: 1.45; color: var(--label); }
+.sc-person.unranked :is(.sc-name, .sc-xp b) { color: var(--label-2); }   /* без зачёта — тише */
+.pf-league .pf-wk-num.off { font-size: calc(20px * var(--ts)); line-height: 1.3; color: var(--label-2); }
+.pf-league.off { --wc: var(--label-3); }   /* без зачёта — без акцентного цвета */
 /* Вкладка «Друзья»: сначала список, ниже добавление и приватность; без ярких кнопок */
 #pfPaneFriends > section { margin: 0; }
 .sc-add { position: relative; display: block; }

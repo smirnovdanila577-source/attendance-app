@@ -245,6 +245,7 @@ window.LGLens = (function () {
   }
   function lens(st, on) {
     st.knob.classList.toggle('is-press', on);
+    if (st.knob.parentNode) st.knob.parentNode.classList.toggle('knob-up', on);   // капля поднята — пункты видны под ней
     if (on && window.LGLens && LGLens.filter && !document.body.classList.contains('glass-lite')) st.knob.style.setProperty('--knob-lens', LGLens.filter(Math.round(st.tw || st.w), Math.round(st.th || st.h), Math.round((st.th || st.h) / 2), 0.9));
   }
 
@@ -288,7 +289,7 @@ window.LGLens = (function () {
       if (!st || !it || !it.classList.contains('selected')) return;   // тянуть можно выбранный пункт
       const cr = c.getBoundingClientRect();
       st.down = { id: e.pointerId, x0: e.clientX, y0: e.clientY, ox: e.clientX - cr.left - st.x, oy: e.clientY - cr.top - st.y, moved: false,
-        rows: new Set(items(c).map(x => x.offsetTop)).size > 1 };
+        rows: new Set(items(c).map(x => x.offsetTop)).size > 1, t0: performance.now(), cx0: st.x + st.w / 2, far: 0 };
       try { c.setPointerCapture(e.pointerId); } catch (err) { /* не страшно */ }
       lens(st, true);
       st.tp = 1.14; run(c);
@@ -296,7 +297,8 @@ window.LGLens = (function () {
     c.addEventListener('pointermove', e => {
       const st = c.__k, d = st && st.down;
       if (!d || d.id !== e.pointerId) return;
-      if (!d.moved && Math.hypot(e.clientX - d.x0, e.clientY - d.y0) < 5) return;
+      d.far = Math.max(d.far, Math.hypot(e.clientX - d.x0, e.clientY - d.y0));
+      if (!d.moved && d.far < 5) return;
       d.moved = true; c.classList.add('is-drag');
       const cr = c.getBoundingClientRect();
       const maxX = c.clientWidth - st.w, maxY = c.clientHeight - st.h;
@@ -312,7 +314,7 @@ window.LGLens = (function () {
       st.tp = 1;
       if (d.moved) {
         window.LGEatClick();
-        // Ближайший к капле пункт становится выбранным
+        // Ближайший к капле пункт становится выбранным (капля встаёт туда, где её отпустили, без рывка вперёд)
         const cx = st.tx + st.w / 2, cy = st.ty + st.h / 2;
         let best = null, bd = Infinity;
         items(c).forEach(x => { const g = geo(x), dd = Math.hypot(g.x + g.w / 2 - cx, (g.y + g.h / 2 - cy) * 1.6); if (dd < bd) { bd = dd; best = x; } });
@@ -322,6 +324,8 @@ window.LGLens = (function () {
           if (!best.classList.contains('selected')) setTimeout(() => best.click(), 0);
         }
       } else {
+        // Каплю взяли (подержали или чуть сдвинули), но не повели: это не нажатие — выбор не снимаем
+        if (d.far >= 2 || performance.now() - d.t0 > 300) window.LGEatClick();
         sync(c);
       }
       run(c);
