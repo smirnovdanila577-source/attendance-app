@@ -49,12 +49,10 @@ window.LGLens = (function () {
   }
 
   // Карта смещения: R — сдвиг по X, G — по Y (128 = без сдвига). Сдвиг растёт к краю плавно (t²)
-  function mapFor(w, h, r, bez) {
-    const key = w + 'x' + h + 'r' + r + 'b' + bez;
-    if (maps.has(key)) return maps.get(key);
+  function mapCanvas(w, h, r, bez) {
     const c = document.createElement('canvas');
     c.width = w; c.height = h;
-    const ctx = c.getContext('2d');
+    const ctx = c.getContext('2d', { willReadFrequently: true });   // холст в памяти, без обмена с видеокартой — кодируется быстро
     const img = ctx.createImageData(w, h), d = img.data;
     const hw = w / 2, hh = h / 2;
     for (let j = 0; j < h; j++) {
@@ -72,22 +70,48 @@ window.LGLens = (function () {
       }
     }
     ctx.putImageData(img, 0, 0);
-    const url = c.toDataURL();
-    if (maps.size > 40) maps.delete(maps.keys().next().value);
-    maps.set(key, url);
+    return c;
+  }
+  const remember = (key, url) => { if (maps.size > 40) maps.delete(maps.keys().next().value); maps.set(key, url); };
+  // Сразу (нужно для капли переключателей, которая появляется под пальцем)
+  function mapFor(w, h, r, bez) {
+    const key = w + 'x' + h + 'r' + r + 'b' + bez;
+    if (maps.has(key)) return maps.get(key);
+    const url = mapCanvas(w, h, r, bez).toDataURL();
+    remember(key, url);
     return url;
   }
+  // Для окон и меню — уменьшенная карта (до 160 точек по длинной стороне): она плавная, браузер сам растягивает её
+  // до размера элемента, а кодируется за доли миллисекунды. Именно картинка-строка (data:), а не blob: —
+  // ссылку blob: размытие фона не подхватывает, и преломление молча пропадало
+  function mapLater(w, h, r, bez) {
+    const key = 's' + w + 'x' + h + 'r' + r + 'b' + bez;
+    if (maps.has(key)) return maps.get(key);
+    const k = Math.max(1, Math.max(w, h) / 160);
+    const url = mapCanvas(Math.max(2, Math.round(w / k)), Math.max(2, Math.round(h / k)), r / k, Math.max(2, bez / k)).toDataURL();
+    remember(key, url);
+    return url;
+  }
+  window.LGLensMap = mapLater;
 
   function apply(el) {
     if (!el.isConnected) return;
+    // окно или меню сейчас вытекает из кнопки — преломление не видно, строим его, когда капля встала
+    const host = el.closest('.lg-morph');
+    if (host) {
+      // как только встала — сразу, в тот же кадр (жидкая капля к этому моменту уже несёт то же преломление)
+      if (!el.__lgLensWait) { el.__lgLensWait = true; host.addEventListener('lg-morph-end', () => { el.__lgLensWait = false; const s0 = state.get(el); if (s0) s0.key = ''; apply(el); }, { once: true }); }
+      return;
+    }
     const w = Math.round(el.offsetWidth), h = Math.round(el.offsetHeight);
     if (w < 8 || h < 8) return;
     const r = Math.min(parseFloat(getComputedStyle(el).borderTopLeftRadius) || 0, w / 2, h / 2);
-    const bez = Math.max(6, Math.min(18, Math.round(Math.min(w, h) * 0.34)));
+    const bez = Number(el.dataset.lensBez) || Math.max(6, Math.min(18, Math.round(Math.min(w, h) * 0.34)));
     const scale = Math.round(bez * (Number(el.dataset.lens) || 1.5));
     const key = [w, h, r, bez, scale].join('|');
     let st = state.get(el);
     if (st && st.key === key) return;
+    const map = mapLater(w, h, Math.round(r), bez);
     if (!st) { st = { id: 'lgf' + (++seq) }; state.set(el, st); }
     st.key = key;
     let f = document.getElementById(st.id);
@@ -100,7 +124,7 @@ window.LGLens = (function () {
     }
     f.setAttribute('x', '0'); f.setAttribute('y', '0');
     f.setAttribute('width', w); f.setAttribute('height', h);
-    f.innerHTML = `<feImage href="${mapFor(w, h, Math.round(r), bez)}" x="0" y="0" width="${w}" height="${h}" preserveAspectRatio="none" result="map"/>` +
+    f.innerHTML = `<feImage href="${map}" x="0" y="0" width="${w}" height="${h}" preserveAspectRatio="none" result="map"/>` +
       `<feDisplacementMap in="SourceGraphic" in2="map" scale="${scale}" xChannelSelector="R" yChannelSelector="G"/>`;
     el.style.setProperty('--lg-lens', `url(#${st.id})`);
     el.classList.add('lg-refract');
@@ -433,7 +457,7 @@ window.LGLens = (function () {
     }
   }
   document.addEventListener('pointerleave', () => { if (lit) lit.classList.remove('is-lit'); lit = null; });
-  const PRESS = '.lg-topbar .lg-glass, .lg-tabbar-inner';
+  const PRESS = '.lg-topbar .lg-glass:not(.pf-popover), .lg-tabbar-inner';   // открытые из панели окна (уведомления) не «вдавливаются»
   let pressed = null;
   document.addEventListener('pointerdown', e => {
     const g = e.target.closest && e.target.closest(PRESS);
@@ -449,7 +473,7 @@ window.LGLens = (function () {
 (function () {
   'use strict';
   const $ = id => document.getElementById(id);
-  const PBLUR = '<i></i>';
+  const PBLUR = '<i></i><i></i><i></i><i></i>';   // мягкая шапка: 4 слоя размытия (glass.css, .lg-pblur)
   const addBlur = el => {
     if (!el || el.querySelector(':scope > .lg-pblur')) return;
     const b = document.createElement('div');
@@ -464,6 +488,7 @@ window.LGLens = (function () {
     const tb = sc.querySelector('.pf-tabbar');
     const on = () => {
       host.classList.toggle('is-scrolled', sc.scrollTop > 4);
+      host.style.setProperty('--pb-a', Math.min(1, Math.max(0, sc.scrollTop / 32)).toFixed(3));   // мягкая шапка набирает силу вместе с прокруткой
       if (tb) tb.classList.toggle('is-stuck', sc.scrollTop > 4 && tb.getBoundingClientRect().top - sc.getBoundingClientRect().top < 1.5);
     };
     sc.addEventListener('scroll', on, { passive: true });
@@ -558,6 +583,7 @@ window.LGBar = (function () {
     { sel: '#mainScroll', host: el => el.parentElement, inset: () => mobile() ? { top: 72, bottom: 112 } : { top: 76, bottom: 30 }, x: schedX },
     { sel: '.modal-scroll:not(#bellBackdrop .modal-scroll)', host: el => el.closest('.modal-content') || el.parentElement, inset: el => ({ top: el.closest('.lg-alert') ? 14 : 72, bottom: 16 }), x: edgeX },
     { sel: '.pf-notif-list', inset: el => ({ top: headH(el) + 6, bottom: 10 }), x: edgeX },
+    { sel: '.lg-wp-list', inset: () => ({ top: 36, bottom: 36 }), x: (el, hr) => hr.width - 16 },   // выбор недели: ползунок в зазоре у края колонки, не поверх строк
     { sel: '.subject-list', inset: el => ({ top: headH(el) + 6, bottom: 10 }), x: subjX, only: () => !mobile() },
     { sel: '#mainApp .sidebar-panel', host: el => el.parentElement, inset: () => ({ top: 6, bottom: 112 }), only: () => mobile() },
     { sel: '.lg-onb', inset: () => ({ top: 50, bottom: 16 }) }
@@ -684,6 +710,7 @@ window.LGScroll = (function () {
     { sel: '#mainScroll', tiles: '#scheduleAnimationWrapper > .day-group, #addDayBtnContainer, .lg-legend', host: el => el.parentElement, guard: true, lag: 1 },
     { sel: '.subject-list', tiles: ':scope > .subject-item', host: el => el.parentElement, fade: [0, 26], guard: true, lag: 0.5 },
     { sel: '.pf-notif-list', tiles: ':scope > .pf-notif-item', host: el => el.parentElement, fade: [0, 30], lag: 0.5 },
+    { sel: '.lg-wp-list', tiles: ':scope > .lg-wp-row', host: el => el.parentElement, lag: 0.5 },
     // «Динамика за семестр»: содержимое едет одним целым (отдельные блоки с отставанием дрожали),
     // инерция чуть длиннее, чтобы между щелчками колеса страница плыла, а не толкалась
     { sel: '#rpBody', tiles: ':scope > .rp-body', host: el => el.closest('.modal-content'), lag: 0, glide: 0.1 },
@@ -706,7 +733,10 @@ window.LGScroll = (function () {
         el.style.setProperty('--fb', Math.max(0, Math.min(rule.fade[1], max - top)) + 'px');
       }
       el.classList.toggle('lg-more-below', max - top > 2);
-      if (host) host.classList.toggle('is-scrolled', top > 2);
+      if (host) {
+        host.classList.toggle('is-scrolled', top > 2);
+        host.style.setProperty('--pb-a', Math.min(1, Math.max(0, top / 32)).toFixed(3));   // мягкая шапка (.lg-pblur) проявляется плавно, вместе с прокруткой
+      }
     };
     el.addEventListener('scroll', () => {
       edges();
@@ -770,7 +800,12 @@ window.LGScroll = (function () {
       }
       const shift = -rubber(st.over);
       // Шапка над списком (предметы, уведомления) становится стеклом и тогда, когда строки уезжают под неё растяжением
-      if (host) host.classList.toggle('is-scrolled', st.cur > 2 || shift < -2);
+      if (host) {
+        host.classList.toggle('is-scrolled', st.cur > 2 || shift < -2);
+        // и размытие под ней набирает силу так же: короткий список (например, с фильтром) не прокручивается,
+        // но строки всё равно заезжают под шапку растяжением — без этого они проходили под ней чёткими
+        host.style.setProperty('--pb-a', Math.min(1, Math.max(0, (st.cur + Math.max(0, -shift)) / 32)).toFixed(3));
+      }
       const top = el.getBoundingClientRect().top, H = el.clientHeight || 1;
       let prevO = null, busy = false;
       el.querySelectorAll(rule.tiles).forEach(t => {
@@ -857,7 +892,9 @@ window.LGScroll = (function () {
       hide();
       if (!el) return;
       cur = el;
-      showT = setTimeout(() => { if (cur === el && el.isConnected) show(el); }, performance.now() < warmUntil ? 60 : 550);
+      // кнопка, из которой открыто меню или окно (она «стала» им и прозрачна), подсказку не показывает
+      const busy = () => el.style.opacity === '0' || document.querySelector('.lg-menu.open, .pf-popover.open, .lg-weekpick.open, .lg-timepick.open');
+      showT = setTimeout(() => { if (cur === el && el.isConnected && !busy()) show(el); }, performance.now() < warmUntil ? 60 : 550);
     });
     ['pointerdown', 'wheel', 'keydown'].forEach(t => document.addEventListener(t, hide, { passive: true, capture: true }));
     window.addEventListener('blur', hide);
@@ -961,15 +998,22 @@ window.PairMenu = (function () {
     plus: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 12h14M12 5v14"/></svg>',
     hide: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><path d="m2 2 20 20"/></svg>'
   };
-  let menu = null, anchor = null, row = null;
+  let menu = null, anchor = null, row = null, byKey = false;
 
   function close(instant) {
     if (!menu) return;
     const m = menu; menu = null;
-    if (row) row.classList.remove('menu-open');
-    if (anchor) anchor.classList.remove('active');
+    // пара остаётся «открытой» (кнопка «⋯» видна), пока капля не вернулась в кнопку — иначе капля втекала бы
+    // в уже погасшую кнопку. Если за это время меню этой же пары открыли снова — ничего не трогаем
+    const r0 = row, a0 = anchor;
+    const tidy = () => {
+      if (r0 && !(menu && row === r0)) r0.classList.remove('menu-open');
+      if (a0 && !(menu && anchor === a0)) a0.classList.remove('active');
+    };
     m.classList.remove('open');
-    if (instant) m.remove(); else setTimeout(() => m.remove(), 180);
+    // убираем меню, только когда капля вернулась в кнопку (модуль 21)
+    if (instant) { m.remove(); tidy(); }
+    else { const rm = () => ((window.LGMorph && LGMorph.busy(m)) || (window.LGLiquid && LGLiquid.busy(m))) ? setTimeout(rm, 40) : (m.remove(), tidy()); setTimeout(rm, 180); }
     document.removeEventListener('pointerdown', outside, true);
     document.removeEventListener('keydown', keys, true);
     const col = document.getElementById('mainScroll');
@@ -983,7 +1027,8 @@ window.PairMenu = (function () {
     if (!menu) return;
     const items = [...menu.querySelectorAll('.lg-menu-item')];
     const i = items.indexOf(document.activeElement);
-    if (e.key === 'Escape') { e.preventDefault(); const a = anchor; close(); if (a) a.focus(); }
+    // фокус возвращаем на кнопку, только если меню открыли с клавиатуры: открыли мышью — «⋯» после закрытия гаснет
+    if (e.key === 'Escape') { e.preventDefault(); const a = anchor, k = byKey; close(); if (a && k) a.focus(); }
     else if (e.key === 'ArrowDown') { e.preventDefault(); items[(i + 1) % items.length].focus(); }
     else if (e.key === 'ArrowUp') { e.preventDefault(); items[(i - 1 + items.length) % items.length].focus(); }
     else if (e.key === 'Tab') close();
@@ -993,6 +1038,8 @@ window.PairMenu = (function () {
   function openMenu(btn, items, opts = {}) {
     if (menu && anchor === btn) { close(); return; }   // повторное нажатие закрывает
     close(true);
+    const ev = window.event;
+    byKey = !!ev && (ev.type === 'keydown' || (ev.type === 'click' && ev.detail === 0));   // щелчок с клавиатуры — detail 0
     menu = document.createElement('div');
     menu.className = 'lg-menu lg-glass' + (opts.cls ? ' ' + opts.cls : '');
     menu.setAttribute('data-lens', '');
@@ -1041,7 +1088,7 @@ window.PairMenu = (function () {
       { icon: I.edit, label: 'Изменить', run: () => openModal(day, { id: p.id, subject: p.subject, time: p.time, type: p.type }) },
       null,
       { icon: I.del, label: 'Удалить', cls: 'danger', run: () => triggerDeletePair(day, pairId) }
-    ], Object.assign({ row: btn.closest('.pair-card') }, extra || {}));
+    ], Object.assign({ row: btn.closest('.pair-card'), cls: 'lg-menu-pearl' }, extra || {}));
   }
 
   // На сенсорном экране нажатие на саму пару открывает то же меню (кнопки «⋯» там нет)
@@ -1055,11 +1102,12 @@ window.PairMenu = (function () {
     const pairs = ((getWeekData(currentWeek) || {})[day] || []).filter(p => !p.cancelled && pairHasEnded(currentWeek, day, p.time));
     const allOn = pairs.length > 0 && pairs.every(p => p.attended === true);
     openMenu(btn, [
-      { icon: I.checkAll, label: allOn ? 'Отметить все пропуском' : 'Отметить все пары', run: () => markEntireDay(day) },
-      { icon: I.plus, label: 'Добавить пару', run: () => openModal(day) },
+      // значок «Отметить все» — цветом того, что сделает: зелёный — посетил, красный — пропуск; плюс «Добавить пару» — синий
+      { icon: I.checkAll, label: allOn ? 'Отметить все пропуском' : 'Отметить все пары', cls: allOn ? 'is-red' : 'is-green', run: () => markEntireDay(day) },
+      { icon: I.plus, label: 'Добавить пару', cls: 'is-blue', run: () => openModal(day) },
       null,
       { icon: I.hide, label: 'Скрыть день', run: () => hideDay(day) }
-    ], { title: day });
+    ], { title: day, cls: 'lg-menu-pearl' });
   }
 
   // Сортировка списка «Предметы»
@@ -1069,7 +1117,7 @@ window.PairMenu = (function () {
     openMenu(btn, [
       { icon: I.flag(true), label: 'По важности', cls: 'sort-imp', checked: cur === 'importance', run: () => set('importance') },
       { icon: I.chart, label: 'По посещаемости', cls: 'sort-att', checked: cur === 'attendance', run: () => set('attendance') }
-    ], { title: 'Сортировка', cls: 'lg-menu-compact' });
+    ], { title: 'Сортировка', cls: 'lg-menu-compact lg-menu-pearl' });
   }
 
   // «Добавить учебный день»: список свободных дней недели
@@ -1083,7 +1131,7 @@ window.PairMenu = (function () {
         database.activeDays.sort((a, b) => ALL_DAYS.indexOf(a) - ALL_DAYS.indexOf(b));
         saveData(); render();
       }
-    })), { title: 'Добавить день', align: 'center' });
+    })), { title: 'Добавить день', align: 'center', cls: 'lg-menu-pearl' });
   }
 
   window.GlassMenu = { open: openMenu, close };
@@ -1327,7 +1375,7 @@ window.LGWheel = (function () {
     if (field) field.classList.remove('is-editing');
     field = null;
     p.classList.remove('open');
-    setTimeout(() => p.remove(), 200);
+    { const rm = () => (window.LGMorph && LGMorph.busy(p)) ? setTimeout(rm, 40) : p.remove(); setTimeout(rm, 200); }
     document.removeEventListener('pointerdown', outside, true);
     document.removeEventListener('keydown', keys, true);
   }
@@ -1791,4 +1839,1344 @@ window.Onboarding = (function () {
     upd();
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
+})();
+
+/* 18. Выбор недели: нажатие на середину капсулы недель выдвигает из-под неё стеклянную колонку
+   со всеми неделями семестра. Текущая неделя — мягкий серый фон, открытая сейчас — галочка.
+   Колонка «вытекает» из капсулы на пружине, список прокручивается с инерцией и сам встаёт на открытую неделю.
+   У верхнего и нижнего края — преломление: список заходит за видимый край, и стекло у края
+   подтягивает строки оттуда, сжимая их, как толстая линза. Строки уходят под край, а не гаснут раньше.
+   В облегчённом режиме стекла — без эффекта. */
+(function () {
+  'use strict';
+  const CHECK = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+  const OVER = 26;    // на столько список заходит за видимый край сверху и снизу (как margin/padding в glass.css)
+  const BAND = 44;    // полоса у края, где идёт преломление
+  let bar = null, center = null, pop = null, list = null, mode = '', kTop = 0, kBot = 0, lastY = null;
+  const isOpen = () => !!pop && pop.classList.contains('open');
+  const range = w => {
+    const a = getDateForDay(w, 'Понедельник'), b = getDateForDay(w, 'Воскресенье');
+    return a.getMonth() === b.getMonth() ? `${a.getDate()} – ${formatDate(b)}` : `${formatDate(a)} – ${formatDate(b)}`;
+  };
+  // Сколько недель показать: обычный семестр (18), неделя с последними отметками или ДЗ, открытая неделя
+  // и ещё две после текущей. Просто просмотренные стрелками пустые недели список не удлиняют
+  // (приложение заводит запись для каждой открытой недели), и сверху не больше 60 строк.
+  function weeksCount(real) {
+    const weeks = (typeof database !== 'undefined' && database && database.weeks) || {};
+    let last = 0;
+    for (const k in weeks) {
+      const n = Number(k);
+      if (n > last && Object.values(weeks[k] || {}).some(d => Array.isArray(d) && d.some(p => p && (p.attended === true || p.attended === false || (Array.isArray(p.tasks) && p.tasks.length))))) last = n;
+    }
+    return Math.min(60, Math.max(18, real + 2, last, currentWeek));
+  }
+  function fill() {
+    const real = calculateCurrentSemesterWeek(), n = weeksCount(real);
+    let html = '';
+    for (let w = 1; w <= Math.max(n, currentWeek); w++) {
+      html += `<button type="button" class="lg-wp-row${w === real ? ' is-now' : ''}${w === currentWeek ? ' is-sel' : ''}" data-w="${w}" role="option" aria-selected="${w === currentWeek}">
+        <span class="lg-wp-txt"><b>Неделя ${w}</b><span>${range(w)}</span></span><span class="lg-wp-check">${CHECK}</span></button>`;
+    }
+    list.innerHTML = html;
+  }
+  function place() {
+    const r = bar.getBoundingClientRect(), c = center.getBoundingClientRect();
+    const phone = window.matchMedia('(max-width: 760px)').matches;
+    const w = phone ? Math.min(r.width - 24, 420) : Math.min(r.width - 24, Math.max(280, c.width + 80));
+    const top = Math.round(r.bottom + 8);
+    pop.style.width = w + 'px';
+    pop.style.left = Math.round(c.left + c.width / 2 - w / 2) + 'px';
+    pop.style.top = top + 'px';
+    // видимая высота: 7 строк и по 8 px сверху и снизу; сам список выше на 2 × OVER (заходит за края)
+    const vis = Math.max(160, Math.min(7 * 54, window.innerHeight - top - 28)) + 16;
+    list.style.maxHeight = (vis + 2 * OVER) + 'px';
+  }
+
+  /* ---- Преломление у краёв ----
+     Та же геометрия, что у толстой линзы: точка D на экране показывает строку из места s(D) = D + dy(D).
+     У видимого края стекло берёт картинку из-за края, поэтому строки там сжимаются и уходят под кромку.
+     Считаем это для каждой строки и двигаем её через translate/scale: текст остаётся чётким
+     (SVG-фильтр смещения рисует его по пикселям), и в Safari работает так же. */
+  const fall = t => (1 - t) * (1 - t);
+  // верх строки внутри списка, от его верхней кромки (не зависит от того, кто у строк offsetParent)
+  const rowTop = row => row.offsetTop - list.firstElementChild.offsetTop + (parseFloat(getComputedStyle(list).paddingTop) || 0);
+  // откуда берётся картинка для точки y списка (сила kTop/kBot падает до нуля, когда за краем строк больше нет)
+  function dyAt(y) {
+    if (mode !== 'lens') return 0;
+    const H = list.clientHeight, top = OVER, bot = H - OVER;
+    if (y < top + BAND) return -OVER * fall(Math.max(0, (y - top) / BAND)) * kTop;
+    if (y > bot - BAND) return OVER * fall(Math.max(0, (bot - y) / BAND)) * kBot;
+    return 0;
+  }
+  const clear = row => { if (row.__wp) { row.style.scale = row.style.translate = row.style.transformOrigin = ''; row.__wp = 0; } };
+  function lensRows() {
+    const H = list.clientHeight, top = list.scrollTop;
+    if (mode !== 'lens' || (!kTop && !kBot)) { for (const row of list.children) clear(row); return; }
+    const s = new Float32Array(H + 1);
+    for (let d = 0; d <= H; d++) s[d] = d + dyAt(d);
+    const inv = y => {            // где на экране окажется точка списка y (s монотонна)
+      if (y <= s[0]) return y - s[0];
+      if (y >= s[H]) return H + (y - s[H]);
+      let lo = 0, hi = H;
+      while (hi - lo > 1) { const m = (lo + hi) >> 1; if (s[m] <= y) lo = m; else hi = m; }
+      return lo + (y - s[lo]) / ((s[hi] - s[lo]) || 1);
+    };
+    for (const row of list.children) {
+      const y0 = rowTop(row) - top, y1 = y0 + row.offsetHeight;
+      if (y1 < -OVER || y0 > H + OVER) { clear(row); continue; }
+      const d0 = inv(y0), d1 = inv(y1), sy = (d1 - d0) / (y1 - y0);
+      if (Math.abs(sy - 1) < 0.002 && Math.abs(d0 - y0) < 0.05) { clear(row); continue; }
+      row.style.transformOrigin = '50% 0';
+      row.style.translate = `0 ${(d0 - y0).toFixed(2)}px`;
+      row.style.scale = `1 ${sy.toFixed(4)}`;   // только по высоте: в ширину не растягиваем, иначе текст у края уезжает влево
+      row.__wp = 1;
+    }
+  }
+  function edges() {
+    const top = list.scrollTop, max = list.scrollHeight - list.clientHeight;
+    kTop = Math.max(0, Math.min(1, top / BAND));
+    kBot = Math.max(0, Math.min(1, (max - top) / BAND));
+    lensRows();
+    if (lastY !== null) hover();
+  }
+
+  /* ---- Строка под курсором: строки сдвинуты трансформацией, поэтому браузер сам находит видимую ---- */
+  let lastX = 0;
+  function hover() {
+    const el = lastY === null ? null : document.elementFromPoint(lastX, lastY);
+    const row = el && list.contains(el) ? el.closest('.lg-wp-row') : null;
+    for (const r of list.querySelectorAll('.lg-wp-row.is-hov')) if (r !== row) r.classList.remove('is-hov');
+    if (row) row.classList.add('is-hov');
+  }
+
+  function open() {
+    fill(); place();
+    mode = document.body.classList.contains('glass-lite') ? '' : 'lens';
+    const sel = list.querySelector('.is-sel');
+    if (sel) {
+      list.scrollTop = Math.max(0, rowTop(sel) - (list.clientHeight - sel.offsetHeight) / 2);
+      if (list.__lgs) list.__lgs.cur = list.__lgs.target = list.__lgs.wrote = list.scrollTop;
+    }
+    lastY = null;
+    edges();
+    void pop.offsetWidth;
+    pop.classList.add('open');
+    center.setAttribute('aria-expanded', 'true');
+  }
+  function close() {
+    if (!isOpen()) return;
+    pop.classList.remove('open', 'is-settled');
+    center.setAttribute('aria-expanded', 'false');
+  }
+  function start() {
+    bar = document.querySelector('#mainApp .lg-weekbar');
+    center = bar && bar.querySelector('.lg-wb-center');
+    if (!center) return;
+    center.setAttribute('role', 'button');
+    center.setAttribute('tabindex', '0');
+    center.setAttribute('aria-haspopup', 'listbox');
+    center.setAttribute('aria-expanded', 'false');
+    center.setAttribute('aria-label', 'Выбрать неделю');
+    pop = document.createElement('div');
+    pop.className = 'lg-weekpick lg-glass';
+    pop.setAttribute('data-lens', '1.6'); pop.setAttribute('data-lens-bez', '22');   // преломление у края, как у уведомлений
+    pop.innerHTML = '<div class="lg-wp-list" role="listbox" aria-label="Недели семестра"></div>';
+    list = pop.firstChild;
+    list.addEventListener('scroll', edges, { passive: true });
+    document.body.appendChild(pop);
+    // Ползунок прокрутки показываем, только когда колонка встала на место (пока она растёт, он бы стоял криво)
+    pop.addEventListener('transitionend', e => {
+      if (e.target !== pop || e.propertyName !== 'transform' || !isOpen()) return;
+      pop.classList.add('is-settled');
+      if (window.LGBar) LGBar.refresh();
+    });
+    pop.addEventListener('lg-morph-end', e => {   // колонку ведёт «жидкая» анимация (модуль 21)
+      if (e.detail !== 'opened' || !isOpen()) return;
+      pop.classList.add('is-settled');
+      if (window.LGBar) LGBar.refresh();
+    });
+    center.addEventListener('click', () => (isOpen() ? close() : open()));
+    center.addEventListener('mousedown', e => e.preventDefault());   // щелчок мышью не ставит фокус: подложка фокуса — только для клавиатуры
+    center.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); isOpen() ? close() : open(); } });
+    list.addEventListener('pointermove', e => { if (e.pointerType !== 'mouse') return; lastX = e.clientX; lastY = e.clientY; hover(); });
+    list.addEventListener('pointerleave', () => { lastY = null; hover(); });
+    list.addEventListener('click', e => {
+      const row = e.target.closest('.lg-wp-row');
+      if (!row) return;
+      const w = +row.dataset.w;
+      close();
+      if (w !== currentWeek && typeof changeWeek === 'function') changeWeek(w - currentWeek);
+    });
+    document.addEventListener('pointerdown', e => { if (isOpen() && !pop.contains(e.target) && !center.contains(e.target)) close(); }, true);
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && isOpen()) close(); });
+    window.addEventListener('resize', () => { if (!isOpen()) return; place(); edges(); });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
+})();
+
+/* 19. Открытие и закрытие окон, как в iOS 26: окно вытекает из того, что нажали (шестерёнка, капсула профиля,
+   кнопка «Динамика», строка «Время пар», пара…), и стекает обратно — форма и содержимое ведёт LGMorph (модуль 20).
+   Фон затемняется и размывается вместе с окном и так же плавно светлеет. Окна подтверждения появляются чуть крупнее
+   и садятся на место, как системные предупреждения. Модуль сам следит за классом open у .modal-overlay,
+   поэтому функции открытия/закрытия окон менять не нужно. При «уменьшении движения» — без анимации. */
+(function () {
+  'use strict';
+  if (!window.Element || !Element.prototype.animate) return;
+  const reduce = () => window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const phone = () => window.matchMedia && matchMedia('(max-width: 760px)').matches;
+  const hasLinear = window.CSS && CSS.supports && CSS.supports('animation-timing-function', 'linear(0, 1)');
+  const ALERT_EASE = hasLinear ? 'linear(0, 0.1544, 0.4062, 0.6153, 0.7648, 0.8642, 0.9266, 0.9637, 0.9846, 0.9952, 1)' : 'cubic-bezier(0.2, 0.9, 0.3, 1)';
+  document.documentElement.classList.add('lg-winfx');
+
+  // Откуда открыли окно: последний нажатый элемент (кнопка, строка, карточка пары…)
+  const SRC = 'button, [role="button"], a, label, .pair-card, .lg-row, .lg-cell, .subject-item, .pf-box, .pf-open, .sc-chip, .profile-pill';
+  let last = null;
+  const remember = e => {
+    const el = e.target && e.target.closest && e.target.closest(SRC);
+    if (!el) return;
+    // пункт меню пары или дня: окно потом растёт из самой пары (или кнопки «⋯») — запоминаем их, пока меню открыто
+    const alt = el.closest('.lg-menu') ? document.querySelector('.pair-card.menu-open') || document.querySelector('.lg-more.active') : null;
+    last = { el, alt, t: performance.now() };
+  };
+  document.addEventListener('pointerdown', remember, true);
+  document.addEventListener('click', remember, true);
+  document.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') remember(e); }, true);
+  window.LGLastPress = () => last;
+
+  // Кнопку могут перерисовать, пока окно открыто (например, карточку пары после сохранения): ищем её заново
+  function refind(el) {
+    if (!el) return () => null;
+    const id = el.id, pid = el.dataset && el.dataset.pairId;
+    return () => el.isConnected ? el : id ? document.getElementById(id)
+      : pid ? document.querySelector(`[data-pair-id="${window.CSS && CSS.escape ? CSS.escape(pid) : pid}"]`) : null;
+  }
+  const state = new WeakMap();   // overlay → { anims, phase, find, timer }
+  const content = ov => ov.querySelector(':scope > .modal-content') || ov.firstElementChild;
+  const isAlert = ov => ov.classList.contains('lg-alert-overlay');
+  const stop = st => { clearTimeout(st.timer); (st.anims || []).forEach(a => { try { a.cancel(); } catch (e) { /* уже закончилась */ } }); st.anims = []; };
+  const now = el => { const cs = getComputedStyle(el); return { transform: cs.transform === 'none' ? 'none' : cs.transform, opacity: cs.opacity }; };
+  function settle(ov) {
+    // Пока окно росло, размеры элементов внутри читались «в масштабе» — пересчитываем ползунки и линзы
+    if (window.LGBar) LGBar.refresh();
+    if (window.LGLens && LGLens.refresh) LGLens.refresh(ov);
+  }
+  function hideOv(ov, st) {
+    st.phase = 'closed';
+    ov.classList.remove('lg-closing', 'lg-closing-quick');
+    ov.style.removeProperty('--lg-close-ms');
+    stop(st);
+  }
+
+  // Затемнение и размытие фона (слой ::before) идут вместе с окном — тем же расчётом
+  const dimClamp = x => Math.max(0, Math.min(1, x));
+  const dimOf = ov => ({ el: ov, pseudo: '::before', frame: t => ({ opacity: dimClamp(t * 1.5).toFixed(3) }) });
+  const fadeDim = (ov, to, ms) => { try { return ov.animate([{ opacity: to ? 0 : 1 }, { opacity: to }], { pseudoElement: '::before', duration: ms, easing: 'ease-out', fill: 'forwards' }); } catch (e) { return null; } };
+
+  // То, что внутри окна анимируется само (счётчики, кольца, полоски), запускается, когда окно встало на место
+  const pending = new WeakMap();
+  window.LGAfterOpen = (el, fn) => {
+    const ov = el && el.closest && el.closest('.modal-overlay');
+    if (!ov || reduce() || !ov.classList.contains('open')) return false;
+    const st = state.get(ov);
+    if (st && st.phase === 'open') return false;
+    if (!pending.has(ov)) pending.set(ov, []);
+    pending.get(ov).push(fn);
+    return true;
+  };
+  function opened(ov, st) {
+    st.phase = 'open';
+    ov.classList.remove('lg-opening');
+    settle(ov);
+    const q = pending.get(ov) || []; pending.delete(ov);
+    q.forEach(fn => { try { fn(); } catch (e) { /* не мешаем остальным */ } });
+  }
+
+  function open(ov) {
+    const box = content(ov); if (!box) return;
+    let st = state.get(ov);
+    if (!st) { st = { anims: [] }; state.set(ov, st); }
+    const wasClosing = st.phase === 'closing';
+    const from = wasClosing ? now(box) : null;
+    stop(st);
+    ov.classList.remove('lg-closing', 'lg-closing-quick');
+    st.phase = 'opening';
+    if (!wasClosing) {
+      let src = last && performance.now() - last.t < 1200 && !ov.contains(last.el) ? last.el : null;
+      if (src && last.alt && last.alt.isConnected) src = last.alt;
+      st.find = refind(src);
+    }
+    if (reduce()) { opened(ov, st); return; }
+    ov.classList.add('lg-opening');
+    if (isAlert(ov)) {
+      const a1 = box.animate([{ transform: from ? from.transform : 'scale(1.12)' }, { transform: 'none' }], { duration: 420, easing: ALERT_EASE });
+      const a2 = box.animate([{ opacity: from ? from.opacity : 0 }, { opacity: 1 }], { duration: 200, easing: 'ease-out' });
+      st.anims = [a1, a2, fadeDim(ov, 1, 200)].filter(Boolean);
+      const done = () => { if (st.phase === 'opening') { stop(st); opened(ov, st); } };
+      a1.onfinish = done; st.timer = setTimeout(done, 820);
+      return;
+    }
+    // окно настроек — уже на «жидкой» капле (модуль 22), остальные пока на LGMorph
+    if (!wasClosing) st.eng = window.LGLiquid && !phone() && LGLiquid.can(ov, st.find ? st.find() : null) ? LGLiquid : window.LGMorph;
+    const eng = st.eng || window.LGMorph;
+    if (!eng) { opened(ov, st); return; }
+    eng.open(box, st.find ? st.find() : null, { slide: phone(), extra: [dimOf(ov)], ov }).then(how => {
+      if (st.phase === 'opening' && how === 'opened') opened(ov, st);
+    });
+  }
+
+  function close(ov, quick) {
+    const box = content(ov); if (!box) return;
+    const st = state.get(ov) || { anims: [] };
+    state.set(ov, st);
+    pending.delete(ov);
+    ov.classList.remove('lg-opening');
+    if (reduce()) { stop(st); st.phase = 'closed'; return; }
+    if (st.phase === 'closing' && !quick) return;
+    stop(st);
+    st.phase = 'closing';
+    ov.classList.add('lg-closing');
+    if (quick || isAlert(ov)) {
+      // Одно окно сменилось другим (профиль → «Динамика») или ушло подтверждение — старое просто гаснет
+      if (quick) ov.classList.add('lg-closing-quick');
+      const eng = st.eng || window.LGMorph;
+      if (eng) eng.cancel(box);
+      const from = now(box), dur = quick ? 160 : 200;
+      const a1 = box.animate([{ opacity: from.opacity, transform: from.transform }, { opacity: 0, transform: quick ? from.transform : 'scale(0.96)' }], { duration: dur, easing: quick ? 'ease-out' : 'ease-in', fill: 'forwards' });
+      st.anims = [a1, fadeDim(ov, 0, dur)].filter(Boolean);
+      const done = () => { if (st.phase !== 'closing') return; hideOv(ov, st); };
+      a1.onfinish = done; st.timer = setTimeout(done, dur + 400);
+      return;
+    }
+    const eng = st.eng || window.LGMorph;
+    if (!eng) { hideOv(ov, st); return; }
+    eng.close(box, st.find ? st.find() : null, { slide: phone(), extra: [dimOf(ov)], ov }).then(() => { if (st.phase === 'closing') hideOv(ov, st); });
+  }
+
+  function start() {
+    const seen = new WeakMap();
+    const watch = ov => { if (!seen.has(ov)) { seen.set(ov, ov.classList.contains('open')); mo.observe(ov, { attributes: true, attributeFilter: ['class'] }); } };
+    const mo = new MutationObserver(recs => {
+      const opened = [], closed = [];
+      recs.forEach(r => {
+        const ov = r.target, was = seen.get(ov), is = ov.classList.contains('open');
+        if (was === is) return;
+        seen.set(ov, is);
+        (is ? opened : closed).push(ov);
+      });
+      closed.forEach(ov => close(ov, opened.length > 0));
+      opened.forEach(open);
+    });
+    document.querySelectorAll('.modal-overlay').forEach(watch);
+    // Окна, которые создаются на лету (подтверждения)
+    new MutationObserver(recs => recs.forEach(r => r.addedNodes.forEach(n => {
+      if (n.nodeType === 1 && n.classList.contains('modal-overlay')) watch(n);
+    }))).observe(document.body, { childList: true });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
+})();
+
+/* 20. «Жидкое» появление, как в iOS 26 (LGMorph). Кнопка остаётся на месте; из её края, со стороны окна,
+   выдавливается маленькая круглая капля, пару кадров тянется к кнопке перемычкой, отрывается, отплывает и по пути
+   раздувается в окно. Закрытие — точное зеркало: окно сжимается в каплю, она подплывает к кнопке, сливается с её
+   краем через перемычку и втягивается в неё.
+   Весь полёт заранее рассчитывается пружиной и отдаётся браузеру готовыми кадрами (Web Animations): перемещение,
+   масштаб и прозрачность двигает видеокарта, поэтому анимация идёт ровно, даже когда приложение занято.
+   Стекло капли — отдельный слой с тем же фоном, размытием и тенью, что у окна; содержимое окна внутри
+   проявляется по мере роста. В конце капля совпадает с окном точь-в-точь и незаметно уступает ему место.
+   Прерванная анимация разворачивается с того же места и с той же скоростью. */
+window.LGMorph = (function () {
+  'use strict';
+  const reduce = () => window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const lite = () => document.body.classList.contains('glass-lite');
+  const S = new WeakMap();
+  // где была кнопка, когда окно открылось: возвращаемся туда, даже если она уже спряталась
+  // (например, «⋯» у пары видна только при наведении)
+  const SRC = new WeakMap();
+  const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+  const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const easeOut = x => 1 - (1 - x) * (1 - x);
+  const FRAME = 1000 / 60;
+
+  function rectOf(el) {
+    if (!el || !el.isConnected) return null;
+    const r = el.getBoundingClientRect();
+    if (r.width < 2 || r.height < 2 || r.bottom < 0 || r.right < 0 || r.top > innerHeight || r.left > innerWidth) return null;
+    for (let p = el; p && p.nodeType === 1; p = p.parentElement) {
+      if (p.classList.contains('modal-overlay') && !p.classList.contains('open') && !p.classList.contains('lg-closing')) return null;
+      const cs = getComputedStyle(p);
+      if (cs.display === 'none' || (cs.visibility === 'hidden' && p !== el)) return null;
+    }
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height };
+  }
+  function radiusOf(cs, w, h) {
+    const v = cs.borderTopLeftRadius;
+    let r = parseFloat(v) || 0;
+    if (v.indexOf('%') >= 0) r = Math.min(w, h) * r / 100;
+    return Math.min(r, Math.min(w, h) / 2);
+  }
+
+  // Пружина для t (0 — капля у кнопки, 1 — окно на месте): кадры по 1/60 с, внутри — мелкие шаги
+  function trajectory(x0, v0, target, resp, zeta) {
+    const w = 2 * Math.PI / resp, k = w * w, c = 2 * zeta * w, h = 1 / 240;
+    let x = x0, v = v0;
+    const out = [{ x, v }];
+    for (let f = 1; f < 150; f++) {
+      for (let i = 0; i < 4; i++) { v += (-k * (x - target) - c * v) * h; x += v * h; }
+      if (target === 0 && x < 0) { x = 0; v = 0; }
+      out.push({ x, v });
+      if (target === 1 ? (Math.abs(x - 1) < 0.0015 && Math.abs(v) < 0.03) : x < 0.008) break;
+    }
+    out[out.length - 1] = { x: target, v: 0 };
+    return out;
+  }
+
+  // Форма в момент t: центр, размер, скругление; s — насколько выросла
+  function shape(st, t, vel) {
+    const F = st.F, A = st.A;
+    if (st.kind === 'slide') return { cx: F.x, cy: lerp(A.y, F.y, t), w: F.w, h: F.h, r: st.Fr, s: 1 };
+    if (st.kind === 'fade') return { cx: F.x, cy: lerp(A.y, F.y, t), w: lerp(A.w, F.w, t), h: lerp(A.h, F.h, t), r: st.Fr, s: t };
+    const pos = t < 0.8 ? Math.max(0, t / 0.8) : 1 + Math.max(0, t - 1);          // место опережает размер
+    const pe = pos >= 1 ? pos : easeOut(pos) * 0.35 + pos * 0.65;
+    const s = clamp((t - 0.05) / 0.95, 0, 1.04);                                     // размер чуть позже; перелёт пружины — лёгкий «отскок»
+    const cx = lerp(A.x, F.x, pe), cy = lerp(A.y, F.y, pe);
+    let w = lerp(A.w, F.w, s), h = lerp(A.h, F.h, s);
+    if (vel > 0.5) {                                                                 // в полёте капля чуть вытягивается вдоль пути
+      const dx = F.x - A.x, dy = F.y - A.y, d = Math.hypot(dx, dy) || 1, e = 1 + Math.min(0.06, vel * d / 40000), ie = 1 / Math.sqrt(e);
+      w *= lerp(ie, e, Math.abs(dx) / d); h *= lerp(ie, e, Math.abs(dy) / d);
+    }
+    w = Math.max(4, w); h = Math.max(4, h);
+    // маленькая — круглая, большая — мягкий прямоугольник с большим скруглением, в конце — углы окна
+    const half = Math.min(w, h) / 2, blob = Math.min(half * lerp(1, 0.6, smooth(0.15, 0.6, s)), Math.max(28, Math.min(w, h) * 0.32));
+    const k = clamp((1 - s) / 0.6, 0, 1);
+    const r = lerp(Math.min(st.Fr, half), Math.max(blob, Math.min(st.Ar, half)), k * k * (3 - 2 * k));
+    return { cx, cy, w, h, r, s };
+  }
+
+  // Кадры для всех слоёв по траектории
+  function keyframes(st, traj) {
+    const F = st.F, bx = st.box.x, by = st.box.y, n = traj.length;
+    const K = { blob: [], blobR: [], rim: [], win: [], neck: [], neckR: [], extra: (st.extra || []).map(() => []) };
+    traj.forEach((p, i) => {
+      const offset = n > 1 ? i / (n - 1) : 1;
+      const g = shape(st, p.x, Math.abs(p.v));
+      const sx = g.w / F.w, sy = g.h / F.h;
+      // капля: стеклянный слой размером с окно, сжатый до нужной формы; скругление поправлено на сжатие
+      const bOp = st.kind === 'drop' ? smooth(0, 0.07, p.x) : st.kind === 'fade' ? smooth(0, 0.45, p.x) : 1;
+      K.blob.push({ offset, transform: `translate(${(g.cx - g.w / 2 - bx).toFixed(2)}px, ${(g.cy - g.h / 2 - by).toFixed(2)}px) scale(${sx.toFixed(5)}, ${sy.toFixed(5)})`, opacity: bOp.toFixed(3) });
+      K.blobR.push({ offset, borderRadius: `${(g.r / sx).toFixed(2)}px / ${(g.r / sy).toFixed(2)}px` });
+      K.rim.push({ offset, opacity: st.kind === 'drop' ? (1 - smooth(0.45, 0.9, g.s)).toFixed(3) : '0' });
+      // содержимое окна: внутри капли, проявляется по мере роста
+      const kc = st.kind === 'slide' ? 1 : Math.min(sx, sy);
+      const wOp = st.kind === 'drop' ? smooth(0.4, 0.85, g.s) : st.kind === 'fade' ? smooth(0, 0.6, p.x) : 1;
+      K.win.push({ offset, transform: `translate(${(g.cx - F.x).toFixed(2)}px, ${(g.cy - F.y).toFixed(2)}px) scale(${kc.toFixed(5)})`, opacity: wOp.toFixed(3) });
+      // перемычка: капсула от края кнопки до центра капли, истончается и исчезает, пока капля отрывается
+      if (st.neck) {
+        const Q = st.Q, len = Math.max(0.5, Math.hypot(g.cx - Q.x, g.cy - Q.y)), d = Math.min(g.w, g.h);
+        // перемычка рвётся, как только капля отошла от кнопки примерно на свой размер
+        const th = Math.max(1, d * lerp(0.56, 0.18, smooth(0.02, 0.2, p.x)));
+        const op = st.fromSrc ? smooth(0, 0.04, p.x) * (1 - smooth(0.1, 0.24, p.x)) * (1 - smooth(Math.max(8, d * 0.7), Math.max(16, d * 1.5), len)) : 0;
+        K.neck.push({ offset, transform: `translate(${(Q.x - bx).toFixed(2)}px, ${(Q.y - by).toFixed(2)}px) rotate(${st.ang.toFixed(4)}rad) translate(0px, ${(-th / 2).toFixed(2)}px) scale(${(len / 100).toFixed(5)}, ${(th / 100).toFixed(5)})`, opacity: op.toFixed(3) });
+        K.neckR.push({ offset, borderRadius: `${((th / 2) / (len / 100)).toFixed(2)}px / 50px` });
+      }
+      (st.extra || []).forEach((x, j) => K.extra[j].push(Object.assign({ offset }, x.frame(p.x, g))));
+    });
+    return K;
+  }
+
+  function layer(cls, look) {
+    const d = document.createElement('div');
+    d.className = cls; d.setAttribute('aria-hidden', 'true');
+    if (/^\d+$/.test(look.zIndex)) d.style.zIndex = look.zIndex;
+    return d;
+  }
+  function build(st) {
+    const el = st.el, L = st.look, parent = el.parentNode, fixed = parent === document.body;
+    const blob = layer('lg-morph-blob', L);
+    blob.style.position = fixed ? 'fixed' : 'absolute';
+    blob.style.width = st.F.w + 'px'; blob.style.height = st.F.h + 'px';
+    blob.style.backgroundColor = L.bg; if (L.bgImage && L.bgImage !== 'none') blob.style.backgroundImage = L.bgImage;
+    blob.style.boxShadow = L.shadow;
+    if (L.backdrop && !lite()) blob.style.backdropFilter = blob.style.webkitBackdropFilter = L.backdrop;
+    const rim = document.createElement('i'); rim.className = 'lg-morph-rim'; blob.appendChild(rim);
+    parent.insertBefore(blob, el);
+    st.blob = blob; st.rim = rim;
+    if (st.kind === 'drop' && st.fromSrc) {
+      const neck = layer('lg-morph-neck', L);
+      neck.style.position = blob.style.position;
+      neck.style.backgroundColor = L.neck;
+      parent.insertBefore(neck, blob);   // под каплей: стекло капли размывает место стыка, и они сливаются
+      st.neck = neck;
+    }
+    if (fixed) st.box = { x: 0, y: 0 };
+    else {
+      const op = blob.offsetParent;
+      const pr = op ? op.getBoundingClientRect() : { left: 0, top: 0 };
+      st.box = { x: pr.left + (op ? op.clientLeft : 0), y: pr.top + (op ? op.clientTop : 0) };
+    }
+  }
+  function teardown(st) {
+    (st.anims || []).forEach(a => { try { a.cancel(); } catch (e) { /* уже */ } });
+    st.anims = [];
+    [st.blob, st.neck].forEach(x => x && x.remove());
+    st.blob = st.neck = st.rim = null;
+    const el = st.el;
+    el.style.transition = 'none';
+    el.classList.remove('lg-morph', 'lg-morphing', 'lg-morph-closing');
+    el.style.transformOrigin = st.savedOrigin;
+    void el.offsetWidth;
+    el.style.transition = st.savedTransition;
+  }
+  function finish(st, how) {
+    if (S.get(st.el) !== st) return;
+    clearTimeout(st.guard);
+    teardown(st);
+    S.delete(st.el);
+    if (how === 'opened' && window.LGBar) LGBar.refresh();
+    st.el.dispatchEvent(new CustomEvent('lg-morph-end', { detail: how }));
+    st.done.forEach(f => f(how)); st.done = [];
+  }
+
+  // Где сейчас анимация: t и скорость по прошедшему времени
+  function now(st) {
+    const a = st.anims && st.anims[0];
+    if (!a || !st.traj) return { x: st.mode === 'open' ? 1 : 0, v: 0 };
+    const ms = Number(a.currentTime) || 0, f = ms / FRAME, i = Math.floor(f), tr = st.traj;
+    if (i >= tr.length - 1) return tr[tr.length - 1];
+    const p = tr[Math.max(0, i)], q = tr[i + 1], u = f - i;
+    return { x: lerp(p.x, q.x, u), v: lerp(p.v, q.v, u) };
+  }
+
+  function begin(el, src, mode, opts) {
+    opts = opts || {};
+    let st = S.get(el);
+    const from = st ? now(st) : { x: mode === 'open' ? 0 : 1, v: 0 };
+    if (st && st.mode === mode) return st;            // уже идёт в эту сторону
+    if (!st) {
+      const cs = getComputedStyle(el);
+      st = { el, done: [], anims: [], savedOrigin: el.style.transformOrigin, savedTransition: el.style.transition };
+      // как выглядит окно в открытом виде: этот же вид несёт капля
+      const bf = cs.backdropFilter && cs.backdropFilter !== 'none' ? cs.backdropFilter : (cs.webkitBackdropFilter !== 'none' ? cs.webkitBackdropFilter : '');
+      const bg = cs.backgroundColor;
+      st.look = { bg, bgImage: cs.backgroundImage, shadow: cs.boxShadow !== 'none' ? cs.boxShadow : '0 18px 40px -16px rgba(0,0,0,.28)',
+        backdrop: bf ? bf.replace(/url\([^)]*\)\s*/g, '').trim() || '' : '', zIndex: cs.zIndex, neck: bg };
+      // размер и место окна в открытом виде — без смещений из стилей закрытого состояния
+      el.classList.add('lg-morph', 'lg-morphing');
+      const prevT = el.style.transform; el.style.transform = 'none';
+      const fr = el.getBoundingClientRect();
+      el.style.transform = prevT;
+      st.F = { x: fr.left + fr.width / 2, y: fr.top + fr.height / 2, w: fr.width, h: fr.height };
+      st.Fr = radiusOf(cs, fr.width, fr.height);
+      let b = rectOf(src);
+      if (mode === 'open') { if (b) SRC.set(el, b); else SRC.delete(el); }
+      else if (!b) b = SRC.get(el) || null;
+      st.fromSrc = !!b;
+      if (opts.slide) { st.kind = 'slide'; st.A = { x: st.F.x, y: innerHeight + st.F.h / 2 + 12, w: st.F.w, h: st.F.h }; }
+      else if (b) {
+        st.kind = 'drop';
+        // точка на краю кнопки со стороны окна: отсюда выдавливается капля
+        const dx = st.F.x - b.x, dy = st.F.y - b.y, d = Math.hypot(dx, dy);
+        let Q = { x: b.x, y: b.y };
+        if (d > 1) {
+          const ux = dx / d, uy = dy / d, tq = Math.min(Math.abs(ux) > 1e-6 ? (b.w / 2) / Math.abs(ux) : 1e9, Math.abs(uy) > 1e-6 ? (b.h / 2) / Math.abs(uy) : 1e9);
+          const inside = Math.abs(dx) < b.w / 2 && Math.abs(dy) < b.h / 2;
+          if (!inside) Q = { x: b.x + ux * tq * 0.92, y: b.y + uy * tq * 0.92 };
+        }
+        const d0 = clamp(Math.min(b.w, b.h) * 0.62, 10, 28);
+        st.Q = Q; st.ang = Math.atan2(st.F.y - Q.y, st.F.x - Q.x);
+        st.A = { x: Q.x, y: Q.y, w: d0, h: d0 }; st.Ar = d0 / 2;
+      } else { st.kind = 'fade'; st.A = { x: st.F.x, y: st.F.y + 16, w: st.F.w * 0.9, h: st.F.h * 0.9 }; }
+      st.Ar = st.Ar || st.Fr;
+      // длительность — по размеру: меню быстрее, большие окна дольше
+      const f = clamp((Math.sqrt(st.F.w * st.F.h) - 170) / 480, 0, 1);
+      st.spring = { open: st.kind === 'slide' ? [0.5, 0.92] : [lerp(0.3, 0.5, f), 0.8], close: st.kind === 'slide' ? [0.38, 1] : [lerp(0.24, 0.38, f), 1] };
+      st.extra = opts.extra || [];
+      if (reduce()) { el.classList.remove('lg-morph', 'lg-morphing'); return null; }
+      build(st);
+      S.set(el, st);
+    } else {
+      st.anims.forEach(a => { try { a.cancel(); } catch (e) { /* уже */ } });
+      st.anims = [];
+      if (opts.extra) st.extra = opts.extra;
+    }
+    clearTimeout(st.guard);
+    st.mode = mode;
+    el.classList.toggle('lg-morph-closing', mode === 'close');
+    el.style.transformOrigin = '50% 50%';
+    const sp = mode === 'open' ? st.spring.open : st.spring.close;
+    const traj = trajectory(from.x, from.v, mode === 'open' ? 1 : 0, sp[0], sp[1]);
+    st.traj = traj;
+    const K = keyframes(st, traj), dur = Math.max(FRAME, (traj.length - 1) * FRAME);
+    const o = { duration: dur, easing: 'linear', fill: 'both' };
+    const A = [el.animate(K.win, o), st.blob.animate(K.blob, o), st.blob.animate(K.blobR, o), st.rim.animate(K.rim, o)];
+    if (st.neck) A.push(st.neck.animate(K.neck, o), st.neck.animate(K.neckR, o));
+    st.extra.forEach((x, j) => { try { A.push(x.el.animate(K.extra[j], Object.assign({ pseudoElement: x.pseudo || undefined }, o))); } catch (e) { /* псевдоэлементы не поддерживаются — без этого слоя */ } });
+    st.anims = A;
+    const my = A[0];
+    my.finished.then(() => { if (st.anims[0] === my) finish(st, mode === 'open' ? 'opened' : 'closed'); }, () => { /* отменена — пошла в другую сторону */ });
+    st.guard = setTimeout(() => { if (st.anims[0] === my) finish(st, mode === 'open' ? 'opened' : 'closed'); }, dur + 600);   // страховка: окно приложения свернули и т. п.
+    return st;
+  }
+
+  // Остановить без анимации (окно сменилось другим)
+  function cancel(el) { const st = S.get(el); if (!st) return; clearTimeout(st.guard); teardown(st); S.delete(el); el.dispatchEvent(new CustomEvent('lg-morph-end', { detail: 'cancel' })); st.done.forEach(f => f('cancel')); st.done = []; }
+
+  const run = mode => (el, src, opts) => new Promise(res => {
+    if (!el) return res();
+    const st = begin(el, src, mode, opts);
+    if (st) st.done.push(res); else res(mode === 'open' ? 'opened' : 'closed');
+  });
+  return { open: run('open'), close: run('close'), cancel, release() {}, busy: el => S.has(el) };
+})();
+
+/* 21. Меню и всплывающие панели тоже вытекают из своих кнопок (LGMorph): меню пары, дня и сортировки,
+   уведомления, статус, календарь, барабан времени, выбор недели и всплывающие окна профиля (тег, аватар,
+   статус, витрина). Модуль следит за классом open (или за появлением панели) и сам запускает анимацию;
+   закрытие ждёт, пока капля вернётся в кнопку. */
+(function () {
+  'use strict';
+  if (!window.LGMorph || !window.MutationObserver) return;
+  const $ = id => document.getElementById(id);
+  const recent = () => { const l = window.LGLastPress && LGLastPress(); return l && performance.now() - l.t < 1200 ? l.el : null; };
+  const KINDS = [
+    { sel: '.lg-menu', src: () => recent(), liquid: src => !!(src && src.closest && src.closest('[data-liquid]')) },   // меню из жемчужной кнопки — «жидкое»
+    { sel: '#notifPopover', src: () => $('bellBtn'), liquid: true },   // прототип «жидкой» капли (LGLiquid, модуль 22)
+    { sel: '#pfStatusMenu', src: () => $('pfStatusBtn') },
+    { sel: '.custom-date-picker', box: el => el.querySelector('.calendar-popup'), src: el => el.querySelector('.date-trigger'), noHide: true },
+    { sel: '.lg-timepick', src: () => document.querySelector('.lg-time-btn.is-editing') || recent(), noHide: true },
+    { sel: '.lg-weekpick', src: () => document.querySelector('#mainApp .lg-wb-center'), noHide: true, liquid: true }   // колонка недель вытекает из капсулы каплей
+  ];
+  const kindOf = el => KINDS.find(k => el.matches(k.sel));
+  const was = new WeakMap(), from = new WeakMap(), eng = new WeakMap();
+
+  function changed(el) {
+    const k = kindOf(el); if (!k) return;
+    const is = el.classList.contains('open');
+    if (was.get(el) === is) return;
+    was.set(el, is);
+    const box = k.box ? k.box(el) : el; if (!box) return;
+    if (is) {
+      const src = k.src(el);
+      from.set(el, src);
+      const prev = eng.get(box), busy = prev && prev.busy(box);
+      const liq = typeof k.liquid === 'function' ? k.liquid(src) : k.liquid;
+      const E = busy ? prev : (liq && window.LGLiquid && LGLiquid.can(null, src) ? LGLiquid : LGMorph);
+      eng.set(box, E);
+      E.open(box, src, E === window.LGLiquid ? { keep: true } : { hideSource: !k.noHide });
+    } else {
+      const src = from.get(el), E = eng.get(box) || LGMorph;
+      E.close(box, src && src.isConnected ? src : k.src(el), E === window.LGLiquid ? { keep: true } : undefined);
+    }
+  }
+  const watchAttr = new MutationObserver(recs => recs.forEach(r => changed(r.target)));
+  const watch = el => { if (was.has(el)) return; was.set(el, el.classList.contains('open')); watchAttr.observe(el, { attributes: true, attributeFilter: ['class'] }); if (el.classList.contains('open')) { was.set(el, false); changed(el); } };
+  const scan = root => KINDS.forEach(k => { if (root.matches && root.matches(k.sel)) watch(root); if (root.querySelectorAll) root.querySelectorAll(k.sel).forEach(watch); });
+
+  /* Всплывающие окна профиля: при каждом изменении профиль перерисовывает шапку целиком, поэтому
+     «закрытие» — это исчезновение панели из разметки. Ушедшую панель на мгновение возвращаем на её место
+     и даём ей стечь в свою кнопку. Если панель тут же нарисована заново (просто перерисовка) — ничего не делаем */
+  const popKind = n => { const m = /pf-pop-(\w+)/.exec(n.className || ''); return m ? m[1] : ''; };
+  const popAnchor = kind => {
+    const pressed = recent();
+    if (pressed && pressed.matches && pressed.matches(`[data-pop="${kind}"]`) && pressed.isConnected) return pressed;
+    return document.querySelector(`#profileBackdrop [data-act="pop"][data-pop="${kind}"]`);
+  };
+  function profilePops(recs) {
+    const added = [], removed = [];
+    recs.forEach(r => {
+      r.addedNodes.forEach(n => { if (n.nodeType === 1) (n.matches('.pf-pop') ? [n] : [...n.querySelectorAll('.pf-pop')]).forEach(x => added.push(x)); });
+      r.removedNodes.forEach(n => { if (n.nodeType === 1 && !n.__lgGhost) (n.matches('.pf-pop') ? [n] : [...n.querySelectorAll('.pf-pop')]).forEach(x => removed.push(x)); });
+    });
+    const addedKinds = new Set(added.map(popKind));
+    added.forEach(n => {
+      if (!n.classList.contains('in')) return;            // перерисовка уже открытой панели
+      n.classList.remove('in');
+      LGMorph.open(n, popAnchor(popKind(n)), { hideSource: false });
+    });
+    removed.forEach(n => {
+      const kind = popKind(n);
+      if (!kind || addedKinds.has(kind)) return;
+      const anchor = popAnchor(kind), host = anchor && anchor.closest('.pf-pop-anchor');
+      if (!host) return;
+      n.__lgGhost = true;
+      n.setAttribute('aria-hidden', 'true');
+      host.appendChild(n);
+      LGMorph.close(n, anchor).then(() => n.remove());
+    });
+  }
+
+  function start() {
+    scan(document.body);
+    // меню, барабан и выбор недели добавляются прямо в body
+    new MutationObserver(recs => recs.forEach(r => r.addedNodes.forEach(n => { if (n.nodeType === 1) scan(n); })))
+      .observe(document.body, { childList: true });
+    const pf = $('profileBackdrop');
+    if (pf) new MutationObserver(profilePops).observe(pf, { childList: true, subtree: true });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
+})();
+
+/* 22. Жидкая капля, как в iOS 26 (LGLiquid). Пока — только окно настроек (прототип).
+   Стекло капсулы, на которой нажали шестерёнку, стягивается к ней, а из её края вытекает капля. Капсула и капля —
+   одна жидкость: их форма считается как слияние двух фигур (как у капель ртути), поэтому между ними тянется
+   плавная перемычка, истончается и рвётся сама. Капля отплывает и раздувается в окно; содержимое окна внутри неё
+   сначала сжато и размыто, потом проясняется. Закрытие — зеркально: окно стекает в каплю, капля подплывает,
+   капсула вырастает обратно, капля сливается с ней и втягивается. Всё ведёт одна пружина, кадр за кадром. */
+window.LGLiquid = (function () {
+  'use strict';
+  const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+  const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const FOR = new Set(['setupBackdrop']);          // каким окнам уже включена капля
+  // Две пружины (время отклика, с; затухание): вытекание капли из капсулы и полёт капли, раздувающейся в окно.
+  // Полёт начинается, когда капля уже наполовину вытекла; при закрытии — наоборот
+  const EMERGE = { open: [0.7, 0.9], close: [0.42, 1] }, FLY = { open: [0.85, 0.98], close: [0.75, 1] };
+  // маленькие панели — побыстрее (время отклика пружин меньше)
+  const EMERGE_S = { open: [0.6, 0.9], close: [0.36, 1] }, FLY_S = { open: [0.62, 0.96], close: [0.55, 1] };
+  const mixSp = (a, b, f) => ({ open: [lerp(a.open[0], b.open[0], f), lerp(a.open[1], b.open[1], f)], close: [lerp(a.close[0], b.close[0], f), lerp(a.close[1], b.close[1], f)] });
+  const GATE_OPEN = 0.85, GATE_CLOSE = 0.4, KICK = 1.5;   // GATE_CLOSE: при закрытии капля начинает втекать в кнопку ещё в полёте — одним движением; KICK — толчок от нажатия: капля начинает вытекать сразу
+  const S = new WeakMap();                          // окно → анимация
+  let seq = 0;
+  const SRC = new WeakMap();                        // окно → капсула, из которой его открыли (туда и вернёмся)
+
+  const capOf = el => (el && el.closest ? el.closest('.lg-glass') : null);
+  function rectOk(el) {
+    if (!el || !el.isConnected) return null;
+    const r = el.getBoundingClientRect();
+    if (r.width < 8 || r.height < 8 || r.bottom < 0 || r.right < 0 || r.top > innerHeight || r.left > innerWidth) return null;
+    return r;
+  }
+  // ov — окно (.modal-overlay) из списка FOR; без него — маленькая панель (меню, уведомления), ей капля подходит всегда
+  function can(ov, src) { const c = capOf(src); return !!((!ov || FOR.has(ov.id)) && c && (c.closest('.lg-topbar') || c.hasAttribute('data-liquid')) && rectOk(c)); }
+
+  // ---- вид стекла: цвет, размытие, тень ----
+  function color(s) {
+    const n = (String(s).match(/-?[\d.]+/g) || []).map(Number);
+    return /^rgba?\(/.test(s) && n.length >= 3 ? [n[0], n[1], n[2], n.length > 3 ? n[3] : 1] : null;
+  }
+  function blurOf(s) {
+    if (!s || s === 'none') return null;
+    const b = /blur\(([\d.]+)px\)/.exec(s), t = /saturate\(([\d.]+)\)/.exec(s);
+    return { b: b ? +b[1] : 0, s: t ? +t[1] : 1 };
+  }
+  // внутренние тени стекла (inset): цвет, сдвиг, размытие — их повторяет жидкость, чтобы её стекло не отличалось от кнопки
+  function insetShadows(s) {
+    if (!s || s === 'none') return [];
+    const out = []; let d = 0, cur = '';
+    for (const ch of s) { if (ch === '(') d++; if (ch === ')') d--; if (ch === ',' && !d) { out.push(cur); cur = ''; } else cur += ch; }
+    out.push(cur);
+    return out.map(x => x.trim()).filter(x => /inset/.test(x)).map(x => {
+      const col = (x.match(/(rgba?\([^)]*\)|color\([^)]*\)|#[0-9a-f]+)/i) || [])[0] || 'rgba(255, 255, 255, 0.4)';
+      const n = x.replace(col, '').replace('inset', '').trim().split(/\s+/).map(parseFloat).filter(v => !isNaN(v));
+      const i = { col, ox: n[0] || 0, oy: n[1] || 0, blur: n[2] || 0, spread: n[3] || 0 };
+      if (i.spread > 0 && !i.blur && !i.ox && !i.oy) i.ring = i.spread;   // ровная линия по краю внутрь («inset 0 0 0 2px»)
+      return i;
+    }).filter(i => i.ring || (!i.spread && (i.blur > 0 || i.ox || i.oy)));
+  }
+  // как выглядит стекло элемента сверх фона: внутренние тени, кромка (::after, повёрнута к свету), блик (::before)
+  function details(el, cs, rect) {
+    const L = { insets: insetShadows(cs.boxShadow), rim: null, spec: null };
+    const a = getComputedStyle(el, '::after');
+    if (a.content !== 'none' && a.display !== 'none') {
+      if (/gradient/.test(a.backgroundImage)) {
+        const hi = cs.getPropertyValue('--rim-hi').trim() || 'rgba(255, 255, 255, 1)';
+        const ang = parseFloat(cs.getPropertyValue('--la')) || 155;
+        L.rim = { hi, ang, rect };
+      } else if (a.backgroundColor && !/rgba\(0, 0, 0, 0\)/.test(a.backgroundColor)) L.rim = { flat: a.backgroundColor, rect };
+    }
+    const b = getComputedStyle(el, '::before');
+    if (b.content !== 'none' && b.display !== 'none' && parseFloat(b.opacity) > 0.01 && /radial/.test(b.backgroundImage)) {
+      const lx = parseFloat(cs.getPropertyValue('--lx')), ly = parseFloat(cs.getPropertyValue('--ly'));
+      L.spec = { col: cs.getPropertyValue('--spec').trim() || 'rgba(255, 255, 255, 0.6)', x: rect.left + (isNaN(lx) ? rect.width / 2 : lx), y: rect.top + (isNaN(ly) ? 0 : ly), op: parseFloat(b.opacity) };
+    }
+    return L;
+  }
+  function outerShadow(s) {
+    if (!s || s === 'none') return 'none';
+    const out = []; let d = 0, cur = '';
+    for (const ch of s) { if (ch === '(') d++; if (ch === ')') d--; if (ch === ',' && !d) { out.push(cur); cur = ''; } else cur += ch; }
+    out.push(cur);
+    return out.map(x => x.trim()).filter(x => x && !/inset/.test(x)).join(', ') || 'none';
+  }
+  function radiusOf(cs, w, h) {
+    const v = String(cs.borderTopLeftRadius);
+    let r = parseFloat(v) || 0;
+    if (v.indexOf('%') >= 0) r = Math.min(w, h) * r / 100;
+    return Math.min(r, w / 2, h / 2);
+  }
+
+  // ---- геометрия ----
+  const f2 = v => (Math.round(v * 100) / 100).toString();
+  function rrPath(x, y, w, h, r) {
+    r = Math.min(r, w / 2, h / 2);
+    return `M${f2(x + r)} ${f2(y)}H${f2(x + w - r)}A${f2(r)} ${f2(r)} 0 0 1 ${f2(x + w)} ${f2(y + r)}V${f2(y + h - r)}A${f2(r)} ${f2(r)} 0 0 1 ${f2(x + w - r)} ${f2(y + h)}`
+      + `H${f2(x + r)}A${f2(r)} ${f2(r)} 0 0 1 ${f2(x)} ${f2(y + h - r)}V${f2(y + r)}A${f2(r)} ${f2(r)} 0 0 1 ${f2(x + r)} ${f2(y)}Z`;
+  }
+  // Контур области f < 0 на сетке (марширующие квадраты) → замкнутые ломаные для clip-path.
+  // Точка пересечения лежит на ребре сетки; у каждой точки ровно два соседа по контуру.
+  // side — направление к капле: слияние набухает только с её стороны (у широкой капсулы дальний край не вздувается)
+  function contour(A, B2, k, x0, y0, nx, ny, step, side) {
+    const W = nx + 1, H = ny + 1, V = new Float64Array(W * H);
+    const sl = side ? 1 / (Math.abs(side.x) * A.hw + Math.abs(side.y) * A.hh || 1) : 0;
+    // поле: мягкое слияние двух скруглённых прямоугольников (считаем прямо здесь — функция крутится всего несколько кадров)
+    const ar = A.r, ahw = A.hw - ar, ahh = A.hh - ar, br = B2.r, bhw = B2.hw - br, bhh = B2.hh - br, ik = 1 / k;
+    for (let j = 0; j < H; j++) {
+      const y = y0 + j * step, qay = Math.abs(y - A.y) - ahh, qby = Math.abs(y - B2.y) - bhh;
+      const may = qay > 0 ? qay : 0, mby = qby > 0 ? qby : 0;
+      for (let i = 0; i < W; i++) {
+        const x = x0 + i * step, qax = Math.abs(x - A.x) - ahw, qbx = Math.abs(x - B2.x) - bhw;
+        const max = qax > 0 ? qax : 0, mbx = qbx > 0 ? qbx : 0;
+        const da = Math.sqrt(max * max + may * may) + Math.min(qax > qay ? qax : qay, 0) - ar;
+        const db = Math.sqrt(mbx * mbx + mby * mby) + Math.min(qbx > qby ? qbx : qby, 0) - br;
+        const df = da - db, h = k - (df < 0 ? -df : df);
+        let wg = 1;
+        if (side) { const t = ((x - A.x) * side.x + (y - A.y) * side.y) * sl + 0.5; wg = t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t); }
+        V[j * W + i] = (da < db ? da : db) - (h > 0 ? h * h * ik * 0.25 * wg : 0);
+      }
+    }
+    const N = W * H * 2, PX = new Float64Array(N), PY = new Float64Array(N), NB = new Int32Array(N * 2).fill(-1), has = new Uint8Array(N);
+    // точка на ребре: e — номер ребра (у узла (i, j) горизонтальное 2·n, вертикальное 2·n+1), va/vb — значения на концах
+    function pt(e, ax, ay, va, bx, by, vb) {
+      if (!has[e]) { const u = va / (va - vb); PX[e] = ax + (bx - ax) * u - x0; PY[e] = ay + (by - ay) * u - y0; has[e] = 1; }
+      return e;
+    }
+    function link(a, b) { NB[a * 2 + (NB[a * 2] < 0 ? 0 : 1)] = b; NB[b * 2 + (NB[b * 2] < 0 ? 0 : 1)] = a; }
+    const starts = [];
+    for (let j = 0; j < ny; j++) {
+      for (let i = 0; i < nx; i++) {
+        const n = j * W + i, a = V[n], b = V[n + 1], c = V[n + W + 1], d = V[n + W];
+        const code = (a < 0 ? 8 : 0) | (b < 0 ? 4 : 0) | (c < 0 ? 2 : 0) | (d < 0 ? 1 : 0);
+        if (code === 0 || code === 15) continue;
+        const X = x0 + i * step, Y = y0 + j * step, X1 = X + step, Y1 = Y + step;
+        let T = -1, B = -1, L = -1, R = -1;
+        if (code !== 3 && code !== 12 && code !== 1 && code !== 14 && code !== 2 && code !== 13) T = pt(n * 2, X, Y, a, X1, Y, b);
+        if (code !== 3 && code !== 12 && code !== 4 && code !== 11 && code !== 7 && code !== 8) B = pt((n + W) * 2, X, Y1, d, X1, Y1, c);
+        if (code !== 2 && code !== 13 && code !== 4 && code !== 11 && code !== 6 && code !== 9) L = pt(n * 2 + 1, X, Y, a, X, Y1, d);
+        if (code !== 1 && code !== 14 && code !== 6 && code !== 9 && code !== 7 && code !== 8) R = pt((n + 1) * 2 + 1, X1, Y, b, X1, Y1, c);
+        const mid = (a + b + c + d) / 4 < 0;
+        switch (code) {
+          case 1: case 14: link(L, B); break;
+          case 2: case 13: link(B, R); break;
+          case 3: case 12: link(L, R); break;
+          case 4: case 11: link(T, R); break;
+          case 6: case 9: link(T, B); break;
+          case 7: case 8: link(T, L); break;
+          case 5: if (mid) { link(T, L); link(R, B); } else { link(T, R); link(L, B); } break;
+          case 10: if (mid) { link(T, R); link(L, B); } else { link(T, L); link(R, B); } break;
+        }
+        starts.push(T >= 0 ? T : L >= 0 ? L : B);
+      }
+    }
+    let out = '';
+    const seen = new Uint8Array(N);
+    for (let n = 0; n < starts.length; n++) {
+      const start = starts[n];
+      if (!has[start] || seen[start] || NB[start * 2] < 0) continue;
+      let prev = -1, cur = start, s = '';
+      for (let guard = 0; guard < N; guard++) {
+        seen[cur] = 1;
+        s += (s ? 'L' : 'M') + f2(PX[cur]) + ' ' + f2(PY[cur]);
+        const n0 = NB[cur * 2], n1 = NB[cur * 2 + 1];
+        const next = n0 >= 0 && n0 !== prev && !seen[n0] ? n0 : (n1 >= 0 && !seen[n1] ? n1 : -1);
+        if (next < 0) break;
+        prev = cur; cur = next;
+      }
+      out += s + 'Z';
+    }
+    return out;
+  }
+
+  // ---- форма: e — насколько капля вытекла из капсулы, p — насколько долетела и раздулась в окно (чуть больше 1 — отскок) ----
+  function shape(st) {
+    const C = st.C, G = st.G, F = st.F, D = st.dir, De = st.dirE;
+    const e = clamp(st.e, 0, 1), p = Math.max(0, st.p), over = Math.max(0, st.p - 1);
+    // вытекание: капля выдавливается из края капсулы в сторону окна и подрастает
+    // (прямо вниз из-под нажатой кнопки, не вылезая за край капсулы — иначе кажется, что стекло течёт вбок)
+    const px1 = lerp(G.x, st.Xe, e) + De.x * st.E * e, py1 = lerp(G.y, st.Ye, e) + De.y * st.E * e, d1 = lerp(st.h0, st.h1, e);
+    // полёт: от края капсулы к месту окна, по пути раздувается в окно
+    // летит с разгоном (как сама пружина), а раздувается уже в полёте — глаз успевает проследить отрыв
+    // и место, и размер идут ровно за пружиной: окно раздувается плавно, без рывка посередине
+    // путь — дуга: оторвавшись, капля сначала падает вниз и только потом уходит к месту окна
+    const t = clamp(p / 0.92, 0, 1), f = clamp((p - 0.02) / 0.95, 0, 1) + over;
+    const vert = Math.abs(De.y) > 0.5;
+    const cx = vert ? px1 : px1 + (F.x - px1) * 0.55, cy = vert ? py1 + (F.y - py1) * 0.55 : py1;
+    const x = (1 - t) * (1 - t) * px1 + 2 * (1 - t) * t * cx + t * t * F.x;
+    const y = (1 - t) * (1 - t) * py1 + 2 * (1 - t) * t * cy + t * t * F.y;
+    // круглая — только пока размером с кнопку; оторвавшись, сразу берёт пропорции окна и растёт уменьшенным окном
+    const sz = lerp(d1 / Math.min(F.w, F.h), 1, f), a = smooth(0, 0.12, f);
+    let w = lerp(d1, F.w * sz, a), h = lerp(d1, F.h * sz, a);
+    // упругость: в полёте капля чуть вытягивается вдоль пути и поджимается поперёк, на месте — лёгкий отскок
+    const k = clamp(Math.max(0, st.vp) * 0.022, 0, 0.1) * (1 - smooth(0.7, 1, f));
+    const dxa = Math.abs(D.x), dya = Math.abs(D.y);
+    w *= 1 + k * dxa - k * 0.6 * dya; h *= 1 + k * dya - k * 0.6 * dxa;
+    // углы: у маленькой капли — полный круг, у растущего окна — скругление окна, чуть больше, пока оно маленькое
+    const r = Math.min(Math.min(w, h) / 2, F.r * (1 + 1.2 * (1 - clamp(f, 0, 1))));
+    // капсула стекает в каплю: сжимается и тянется за ней хвостиком, пока не втянется целиком
+    // (хвостик притягивается к заднему краю капли — капсула не остаётся отдельной крошкой, а втягивается)
+    // как только капля полетела, остаток капсулы быстро втягивается в её задний край — без отдельных «крошек»
+    // пока капля вытекает, капсула целая; стекает и втягивается за каплей, когда та полетела
+    let s, u;
+    if (st.keep) {
+      // маленькая панель: кнопка отдаёт каплю, сама чуть вытягивается за ней и после отрыва упруго возвращается
+      // у кнопки пошире — слабее, а широкая капсула (недели) стоит на месте: сжиматься и съезжать целиком ей незачем,
+      // тянется только край у капли (иначе подписи на ней сдвигались бы на доли пикселя и дрожали)
+      const big = Math.max(C.w, C.h), pull = smooth(0.25, 1, e) * (1 - smooth(0, 0.35, p)), amp = big > 240 ? 0 : Math.min(1, (104 / big) ** 2);
+      s = 1 - 0.08 * pull * amp; u = 0.18 * pull * amp;
+    } else { s = 1 - smooth(0, 0.16, p); u = Math.max(Math.pow(1 - s, 0.9), smooth(0, 0.1, p)); }
+    const dl = Math.hypot(x - G.x, y - G.y) || 1, back = Math.min(w, h) * 0.3;
+    const bx = x - (x - G.x) / dl * Math.min(back, dl), by = y - (y - G.y) / dl * Math.min(back, dl);
+    const ax = G.x + (bx - G.x) * u, ay = G.y + (by - G.y) * u;
+    const base = s > 0.002 ? (st.keep
+      ? { x: G.x + (C.x - G.x) * s + (ax - G.x), y: G.y + (C.y - G.y) * s + (ay - G.y), hw: C.w / 2 * s, hh: C.h / 2 * s, r: C.r * s, dx: ax - G.x, dy: ay - G.y }
+      : { x: lerp(ax, C.x, s), y: lerp(ay, C.y, s), hw: C.w / 2 * s, hh: C.h / 2 * s, r: C.r * s, dx: (ax - G.x) * (1 - s), dy: (ay - G.y) * (1 - s) }) : null;
+    return { s, base, f, e, p, x, y, w, h, r };
+  }
+
+  function place(el, x, y, w, h) {
+    el.style.transform = `translate(${f2(x)}px, ${f2(y)}px)`;
+    el.style.width = f2(w) + 'px'; el.style.height = f2(h) + 'px';
+  }
+  // тени не перерисовываются каждый кадр: слой постоянного размера, его только растягивает видеокарта
+  function stretch(el, x, y, sx, sy) { el.style.transform = `translate(${f2(x)}px, ${f2(y)}px) scale(${sx.toFixed(5)}, ${sy.toFixed(5)})`; }
+  function sized(el, w, h, r) { el.style.width = f2(w) + 'px'; el.style.height = f2(h) + 'px'; el.style.borderRadius = f2(r) + 'px'; }
+
+  // Кнопку могли перерисовать, пока капля в пути (расписание обновляется раз в минуту и после синхронизации):
+  // находим новую такую же и продолжаем с ней — иначе новая кнопка появлялась бы целой рядом с каплей
+  function recap(st) {
+    if (st.cap.isConnected) return;
+    const old = st.cap, oc = old.getAttribute('onclick');
+    let n = old.id ? document.getElementById(old.id) : null;
+    if (!n && oc) n = [...document.querySelectorAll('[onclick]')].find(e => e.getAttribute('onclick') === oc && e.className.split(' ')[0] === old.className.split(' ')[0]) || null;
+    if (!n) return;
+    st.cap = n; st.ref = n.parentElement;
+    const from = SRC.get(st.box); if (from) from.cap = n;
+    if (st.capOrigin) n.style.transformOrigin = st.capOrigin;
+  }
+  // Кнопка уехала, пока капля в пути (меню закрылось от прокрутки — список ещё едет): всё, что привязано к кнопке,
+  // едет за ней, и капля втекает туда, где кнопка сейчас, а не остаётся висеть на старом месте посреди экрана.
+  // Меряем родителя: на его место наши scale/translate у кнопки не влияют
+  function follow(st) {
+    const ref = st.ref;
+    if (!ref || !ref.isConnected) return;
+    const r = ref.getBoundingClientRect(), dx = r.left - st.refAt.x, dy = r.top - st.refAt.y;
+    if (Math.abs(dx) < 0.01 && Math.abs(dy) < 0.01) return;
+    st.refAt = { x: r.left, y: r.top };
+    st.C.x += dx; st.C.y += dy; st.G.x += dx; st.G.y += dy; st.Xe += dx; st.Ye += dy;
+    st.cr = { left: st.cr.left + dx, top: st.cr.top + dy };
+    st.mv.x += dx; st.mv.y += dy;
+    // кнопка уходит под шапку списка (верхний отступ прокрутки — там лежит стеклянная шапка) или за край —
+    // капля не летит поверх шапки, а тает вместе с уходящей кнопкой
+    if (st.view) {
+      const C = st.C, v = st.view, hh = C.h / 2;
+      const vis = clamp(Math.min((C.y + hh - v.top) / C.h, (v.bottom - (C.y - hh)) / C.h), 0, 1);
+      st.fadeT = st.vis0 > 0 ? clamp(vis / st.vis0, 0, 1) : 1;
+    }
+  }
+  // таяние — не быстрее чем за 0,18 с, даже если кнопка проскочила под шапку за пару кадров
+  function fadeStep(st) {
+    if (st.fadeT == null || st.fade === st.fadeT) return;
+    const d = (st.dt || 1 / 60) / 0.18;
+    st.fade = st.fadeT < st.fade ? Math.max(st.fadeT, st.fade - d) : Math.min(st.fadeT, st.fade + d);
+  }
+  function render(st) {
+    recap(st);
+    follow(st); fadeStep(st);
+    const g = shape(st), F = st.F, L = st.look, k = st.k;
+    const head = { x: g.x, y: g.y, hw: g.w / 2, hh: g.h / 2, r: g.r }, b = g.base;
+    // пока кнопка и капля слиты, их стекло рисует жидкость одним контуром (капля вытекает из самого стекла кнопки),
+    // а значки кнопки — копия поверх; разошлись — кнопка снова сама собой
+    const gx = b ? Math.max(0, Math.abs(head.x - b.x) - head.hw - b.hw) : 0, gy = b ? Math.max(0, Math.abs(head.y - b.y) - head.hh - b.hh) : 0;
+    // перемычка рвётся в полёте, даже если окно открывается вплотную к кнопке (иначе к концу они так и остались бы слитыми)
+    // и набирает силу постепенно: в первый кадр (и последний при закрытии) форма — ровно кнопка, без вспухания
+    const kk = Math.max(0.5, k * smooth(0, 0.35, g.e) * (1 - smooth(0.04, 0.24, g.p)));
+    const merged = !!b && Math.hypot(gx, gy) < kk, go = 1;
+    st.cap.style.scale = b ? g.s.toFixed(4) : '0';
+    st.cap.style.translate = b ? `${f2(b.dx)}px ${f2(b.dy)}px` : '0px 0px';
+    st.cap.style.opacity = merged ? '0' : '';
+    const ic = st.icons;
+    ic.style.transform = b ? `translate(${f2(st.cr.left + b.dx)}px, ${f2(st.cr.top + b.dy)}px) scale(${g.s.toFixed(4)})` : 'scale(0)';
+    ic.style.opacity = merged ? st.fade.toFixed(3) : '0';
+    if (merged && st.live) st.live.forEach(([el, c]) => { const q = getComputedStyle(el); c.style.backgroundColor = q.backgroundColor; c.style.transform = q.transform; });
+    // стекло жидкости: то же, что у капсулы, по мере роста плавно становится стеклом окна
+    const m = smooth(0.18, 0.7, g.f), goo = st.goo;   // пока капля держится за кнопку — стекло кнопки
+    const c = L.c0.map((v, i) => lerp(v, L.c1[i], m));
+    goo.style.backgroundColor = `rgba(${c[0].toFixed(1)}, ${c[1].toFixed(1)}, ${c[2].toFixed(1)}, ${c[3].toFixed(3)})`;
+    let lensOn = false;
+    if (L.b0 || L.b1) {
+      const b0 = L.b0 || { b: 0, s: 1 }, b1 = L.b1 || { b: 0, s: 1 };
+      // преломление окна у края нарастает, пока капля становится окном; в конце — ровно как у самого окна
+      const ls = st.lens ? smooth(0.6, 1, g.f) * (1 - (merged ? 1 : 0)) : 0;
+      lensOn = ls > 0.01;
+      if (lensOn) st.lens.disp.setAttribute('scale', (st.lens.full * ls).toFixed(2));
+      const capLens = !lensOn && merged && st.capLens;
+      goo.style.backdropFilter = goo.style.webkitBackdropFilter = `${lensOn ? `url(#${st.lens.id}) ` : capLens ? `url(#${st.capLens.id}) ` : ''}blur(${lerp(b0.b, b1.b, m).toFixed(1)}px) saturate(${lerp(b0.s, b1.s, m).toFixed(2)})`;
+    }
+    goo.style.opacity = (go * st.fade).toFixed(3);   // тает — каждый слой сам по себе: прозрачный общий слой лишил бы каплю размытия фона
+    st.rim.style.opacity = st.shw.style.opacity = st.fade < 1 ? st.fade.toFixed(3) : '';
+    // контур: одна капля — или капля, слитая с кнопкой перемычкой
+    let x0, y0, bw, bh, d;
+    if (!merged) {
+      x0 = head.x - head.hw; y0 = head.y - head.hh; bw = g.w; bh = g.h;
+      d = rrPath(0, 0, g.w, g.h, g.r);
+      goo.style.borderRadius = f2(g.r) + 'px';
+      goo.style.clipPath = 'none';
+    } else {
+      const pad = kk * 0.35 + 3;
+      // слой — по целым пикселям: иначе край кнопки (и кромка) рисуется со сдвигом в полпикселя и мылится
+      x0 = Math.floor(Math.min(head.x - head.hw, b.x - b.hw) - pad); y0 = Math.floor(Math.min(head.y - head.hh, b.y - b.hh) - pad);
+      const x1 = Math.max(head.x + head.hw, b.x + b.hw) + pad, y1 = Math.max(head.y + head.hh, b.y + b.hh) + pad;
+      const span = Math.max(x1 - x0, y1 - y0), step = clamp(span / 72, 1.75, span > 300 ? 2 : 3);   // у широкой капсулы — мельче, чтобы скругления её концов были ровными
+      const nx = Math.ceil((x1 - x0) / step), ny = Math.ceil((y1 - y0) / step);
+      bw = nx * step; bh = ny * step;
+      // капля ещё целиком внутри кнопки (первые и последние кадры) — контур ровно кнопки, без ступенек сетки
+      const inside = Math.abs(head.x - b.x) + head.hw <= b.hw + 0.5 && Math.abs(head.y - b.y) + head.hh <= b.hh + 0.5;
+      d = inside && kk < 3 ? rrPath(b.x - b.hw - x0, b.y - b.hh - y0, b.hw * 2, b.hh * 2, b.r) : contour(b, head, kk, x0, y0, nx, ny, step, st.wide ? st.dirE : null);
+      goo.style.borderRadius = '0';
+      goo.style.clipPath = `path(evenodd, "${d}")`;
+    }
+    place(goo, x0, y0, bw, bh);
+    if (!lensOn && merged && st.capLens) {
+      const Cf = st.capLens.f, Ci = st.capLens.img;
+      Cf.setAttribute('width', f2(bw)); Cf.setAttribute('height', f2(bh));
+      Ci.setAttribute('x', f2(b.x - b.hw - x0)); Ci.setAttribute('y', f2(b.y - b.hh - y0));
+      Ci.setAttribute('width', f2(b.hw * 2)); Ci.setAttribute('height', f2(b.hh * 2));
+    }
+    if (lensOn) {
+      const Lf = st.lens.f, Li = st.lens.img;
+      Lf.setAttribute('width', f2(bw)); Lf.setAttribute('height', f2(bh));
+      Li.setAttribute('x', f2(head.x - head.hw - x0)); Li.setAttribute('y', f2(head.y - head.hh - y0));
+      Li.setAttribute('width', f2(g.w)); Li.setAttribute('height', f2(g.h));
+    }
+    // светлая кромка стекла по контуру (как у капсулы); у окна её нет — гаснет по мере роста
+    // детали стекла: у кнопки — пока жидкость ещё её стекло, у окна — по мере того, как она становится окном
+    place(st.rim, x0, y0, bw, bh);
+    st.rimClip.setAttribute('d', d);
+    const tr = `translate(${f2(-x0)} ${f2(-y0)})`;
+    st.rimSets.forEach(part => {
+      const op = part.side ? m : 1 - m;
+      if (op < 0.004) { part.g.setAttribute('display', 'none'); return; }
+      part.g.removeAttribute('display'); part.g.setAttribute('opacity', op.toFixed(3));
+      part.insets.forEach(ins => {
+        if (ins.ring) { ins.path.setAttribute('d', d); return; }   // линия по контуру; внутренняя половина — внутри обрезки
+        const P = ins.pad;
+        ins.f.setAttribute('x', -P - Math.abs(ins.ox)); ins.f.setAttribute('y', -P - Math.abs(ins.oy));
+        ins.f.setAttribute('width', bw + 2 * P + 2 * Math.abs(ins.ox)); ins.f.setAttribute('height', bh + 2 * P + 2 * Math.abs(ins.oy));
+        // внутренняя тень = всё снаружи фигуры, сдвинутое и размытое, видимое только внутри
+        ins.path.setAttribute('d', `M${-P - 2} ${-P - 2}H${f2(bw + P + 2)}V${f2(bh + P + 2)}H${-P - 2}Z` + d);
+        ins.path.setAttribute('transform', `translate(${ins.ox} ${ins.oy})`);
+      });
+      if (part.spec) {
+        const ox = part.side ? 0 : st.mv.x, oy = part.side ? 0 : st.mv.y;   // блик кнопки — вместе с кнопкой
+        part.specG.setAttribute('cx', f2(part.specAt.x + ox - x0)); part.specG.setAttribute('cy', f2(part.specAt.y + oy - y0));
+        part.spec.setAttribute('width', f2(bw)); part.spec.setAttribute('height', f2(bh));
+      }
+      if (part.grad) part.grad.setAttribute('gradientTransform', part.side ? tr : `translate(${f2(st.mv.x - x0)} ${f2(st.mv.y - y0)})`);
+      if (part.rim) part.rim.setAttribute('d', d);
+    });
+    // тени: у капли сначала как у капсулы, потом как у окна; у остатка капсулы — своя
+    const F0 = st.F, h1 = st.h1, sw = smooth(0.1, 0.7, g.f);
+    st.shw.style.clipPath = merged ? `path(evenodd, "M-50 -50H${innerWidth + 50}V${innerHeight + 50}H-50Z${rrPath(b.x - b.hw, b.y - b.hh, b.hw * 2, b.hh * 2, b.r)}")` : 'none';
+    stretch(st.shH, head.x - head.hw, head.y - head.hh, g.w / F0.w, g.h / F0.h);
+    stretch(st.shC, head.x - head.hw, head.y - head.hh, g.w / h1, g.h / h1);
+    st.shH.style.opacity = (go * sw).toFixed(3);
+    // тень капли — только у той части, что вышла из кнопки (пока капля внутри, тень кнопки уже лежит под ней)
+    st.shC.style.opacity = (go * (1 - sw) * smooth(0.2, 0.75, g.e)).toFixed(3);
+    if (merged) { stretch(st.shB, b.x - b.hw, b.y - b.hh, g.s, g.s); st.shB.style.opacity = st.fade.toFixed(3); }
+    else st.shB.style.opacity = '0';
+    // содержимое окна: внутри капли, сначала сжато и размыто
+    const box = st.box, sx = Math.max(0.001, g.w / F.w), sy = Math.max(0.001, g.h / F.h);
+    box.style.transform = `translate(${f2(g.x - F.x)}px, ${f2(g.y - F.y)}px) scale(${sx.toFixed(5)}, ${sy.toFixed(5)})`;
+    const op = smooth(0.05, 0.35, g.f);                         // содержимое видно почти сразу — форма читается как окно
+    // не ноль: иначе браузер не рисует окно, пока капля вытекает, и рисует его целиком в момент отрыва — отсюда «бам»
+    box.style.opacity = Math.max(0.004, op * st.fade).toFixed(3);
+    // размытие считается в масштабе содержимого: ограничиваем, иначе у маленькой капли оно огромное и тормозит видеокарту
+    const bl = Math.min(10, 8 * (1 - smooth(0.1, 0.55, g.f)) / ((sx + sy) / 2));
+    box.style.setProperty('filter', bl > 0.05 ? `blur(${bl.toFixed(2)}px)` : 'none', 'important');
+    const settled = Math.abs(sx - 1) < 0.002 && Math.abs(sy - 1) < 0.002 && Math.abs(g.r - F.r) < 0.5;
+    box.style.setProperty('clip-path', settled ? 'none' : `inset(0px round ${f2(g.r / sx)}px / ${f2(g.r / sy)}px)`, 'important');
+    // затемнение фона
+    if (st.dim) st.dim.currentTime = 1000 * smooth(0.04, 0.8, g.p);   // пока капля держится за кнопку, фон не темнеет
+  }
+
+  function spring(x, v, target, sp, dt) {
+    const w = 2 * Math.PI / sp[0], kk = w * w, c = 2 * sp[1] * w;
+    const n = Math.max(1, Math.ceil(dt * 480)), h = dt / n;
+    for (let i = 0; i < n && dt > 0; i++) { v += (-kk * (x - target) - c * v) * h; x += v * h; }
+    if (target === 0 && x < 0) { x = 0; v = 0; }
+    return [x, v];
+  }
+  // кривая полёта: открытие — как cubic-bezier(0.45, 0, 0.4, 1): мягкий старт, ровный разгон, плавная посадка.
+  // Закрытие — (0.3, 0, 0.3, 1): окно сразу трогается и равномерно стекает, без задержки и рывка посередине
+  function ease(x, close) {
+    if (x <= 0) return 0;
+    if (x >= 1) return 1;
+    const a = close ? 0.3 : 0.45, c = close ? 0.3 : 0.4;
+    const X = u => 3 * (1 - u) * (1 - u) * u * a + 3 * (1 - u) * u * u * c + u * u * u;
+    const Y = u => 3 * (1 - u) * u * u + u * u * u;
+    let lo = 0, hi = 1, u = x;
+    for (let i = 0; i < 24; i++) { u = (lo + hi) / 2; if (X(u) < x) lo = u; else hi = u; }
+    return Y(u);
+  }
+  function step(st, now) {
+    st.raf = 0;
+    // часы идут с первого показанного кадра; если кадр задержался, анимация замедляется, а не перескакивает
+    const dt = st.last == null ? 1 / 60 : clamp((now - st.last) / 1000, 0, 1 / 50);
+    st.last = now; st.dt = dt;
+    const open = st.mode === 'open';
+    const eT = open ? 1 : (st.p <= GATE_CLOSE ? 0 : 1);
+    const pT = open ? (st.e >= GATE_OPEN || st.p > 0.001 ? 1 : 0) : 0;
+    [st.e, st.ve] = spring(st.e, st.ve, eT, open ? st.EM.open : st.EM.close, dt);
+    // полёт и раскрытие в окно — по плавной кривой за точное время: мягко трогается (видно, как капля отрывается),
+    // разгоняется и спокойно садится на место, без долгого «доползания» в конце, как было у пружины
+    if (!st.seg || st.seg.to !== pT) {
+      const span = Math.abs(pT - st.p);
+      st.seg = { from: st.p, to: pT, t: 0, D: Math.max(0.12, (open ? st.Dopen : st.Dclose) * Math.max(0.35, span)) };
+    }
+    if (st.seg.from !== st.seg.to) {
+      const sg = st.seg, p0 = st.p;
+      sg.t = Math.min(sg.D, sg.t + dt);
+      st.p = sg.t >= sg.D ? sg.to : sg.from + (sg.to - sg.from) * ease(sg.t / sg.D, sg.to === 0);   // в конце — ровно в цель
+      st.vp = dt > 0 ? (st.p - p0) / dt : 0;
+    } else st.vp = 0;
+    const done = open ? Math.abs(st.e - 1) < 0.003 && Math.abs(st.ve) < 0.05 && st.p === 1
+      : st.e < 0.02 && st.p === 0;
+    if (done) { st.e = st.p = open ? 1 : 0; st.ve = st.vp = 0; }
+    render(st);
+    if (done) finish(st, open ? 'opened' : 'closed');
+    else { st.raf = requestAnimationFrame(t => step(st, t)); arm(st); }
+  }
+  // страховка: окно приложения свернули и кадры не приходят — доводим до конца
+  function arm(st) { clearTimeout(st.guard); st.guard = setTimeout(() => { if (S.get(st.box) === st) { st.e = st.p = st.mode === 'open' ? 1 : 0; render(st); finish(st, st.mode === 'open' ? 'opened' : 'closed'); } }, 1500); }
+
+  const BOX_PROPS = ['transform', 'opacity', 'filter', 'clip-path', 'transform-origin', 'pointer-events'];
+  function restoreCap(src) {
+    if (!src) return;
+    ['scale', 'translate', 'opacity', 'transform-origin'].forEach(p => src.cap.style.removeProperty(p));
+  }
+  function teardown(st, how) {
+    cancelAnimationFrame(st.raf); clearTimeout(st.guard);
+    if (st.root) st.root.remove();
+    try { if (st.dim) st.dim.cancel(); } catch (e) { /* уже */ }
+    const box = st.box;
+    box.style.transition = 'none';                             // вернуть на место без собственных переходов окна
+    box.classList.remove('lg-morph', 'lg-morphing', 'lg-morph-closing', 'lq-on');
+    BOX_PROPS.forEach(p => box.style.removeProperty(p));
+    void box.offsetWidth;
+    box.style.transition = st.savedTr;
+    // большое окно открыто — кнопка остаётся спрятанной под ним, как в iOS; у маленькой панели кнопка всегда на месте
+    if (how !== 'opened' || st.keep) restoreCap(SRC.get(box));
+  }
+  function finish(st, how) {
+    if (S.get(st.box) !== st) return;
+    teardown(st, how);
+    S.delete(st.box);
+    if (how === 'opened' && window.LGBar) LGBar.refresh();
+    st.box.dispatchEvent(new CustomEvent('lg-morph-end', { detail: how }));
+    const d = st.done; st.done = []; d.forEach(f => f(how));
+  }
+
+  function begin(box, src, mode, opts) {
+    let st = S.get(box);
+    if (st) {                                                   // развернуть на ходу с той же скоростью
+      st.mode = mode;
+      box.classList.toggle('lg-morph-closing', mode === 'close');
+      if (!st.raf) { st.last = null; st.raf = requestAnimationFrame(t => step(st, t)); }
+      return st;
+    }
+    let from = SRC.get(box);
+    if (mode === 'open' || !from) {
+      const cap = capOf(src);
+      if (!cap) return null;
+      from = { cap, btn: src };
+      SRC.set(box, from);
+    }
+    const cap = from.cap;
+    if (!cap.isConnected) { SRC.delete(box); return null; }
+    const v0 = mode === 'open' ? 0 : 1;
+    st = { box, cap, done: [], mode, e: v0, p: v0, ve: mode === 'open' ? KICK : 0, vp: 0, last: null, keep: !!(opts && opts.keep), savedTr: box.style.transition };
+    // размеры без наших смещений: окно на своём месте (без сдвига закрытого состояния и его перехода), капсула в полный рост
+    box.style.transition = 'none';
+    box.style.transform = 'none';
+    const fr = box.getBoundingClientRect();
+    box.style.removeProperty('transform');
+    cap.style.removeProperty('scale'); cap.style.removeProperty('translate');
+    const cr = cap.getBoundingClientRect();
+    const btn = from.btn && from.btn.isConnected && cap.contains(from.btn) ? from.btn : cap;
+    const br = btn.getBoundingClientRect();
+    const bcs = getComputedStyle(box), ccs = getComputedStyle(cap);
+    st.F = { x: fr.left + fr.width / 2, y: fr.top + fr.height / 2, w: fr.width, h: fr.height, r: radiusOf(bcs, fr.width, fr.height) };
+    st.C = { x: cr.left + cr.width / 2, y: cr.top + cr.height / 2, w: cr.width, h: cr.height, r: radiusOf(ccs, cr.width, cr.height) };
+    st.G = { x: br.left + br.width / 2, y: br.top + br.height / 2 };
+    st.h0 = Math.min(st.C.h * 0.62, 34);
+    st.h1 = st.C.h * 1.1;                                      // размер капли, когда она вытекла
+    // направление к окну и где капля выходит из капсулы
+    const ddx = st.F.x - st.G.x, ddy = st.F.y - st.G.y, dd = Math.hypot(ddx, ddy) || 1;
+    st.dir = { x: ddx / dd, y: ddy / dd };
+    // капля вытекает прямо из-под нажатой кнопки (к ближней грани капсулы), чуть кренясь в сторону окна
+    // капля вытекает строго к ближней грани капсулы (окно ниже — вниз), из-под нажатой кнопки, но не за край капсулы
+    st.dirE = Math.abs(st.dir.y) >= Math.abs(st.dir.x) * 0.3 ? { x: 0, y: Math.sign(st.dir.y) || 1 } : { x: Math.sign(st.dir.x) || 1, y: 0 };
+    const mg = st.h1 / 2 + 6;
+    const within = (v, c, half) => half > mg ? clamp(v, c - half + mg, c + half - mg) : c;   // кнопка уже капли — из её середины
+    st.Xe = st.dirE.y ? within(st.G.x, st.C.x, st.C.w / 2) : st.G.x;
+    st.Ye = st.dirE.x ? within(st.G.y, st.C.y, st.C.h / 2) : st.G.y;
+    const tx = st.dirE.x ? (st.dirE.x > 0 ? st.C.x + st.C.w / 2 - st.Xe : st.Xe - (st.C.x - st.C.w / 2)) : 1e9;
+    const ty = st.dirE.y ? (st.dirE.y > 0 ? st.C.y + st.C.h / 2 - st.Ye : st.Ye - (st.C.y - st.C.h / 2)) : 1e9;
+    st.E = Math.max(0, Math.min(tx, ty)) + st.h1 * 0.75;     // отдельная капля висит у края капсулы на липкой перемычке
+    st.k = st.C.h * 1.1;                                     // насколько далеко тянется перемычка (рвётся на ~половине)
+    st.wide = Math.max(st.C.w, st.C.h) > 240;                // широкая капсула (недели): стоит на месте, дальний край не вздувается
+    const fz = clamp((Math.sqrt(st.F.w * st.F.h) - 300) / 350, 0, 1);
+    st.EM = mixSp(EMERGE_S, EMERGE, fz);
+    st.Dopen = lerp(0.5, 0.65, fz); st.Dclose = lerp(0.46, 0.58, fz);   // время полёта: маленькая панель — чуть быстрее
+    // стекло: в начале — как у капсулы, в конце — как у окна
+    const lite = document.body.classList.contains('glass-lite'), dark = document.body.classList.contains('dark-theme');
+    st.look = {
+      c0: color(ccs.backgroundColor) || [255, 255, 255, 0.5], c1: color(bcs.backgroundColor) || [246, 246, 248, 0.9],
+      b0: lite ? null : blurOf(ccs.backdropFilter || ccs.webkitBackdropFilter), b1: lite ? null : blurOf(bcs.backdropFilter || bcs.webkitBackdropFilter)
+    };
+    // все слои жидкости — в одном контейнере перед окном; контейнер выравниваем по краю экрана,
+    // даже если кто-то из родителей сдвинут (тогда «fixed» считается от него, а не от экрана)
+    const root = document.createElement('div'); root.className = 'lq-root'; root.setAttribute('aria-hidden', 'true');
+    box.parentNode.insertBefore(root, box);
+    const rr = root.getBoundingClientRect();
+    root.style.transform = `translate(${f2(-rr.left)}px, ${f2(-rr.top)}px)`;
+    st.root = root;
+    const layer = (cls, shadow) => { const el = document.createElement('div'); el.className = cls; el.setAttribute('aria-hidden', 'true'); if (shadow) el.style.boxShadow = shadow; root.appendChild(el); return el; };
+    // тени капли лежат поверх кнопки — вырезаем место кнопки, чтобы тень не ложилась на неё
+    st.shB = layer('lq-shadow', outerShadow(ccs.boxShadow)); sized(st.shB, st.C.w, st.C.h, st.C.r);
+    st.shw = layer('lq-shwrap');
+    st.shC = layer('lq-shadow', outerShadow(ccs.boxShadow)); sized(st.shC, st.h1, st.h1, st.h1 / 2);
+    st.shH = layer('lq-shadow', outerShadow(bcs.boxShadow)); sized(st.shH, st.F.w, st.F.h, st.F.r);
+    st.shw.append(st.shC, st.shH);
+    st.goo = layer('lq-goo');
+    // окно с преломлением у края (data-lens): та же линза, что у окна, едет вместе с каплей и нарастает к концу
+    if (box.hasAttribute('data-lens') && window.LGLensMap && !lite && document.documentElement.classList.contains('lg-can-refract')) {
+      const NS0 = 'http://www.w3.org/2000/svg', W0 = Math.round(box.offsetWidth), H0 = Math.round(box.offsetHeight);
+      const R0 = Math.round(Math.min(st.F.r, W0 / 2, H0 / 2));
+      const bez = Number(box.dataset.lensBez) || Math.max(6, Math.min(18, Math.round(Math.min(W0, H0) * 0.34)));
+      const svg = document.createElementNS(NS0, 'svg'); svg.setAttribute('width', '0'); svg.setAttribute('height', '0'); svg.style.position = 'absolute';
+      const id = 'lql' + (++seq), f = document.createElementNS(NS0, 'filter');
+      f.id = id; f.setAttribute('filterUnits', 'userSpaceOnUse'); f.setAttribute('color-interpolation-filters', 'sRGB'); f.setAttribute('x', '0'); f.setAttribute('y', '0');
+      f.innerHTML = `<feImage href="${LGLensMap(W0, H0, R0, bez)}" preserveAspectRatio="none" result="map"/><feDisplacementMap in="SourceGraphic" in2="map" scale="0" xChannelSelector="R" yChannelSelector="G"/>`;
+      svg.appendChild(f); root.appendChild(svg);
+      st.lens = { id, f, img: f.firstChild, disp: f.lastChild, full: Math.round(bez * (Number(box.dataset.lens) || 1.5)) };
+    }
+    // у кнопки тоже преломление у края (data-lens): пока кнопку рисует жидкость, та же линза стоит на месте кнопки,
+    // а вокруг неё (капля, перемычка) смещения нет — серый 128 и есть «без сдвига». Иначе на миг слияния края кнопки
+    // переставали преломлять то, что под ней (у капсулы недель над списком это заметно)
+    if (cap.hasAttribute('data-lens') && window.LGLensMap && !lite && document.documentElement.classList.contains('lg-can-refract')) {
+      const NS1 = 'http://www.w3.org/2000/svg', Wc = Math.round(cap.offsetWidth), Hc = Math.round(cap.offsetHeight);
+      const Rc = Math.round(Math.min(parseFloat(ccs.borderTopLeftRadius) || 0, Wc / 2, Hc / 2));   // как у самой кнопки (модуль 2)
+      const bz = Number(cap.dataset.lensBez) || Math.max(6, Math.min(18, Math.round(Math.min(Wc, Hc) * 0.34)));
+      const svg = document.createElementNS(NS1, 'svg'); svg.setAttribute('width', '0'); svg.setAttribute('height', '0'); svg.style.position = 'absolute';
+      const id = 'lqc' + (++seq), f = document.createElementNS(NS1, 'filter');
+      f.id = id; f.setAttribute('filterUnits', 'userSpaceOnUse'); f.setAttribute('color-interpolation-filters', 'sRGB'); f.setAttribute('x', '0'); f.setAttribute('y', '0');
+      f.innerHTML = `<feFlood flood-color="rgb(128,128,128)" result="bg"/><feImage href="${LGLensMap(Wc, Hc, Rc, bz)}" preserveAspectRatio="none" result="m"/>` +
+        `<feComposite in="m" in2="bg" operator="over" result="map"/><feDisplacementMap in="SourceGraphic" in2="map" scale="${Math.round(bz * (Number(cap.dataset.lens) || 1.5))}" xChannelSelector="R" yChannelSelector="G"/>`;
+      svg.appendChild(f); root.appendChild(svg);
+      st.capLens = { id, f, img: f.children[1] };
+    }
+    // детали стекла поверх жидкости — точная копия того, что есть у кнопки (и у окна, к концу): внутреннее свечение,
+    // светлая полоска сверху, кромка к свету и блик под курсором. Всё обрезано по контуру жидкости
+    const NS = 'http://www.w3.org/2000/svg', uid = 'lq' + (++seq);
+    const rim = document.createElementNS(NS, 'svg');
+    rim.setAttribute('class', 'lq-rim'); rim.setAttribute('aria-hidden', 'true');
+    const DC = details(cap, ccs, cr), DB = details(box, bcs, fr);
+    const mk = (tag, at, parent) => { const n = document.createElementNS(NS, tag); Object.keys(at).forEach(k => n.setAttribute(k, at[k])); (parent || rim).appendChild(n); return n; };
+    const defs = mk('defs', {});
+    const clip = mk('clipPath', { id: uid + 'c' }, defs), clipP = mk('path', { 'clip-rule': 'evenodd' }, clip);
+    const grp = mk('g', { 'clip-path': `url(#${uid}c)` });
+    const sets = [];
+    [DC, DB].forEach((D, side) => {
+      const g = mk('g', {}, grp), part = { g, side, insets: [], rim: null, grad: null, spec: null, specG: null };
+      D.insets.forEach((ins, n) => {
+        if (ins.ring) { part.insets.push({ ring: ins.ring, path: mk('path', { fill: 'none', stroke: ins.col, 'stroke-width': ins.ring * 2 }, g) }); return; }
+        const sd = ins.blur / 2, f = mk('filter', { id: `${uid}f${side}${n}`, filterUnits: 'userSpaceOnUse', 'color-interpolation-filters': 'sRGB' }, defs);
+        if (sd > 0.05) mk('feGaussianBlur', { stdDeviation: sd.toFixed(2) }, f);
+        const path = mk('path', { 'fill-rule': 'evenodd', fill: ins.col, filter: `url(#${uid}f${side}${n})` }, g);
+        part.insets.push({ path, f, pad: Math.ceil(sd * 3 + Math.abs(ins.ox) + Math.abs(ins.oy) + 4), ox: ins.ox, oy: ins.oy });
+      });
+      if (D.spec) {
+        const rg = mk('radialGradient', { id: `${uid}s${side}`, gradientUnits: 'userSpaceOnUse', r: '140' }, defs);
+        mk('stop', { offset: '0', 'stop-color': D.spec.col }, rg); mk('stop', { offset: '0.7', 'stop-color': D.spec.col, 'stop-opacity': '0' }, rg);
+        part.spec = mk('rect', { fill: `url(#${uid}s${side})`, opacity: D.spec.op.toFixed(3) }, g); part.specG = rg; part.specAt = D.spec;
+      }
+      if (D.rim) {
+        let stroke = D.rim.flat || '';
+        if (!stroke) {
+          const R = D.rim.rect, a = D.rim.ang * Math.PI / 180, dx = Math.sin(a), dy = -Math.cos(a);
+          const Lh = (Math.abs(R.width * dx) + Math.abs(R.height * dy)) / 2, cx = R.left + R.width / 2, cy = R.top + R.height / 2;
+          const lg = mk('linearGradient', { id: `${uid}g${side}`, gradientUnits: 'userSpaceOnUse', x1: f2(cx - dx * Lh), y1: f2(cy - dy * Lh), x2: f2(cx + dx * Lh), y2: f2(cy + dy * Lh) }, defs);
+          [[0, 1], [0.24, 0.32], [0.5, 0], [0.76, 0.18], [1, 0.78]].forEach(([o, op]) => mk('stop', { offset: o, 'stop-color': D.rim.hi, 'stop-opacity': op }, lg));
+          part.grad = lg; stroke = `url(#${uid}g${side})`;
+        }
+        part.rim = mk('path', { fill: 'none', stroke, 'stroke-width': '2' }, g);
+      }
+      sets.push(part);
+    });
+    root.appendChild(rim);
+    st.rim = rim; st.rimClip = clipP; st.rimSets = sets;
+    // значки кнопки поверх жидкости: копия капсулы без стекла (стекло теперь рисует жидкость)
+    const ic = cap.cloneNode(true);
+    ic.removeAttribute('id'); ic.removeAttribute('data-lens');
+    ic.querySelectorAll('[id]').forEach(n => n.removeAttribute('id'));
+    [ic, ...ic.querySelectorAll('[data-tip], [title]')].forEach(n => { n.removeAttribute('data-tip'); n.removeAttribute('title'); });
+    ic.style.cssText = '';
+    // без классов стекла: иначе правила панели дают копии своё размытие фона, и стекло ложится на стекло (капсула синеет)
+    ic.classList.remove('lg-glass', 'lg-refract', 'is-lit', 'is-press');
+    ic.classList.add('lq-icons'); ic.setAttribute('aria-hidden', 'true');
+    ['display', 'alignItems', 'justifyContent', 'gap', 'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft', 'color',
+      'fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'letterSpacing', 'lineHeight', 'whiteSpace', 'textAlign'].forEach(n => { ic.style[n] = ccs[n]; });
+    ic.style.boxSizing = 'border-box'; ic.style.whiteSpace = 'nowrap';   // ровно по размеру кнопки: подпись не переносится на вторую строку
+    ic.style.width = cr.width + 'px'; ic.style.height = cr.height + 'px';
+    // наведение и нажатие у копии не срабатывают — переносим, как кнопки выглядят сейчас (кружок под курсором и т. п.)
+    const real = [...cap.querySelectorAll('*')], copy = [...ic.querySelectorAll('*')];
+    real.forEach((el, n) => {
+      const c = copy[n]; if (!c || c.tagName !== el.tagName) return;
+      const q = getComputedStyle(el);
+      ['backgroundColor', 'color', 'opacity', 'transform', 'boxShadow', 'fill', 'stroke'].forEach(k => { c.style[k] = q[k]; });
+      if (el.matches('button, [role="button"]')) (st.live = st.live || []).push([el, c]);   // кнопки сверяем каждый кадр
+    });
+    ic.style.transformOrigin = `${f2(st.G.x - cr.left)}px ${f2(st.G.y - cr.top)}px`;
+    root.appendChild(ic);
+    st.icons = ic; st.cr = { left: cr.left, top: cr.top };
+    st.ref = cap.parentElement; st.mv = { x: 0, y: 0 }; st.fade = 1;
+    for (let e = cap.parentElement; e && e !== document.body; e = e.parentElement) {
+      const q = getComputedStyle(e);
+      if (!/(auto|scroll)/.test(q.overflowY)) continue;
+      const vr = e.getBoundingClientRect();
+      st.view = { top: vr.top + (parseFloat(q.paddingTop) || 0), bottom: vr.bottom };
+      const hh = st.C.h / 2;
+      st.vis0 = clamp(Math.min((st.C.y + hh - st.view.top) / st.C.h, (st.view.bottom - (st.C.y - hh)) / st.C.h), 0, 1);
+      break;
+    }
+    if (st.ref) { const pr = st.ref.getBoundingClientRect(); st.refAt = { x: pr.left, y: pr.top }; }
+    box.classList.add('lg-morph', 'lg-morphing', 'lq-on');
+    box.classList.toggle('lg-morph-closing', mode === 'close');
+    box.style.transformOrigin = '50% 50%';
+    box.style.pointerEvents = 'none';                          // пока летит, курсор не цепляет подсказки внутри
+    cap.style.transformOrigin = st.capOrigin = `${f2(st.G.x - cr.left)}px ${f2(st.G.y - cr.top)}px`;
+    const ov = opts && opts.ov;
+    if (ov) { try { st.dim = ov.animate([{ opacity: 0 }, { opacity: 1 }], { pseudoElement: '::before', duration: 1000, fill: 'both' }); st.dim.pause(); } catch (e) { st.dim = null; } }
+    S.set(box, st);
+    render(st);
+    st.raf = requestAnimationFrame(t => step(st, t));
+    arm(st);
+    return st;
+  }
+
+  // Расчёт перемычки работает всего несколько кадров, и браузер не успевает его ускорить. Прогоняем его заранее,
+  // когда приложение простаивает, — тогда первые кадры капли считаются за доли миллисекунды
+  const warm = () => { try { const a = { x: 60, y: 30, hw: 45, hh: 26, r: 26 }, b = { x: 40, y: 60, hw: 30, hh: 30, r: 30 }; for (let n = 0; n < 6; n++) { b.x -= 4; contour(a, b, 57, -10, -10, 70, 60, 2); } } catch (e) { /* не страшно */ } };
+  if (window.requestIdleCallback) requestIdleCallback(warm, { timeout: 4000 }); else setTimeout(warm, 2000);
+
+  const run = mode => (box, src, opts) => new Promise(res => {
+    const st = box && begin(box, src, mode, opts);
+    if (st) st.done.push(res); else res(mode === 'open' ? 'opened' : 'closed');
+  });
+  function cancel(box) {
+    const st = S.get(box);
+    if (st) { teardown(st, 'cancel'); S.delete(box); box.dispatchEvent(new CustomEvent('lg-morph-end', { detail: 'cancel' })); const d = st.done; st.done = []; d.forEach(f => f('cancel')); }
+    else restoreCap(SRC.get(box));
+  }
+  return { can, open: run('open'), close: run('close'), cancel, busy: box => S.has(box) };
 })();

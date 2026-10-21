@@ -23,14 +23,14 @@
 .rp-nav-btn:disabled { opacity: 0.3; cursor: not-allowed; }
 .rp-weeklabel { display: flex; flex-direction: column; align-items: center; line-height: 1.2; }
 .rp-weeklabel b { font-size: var(--fs-md); font-weight: 600; }
-.rp-weeklabel span { font-size: var(--fs-xs); color: var(--text-muted); font-weight: 500; }
+.rp-weeklabel span { font-size: var(--fs-xs); color: var(--text-muted); font-weight: 400; }
 
 .rp-body { display: flex; flex-direction: column; gap: 26px; padding-top: 22px; }
 
 /* Главная цифра */
 .rp-hero { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; }
 .rp-big { font-size: 56px; font-weight: 700; letter-spacing: -0.04em; line-height: 1; font-variant-numeric: tabular-nums; }
-.rp-big-sub { margin-top: 8px; font-size: var(--fs-base); font-weight: 500; color: var(--text-muted); }
+.rp-big-sub { margin-top: 8px; font-size: var(--fs-base); font-weight: 400; color: var(--text-muted); }
 .rp-delta { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; font-size: var(--fs-sm); font-weight: 600; white-space: nowrap; background: var(--accent-hover); color: var(--text-muted); }
 .rp-delta.up { background: var(--color-green-bg); color: var(--pf-green, var(--color-green)); }
 .rp-delta.down { background: var(--color-red-bg); color: var(--pf-red, var(--color-red)); }
@@ -49,7 +49,7 @@
 .rp-nobar { width: 100%; max-width: 38px; height: 3px; border-radius: 2px; background: var(--border); }
 .rp-day { font-size: var(--fs-sm); font-weight: 600; color: var(--text-muted); padding: 2px 8px; border-radius: 999px; }
 .rp-col.today .rp-day { background: var(--text-main); color: var(--bg); }
-.rp-legend { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 14px; font-size: var(--fs-xs); font-weight: 500; color: var(--text-muted); }
+.rp-legend { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 14px; font-size: var(--fs-xs); font-weight: 400; color: var(--text-muted); }
 .rp-legend span { display: inline-flex; align-items: center; gap: 6px; }
 .rp-legend i { width: 8px; height: 8px; border-radius: 50%; display: block; }
 

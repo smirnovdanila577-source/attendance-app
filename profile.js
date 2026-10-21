@@ -411,6 +411,7 @@
       <div class="pf-empty">${svg(P.bell, 26, 1.8)}<span>Пока тишина. Здесь появятся новые достижения и теги.</span></div>`;
     $('notifPopover').innerHTML = `
       <div class="pf-pop-head">
+        <div class="lg-pblur" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
         <span class="pf-pop-title">Уведомления</span>
         <button type="button" class="pf-link-btn" data-act="read-all" ${unread ? '' : 'disabled'}>Прочитать все</button>
       </div>
@@ -670,18 +671,22 @@
     root.querySelectorAll('[data-count]').forEach(el => {
       const to = Number(el.dataset.count);
       if (reduce || !to) { el.textContent = to; return; }
-      const t0 = performance.now(), dur = 800;
-      const step = now => { const k = Math.min(1, (now - t0) / dur); el.textContent = Math.round(to * (1 - Math.pow(1 - k, 3))); if (k < 1 && el.isConnected) requestAnimationFrame(step); };
-      el.textContent = '0'; requestAnimationFrame(step);
+      let t0 = performance.now();
+      const dur = 800;
+      const step = now => { const k = Math.min(1, Math.max(0, now - t0) / dur); el.textContent = Math.round(to * (1 - Math.pow(1 - k, 3))); if (k < 1 && el.isConnected) requestAnimationFrame(step); };
+      el.textContent = '0';
+      // пока окно вылетает из кнопки, счёт ждёт и начинается, когда окно встало на место
+      if (!(window.LGAfterOpen && LGAfterOpen(el, () => { t0 = performance.now(); requestAnimationFrame(step); }))) requestAnimationFrame(step);
     });
+    const later = fn => { if (!(window.LGAfterOpen && LGAfterOpen(root, fn))) fn(); };
     const rings = root.querySelectorAll('.pf-ring-fg[data-off]');
-    requestAnimationFrame(() => requestAnimationFrame(() => rings.forEach(r => { if (reduce) r.style.transition = 'none'; r.style.strokeDashoffset = r.dataset.off; })));
+    later(() => requestAnimationFrame(() => requestAnimationFrame(() => rings.forEach(r => { if (reduce) r.style.transition = 'none'; r.style.strokeDashoffset = r.dataset.off; }))));
     const fills = root.querySelectorAll('.prog-fill[data-w]');
     if (!fills.length) return;
-    requestAnimationFrame(() => requestAnimationFrame(() => fills.forEach((f, i) => {
+    later(() => requestAnimationFrame(() => requestAnimationFrame(() => fills.forEach((f, i) => {
       f.style.transitionDelay = (reduce ? 0 : Math.min(i, 12) * 40) + 'ms';
       f.style.width = f.dataset.w + '%';
-    })));
+    }))));
   }
 
   const avatarFor = achId => (window.Avatars ? Avatars.list.find(a => a.unlock === achId) : null) || null;

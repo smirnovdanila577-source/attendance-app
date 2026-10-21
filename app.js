@@ -1160,11 +1160,11 @@ function findWeekPair(weekNum, pairId) {
 function hwButtonHtml(p) {
   const tasks = Array.isArray(p.tasks) ? p.tasks : [];
   const left = tasks.filter(t => !t.done).length;
-  const cls = ['action-circle-btn', 'hw-btn'];
+  const cls = ['action-circle-btn', 'hw-btn', 'lg-glass'];
   if (openHwPanels.has(p.id)) cls.push('active');
   if (tasks.length && left === 0) cls.push('all-done');
   const badge = left > 0 ? `<span class="hw-badge">${left}</span>` : '';
-  return `<button class="${cls.join(' ')}" id="hwBtn_${p.id}" onclick="toggleHwPanel('${p.id}')" title="Домашнее задание">${HW_ICONS.list}${badge}</button>`;
+  return `<button class="${cls.join(' ')}" id="hwBtn_${p.id}" onclick="toggleHwPanel('${p.id}')" title="Домашнее задание" data-lens="1.2">${HW_ICONS.list}${badge}</button>`;
 }
 
 function hwItemHtml(pairId, t) {
@@ -1441,7 +1441,7 @@ function render() {
         </div>
         <div class="day-actions">
           <!-- Действия с днём (отметить все, добавить пару, скрыть день) — в стеклянном меню (glass.js) -->
-          <button class="lg-more" onclick="PairMenu.openDay(this, '${day}')" aria-label="Действия с днём" aria-haspopup="menu" title="Действия с днём"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg></button>
+          <button class="lg-more lg-glass" onclick="PairMenu.openDay(this, '${day}')" aria-label="Действия с днём" aria-haspopup="menu" title="Действия с днём" data-liquid data-lens="1.2"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg></button>
         </div>
       </div>
       <div class="day-card">
@@ -1506,7 +1506,7 @@ function render() {
             </div>
             <div class="pair-actions">
               <!-- Действия с парой — в стеклянном меню (glass.js: PairMenu) -->
-              <button class="lg-more" onclick="PairMenu.open(this, '${day}', '${p.id}')" aria-label="Действия с парой" aria-haspopup="menu" title="Действия">
+              <button class="lg-more lg-glass" onclick="PairMenu.open(this, '${day}', '${p.id}')" aria-label="Действия с парой" aria-haspopup="menu" title="Действия" data-liquid data-lens="1.2">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>
               </button>
               <!-- Домашнее задание — всегда под рукой, рядом с отметкой -->
@@ -1525,7 +1525,7 @@ function render() {
 
   const addDayContainer = document.getElementById("addDayBtnContainer");
   if ((database.activeDays || []).length < ALL_DAYS.length) {
-    addDayContainer.innerHTML = `<button type="button" class="lg-add-day" onclick="PairMenu.openAddDay(this)" aria-haspopup="menu" title="Добавить учебный день">${ICONS.plus}<span>Учебный день</span></button>`;
+    addDayContainer.innerHTML = `<button type="button" class="lg-add-day lg-glass" onclick="PairMenu.openAddDay(this)" aria-haspopup="menu" title="Добавить учебный день" data-liquid data-lens="1.2">${ICONS.plus}<span>Учебный день</span></button>`;
   } else {
     addDayContainer.innerHTML = '';
   }

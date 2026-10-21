@@ -420,7 +420,7 @@ body:not(.dark-theme) .status-pill.missed { color: #991b1b; }
 .hw-check:hover { border-color: var(--color-green); }
 .hw-item.done .hw-check { background: var(--color-green-bg); border-color: var(--color-green); color: var(--color-green); }
 
-.hw-text { flex: 1; min-width: 0; font-size: var(--fs-base); font-weight: 500; line-height: 1.4; color: var(--text-main); word-break: break-word; user-select: text; transition: color 0.2s; }
+.hw-text { flex: 1; min-width: 0; font-size: var(--fs-base); font-weight: 400; line-height: 1.4; color: var(--text-main); word-break: break-word; user-select: text; transition: color 0.2s; }
 .hw-item.done .hw-text { color: var(--text-light); text-decoration: line-through; }
 
 .hw-del { width: 22px; height: 22px; flex-shrink: 0; padding: 0; border: none; background: transparent; color: var(--text-light); border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; opacity: 0; transition: opacity 0.15s, color 0.15s, background 0.15s; }
@@ -431,7 +431,7 @@ body:not(.dark-theme) .status-pill.missed { color: #991b1b; }
 .hw-add:focus-within { border-color: var(--border-hover); background: var(--accent-hover); }
 .hw-add-icon { display: flex; align-items: center; color: var(--text-light); flex-shrink: 0; transition: color 0.2s; }
 .hw-add:focus-within .hw-add-icon, .hw-add.ready .hw-add-icon { color: var(--text-main); }
-.hw-input { flex: 1; min-width: 0; border: none; outline: none; background: transparent; padding: 6px 0; font-size: var(--fs-base); font-weight: 500; color: var(--text-main); user-select: text; }
+.hw-input { flex: 1; min-width: 0; border: none; outline: none; background: transparent; padding: 6px 0; font-size: var(--fs-base); font-weight: 400; color: var(--text-main); user-select: text; }
 .hw-input::placeholder { color: var(--text-light); font-weight: 500; }
 
 .hw-add-submit { display: flex; align-items: center; gap: 6px; flex-shrink: 0; padding: 7px 14px; border: 1px solid var(--border); border-radius: 999px; background: transparent; color: var(--text-light); font-size: var(--fs-sm); font-weight: 600; cursor: default; opacity: 0.55; transition: all 0.2s; }

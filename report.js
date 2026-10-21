@@ -229,14 +229,17 @@
     (root || document).querySelectorAll('[data-count]').forEach(el => {
       const to = Number(el.dataset.count), suf = el.dataset.suf || '';
       if (reduce || !isFinite(to) || to === 0) { el.textContent = to + suf; return; }
-      const t0 = performance.now(), dur = 900;
+      let t0 = performance.now();
+      const dur = 900;
       const step = now => {
-        const k = Math.min(1, (now - t0) / dur), e = 1 - Math.pow(1 - k, 3);
+        const k = Math.min(1, Math.max(0, now - t0) / dur), e = 1 - Math.pow(1 - k, 3);
         el.textContent = Math.round(to * e) + suf;
         if (k < 1 && el.isConnected) requestAnimationFrame(step);
       };
       el.textContent = '0' + suf;
-      requestAnimationFrame(step);
+      // пока окно вылетает из кнопки, счёт ждёт и начинается, когда окно встало на место
+      const go = () => { t0 = performance.now(); requestAnimationFrame(step); };
+      if (!(window.LGAfterOpen && LGAfterOpen(el, go))) requestAnimationFrame(step);
     });
   }
 

@@ -224,7 +224,7 @@
             </button>
           </div>
           <!-- Панель уведомлений лежит вне стеклянной капсулы: вложенное стекло не видит страницу под собой -->
-          <div class="pf-popover pf-notif lg-glass" id="notifPopover" data-lens></div>
+          <div class="pf-popover pf-notif lg-glass" id="notifPopover" data-lens="1.6" data-lens-bez="22"></div>
         </div>
       </header>
 
@@ -243,7 +243,7 @@
           </section>
 
           <!-- Капсула переключения недель из жидкого стекла: лежит над днями, дни уезжают под неё и размываются -->
-          <div class="lg-weekbar lg-glass">
+          <div class="lg-weekbar lg-glass" data-liquid>
             <div class="lg-wb-side">
               <button type="button" class="lg-wn-btn" id="prevBtn" onclick="changeWeek(-1)" aria-label="Предыдущая неделя" title="Предыдущая неделя"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></button>
               <button type="button" class="lg-today" onclick="jumpToCurrentWeek()" title="К сегодняшнему дню" aria-label="Сегодня"><span class="lg-today-txt">Сегодня</span><svg class="lg-today-ico" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16.5" rx="3.5"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/><circle cx="12" cy="15" r="1.6" fill="currentColor"/></svg></button>
@@ -276,10 +276,11 @@
             </div>
             <div class="panel-section lg-subjects">
               <div class="panel-title-row">
+                <div class="lg-pblur" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
                 <div class="panel-title">Предметы</div>
-                <button type="button" class="lg-more" onclick="PairMenu.openSort(this)" aria-label="Сортировка предметов" aria-haspopup="menu" title="Сортировка"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg></button>
+                <button type="button" class="lg-more lg-glass" onclick="PairMenu.openSort(this)" aria-label="Сортировка предметов" aria-haspopup="menu" title="Сортировка" data-liquid data-lens="1.2"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg></button>
               </div>
-              <div class="pf-seg lg-kind-seg" id="subjKindSeg" role="radiogroup" aria-label="Показать только один тип занятий" hidden></div>
+              <div class="pf-seg lg-kind-seg lg-glass" id="subjKindSeg" role="radiogroup" aria-label="Показать только один тип занятий" data-lens="1.3" data-lens-bez="14" hidden></div>
               <div class="subject-list" id="subjectsList"></div>
             </div>
           </aside>
