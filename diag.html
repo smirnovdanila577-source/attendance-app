@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Проверка</title>
+<style>body{font:16px -apple-system,system-ui,sans-serif;margin:20px;background:#fff;color:#111}li{margin:6px 0}.ok{color:#1a7f37}.bad{color:#c62828}</style>
+</head><body>
+<h2 class="ok">Туннель работает ✓</h2>
+<p>Проверяю файлы приложения…</p>
+<ul id="l"></ul>
+<p id="e"></p>
+<script>
+window.onerror = (m, s, l) => { document.getElementById('e').innerHTML += '<b class="bad">Ошибка: ' + m + ' (' + (s || '').split('/').pop() + ':' + l + ')</b><br>'; };
+const files = ['index.html', 'style.css', 'glass.css', 'profile.css', 'app.js', 'glass.js', 'profile.js', 'social.js', 'report.js', 'avatars.js', 'ispu.js'];
+const ul = document.getElementById('l');
+(async () => {
+  for (const f of files) {
+    const li = document.createElement('li'); li.textContent = f + ' …'; ul.appendChild(li);
+    const t = performance.now();
+    try {
+      const r = await fetch(f + '?t=' + Date.now(), { cache: 'no-store' });
+      const b = await r.text();
+      li.className = r.ok ? 'ok' : 'bad';
+      li.textContent = f + ': ' + r.status + ', ' + Math.round(b.length / 1024) + ' КБ за ' + ((performance.now() - t) / 1000).toFixed(1) + ' с';
+    } catch (err) { li.className = 'bad'; li.textContent = f + ': не загрузился (' + err.message + ')'; }
+  }
+  const p = document.createElement('p'); p.innerHTML = '<b>Готово.</b> Сделай скриншот этой страницы и пришли Claude.'; document.body.appendChild(p);
+})();
+</script>
+</body></html>

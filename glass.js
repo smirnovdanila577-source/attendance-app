@@ -191,13 +191,162 @@ window.LGLens = (function () {
   window.LGEatClick = () => { eatUntil = performance.now() + 600; };   // «съедается» только один следующий щелчок
 
   const keyOf = c => { const h = c.id ? c : c.closest('[id]'); return (h ? h.id : '') + '|' + c.classList[0]; };
-  const itemOf = (c, t) => { while (t && t.parentElement !== c) t = t.parentElement; return t && !t.classList.contains('lg-knob') ? t : null; };
-  const items = c => [...c.children].filter(x => !x.classList.contains('lg-knob'));
+  const itemOf = (c, t) => { while (t && t.parentElement !== c) t = t.parentElement; return t && !t.classList.contains('lg-knob') && !t.classList.contains('lg-lens-gl') ? t : null; };
+  const items = c => [...c.children].filter(x => !x.classList.contains('lg-knob') && !x.classList.contains('lg-lens-gl'));
+  const isBar = c => c.classList.contains('lg-tabbar-inner');   // нижний бар на телефоне: капля под пальцем — линза, как в Телеграме
+  /* ---- Нижний бар: линза с настоящим преломлением (WebGL). Вкладки рисуются в текстуру синим; шейдер в форме
+     линзы чуть увеличивает их, а у края берёт картинку из-за края (изгиб толстого стекла) — с разным сдвигом для
+     красного, зелёного и синего, отсюда цветная кайма. Настоящие вкладки под линзой вырезаются, чтобы не двоились.
+     Работает и в Safari на iPhone. Нет WebGL — остаётся прозрачная линза с синей копией вкладок ---- */
+  const BarGL = (function () {
+    const P = 26;                                   // холст шире бара: раздутая линза выходит за его край
+    const VS = 'attribute vec2 a;void main(){gl_Position=vec4(a,0.,1.);}';
+    // Как стекло в Телеграме: середина линзы — ровное прозрачное стекло без увеличения; у края картинка
+    // берётся ближе к середине — растягивается и смазывается к кромке, с разным сдвигом для R, G и B (радужная кайма).
+    // Где взгляд через край уходит за пределы бара — видна страница (тёмные «брови» сверху и снизу),
+    // где линза вылезла за бар, а взгляд попадает в бар — виден бар
+    const FS = [
+      'precision mediump float;',
+      'uniform sampler2D t;uniform vec2 res;uniform vec2 c;uniform vec2 hs;uniform float r;uniform vec2 bez;uniform vec2 str;uniform float dpr;',
+      'uniform vec2 bc;uniform vec2 bhs;uniform vec3 pc;uniform vec3 bcl;uniform float ch;',
+      'float sd(vec2 p){vec2 q=abs(p)-hs+vec2(r);return length(max(q,0.))+min(max(q.x,q.y),0.)-r;}',
+      'float sdb(vec2 p){vec2 q=abs(p-bc)-bhs+vec2(bhs.y);return length(max(q,0.))+min(max(q.x,q.y),0.)-bhs.y;}',
+      'void main(){',
+      '  vec2 sz=res/dpr; vec2 p=vec2(gl_FragCoord.x,res.y-gl_FragCoord.y)/dpr; vec2 lp=p-c; float d=sd(lp);',
+      '  if(d>1.){gl_FragColor=vec4(0.);return;}',
+      '  vec2 g=vec2(sd(lp+vec2(.5,0.))-sd(lp-vec2(.5,0.)),sd(lp+vec2(0.,.5))-sd(lp-vec2(0.,.5)));',
+      '  g=g/max(length(g),1e-4);',
+      // по бокам край широкий и сильный (там смазывается картинка), сверху и снизу — узкий и слабый
+      '  float ax=g.x*g.x; float bz=mix(bez.y,bez.x,ax); float sr=mix(str.y,str.x,ax);',
+      '  float k=clamp(1.+d/bz,0.,1.); k=k*k;',
+      '  vec2 o=-g*k*sr;',
+      '  vec2 s1=p+o, s2=p+o*(1.+.2*ch), s3=p+o*(1.+.42*ch);',
+      '  vec4 cr=texture2D(t,s1/sz); vec4 cg=texture2D(t,s2/sz); vec4 cb=texture2D(t,s3/sz);',
+      '  vec3 ta=vec3(cr.a,cg.a,cb.a), tc=vec3(cr.r,cg.g,cb.b);',
+      // что видно сквозь стекло: бар или страница (по каждому цвету отдельно — отсюда радужные края «бровей»)
+      '  float inO=clamp(.5-sdb(p),0.,1.);',
+      '  vec3 inS=vec3(clamp(.5-sdb(s1),0.,1.),clamp(.5-sdb(s2),0.,1.),clamp(.5-sdb(s3),0.,1.));',
+      '  vec3 under=mix(pc,bcl,inO);',
+      '  vec3 wP=(1.-inS)*inO, wB=inS*(1.-inO);',
+      '  vec3 bgf=pc*wP+bcl*wB+under*(1.-wP-wB);',
+      // у края стекло перерисовывает фон целиком (иначе «пустые» цвета давали чёрные пятна), в середине — прозрачно
+      '  float af=max(clamp(k*4.,0.,1.),max(max(wP.r+wB.r,wP.g+wB.g),wP.b+wB.b));',
+      '  vec3 fc=tc+(1.-ta)*af*bgf; float fa=max(max(ta.r,ta.g),ta.b); fa=fa+(1.-fa)*af;',
+      '  gl_FragColor=vec4(fc,fa)*clamp(.5-d,0.,1.);',
+      '}'].join('\n');
+    function sh(gl, type, src) { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); return gl.getShaderParameter(s, gl.COMPILE_STATUS) ? s : null; }
+    function attach(c, st) {
+      try {
+        const cv = document.createElement('canvas');
+        cv.className = 'lg-lens-gl'; cv.setAttribute('aria-hidden', 'true');
+        const gl = cv.getContext('webgl', { premultipliedAlpha: true, alpha: true, antialias: false, preserveDrawingBuffer: false });
+        if (!gl) return false;
+        const vs = sh(gl, gl.VERTEX_SHADER, VS), fs = sh(gl, gl.FRAGMENT_SHADER, FS);
+        if (!vs || !fs) return false;
+        const prog = gl.createProgram(); gl.attachShader(prog, vs); gl.attachShader(prog, fs); gl.linkProgram(prog);
+        if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) return false;
+        gl.useProgram(prog);
+        const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]), gl.STATIC_DRAW);
+        const a = gl.getAttribLocation(prog, 'a'); gl.enableVertexAttribArray(a); gl.vertexAttribPointer(a, 2, gl.FLOAT, false, 0, 0);
+        const tex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, tex);
+        [gl.TEXTURE_WRAP_S, gl.TEXTURE_WRAP_T].forEach(w => gl.texParameteri(gl.TEXTURE_2D, w, gl.CLAMP_TO_EDGE));
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
+        const U = {}; ['t', 'res', 'c', 'hs', 'r', 'bez', 'str', 'dpr', 'bc', 'bhs', 'pc', 'bcl', 'ch'].forEach(n => { U[n] = gl.getUniformLocation(prog, n); });
+        st.gl = { cv, gl, prog, tex, U, src: document.createElement('canvas'), ready: false, seq: 0 };
+        c.appendChild(cv);
+        return true;
+      } catch (e) { return false; }
+    }
+    // текстура: вкладки синим, в тех же местах, что настоящие (в координатах холста)
+    function paint(c, st) {
+      const G = st.gl; if (!G) return;
+      const dpr = Math.min(3, window.devicePixelRatio || 1), W = c.clientWidth + 2 * P, H = c.clientHeight + 2 * P;
+      G.dpr = dpr;
+      [G.cv, G.src].forEach(x => { x.width = Math.round(W * dpr); x.height = Math.round(H * dpr); });
+      G.cv.style.width = W + 'px'; G.cv.style.height = H + 'px'; G.cv.style.left = -P + 'px'; G.cv.style.top = -P + 'px';
+      const ctx = G.src.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, W, H);
+      const tint = getComputedStyle(c).getPropertyValue('--tint').trim() || '#007aff';
+      const cr = c.getBoundingClientRect(), sc = (cr.width / c.offsetWidth) || 1;   // бар мог быть «набухшим» от нажатия
+      const pos = r => ({ x: (r.left - cr.left) / sc + P, y: (r.top - cr.top) / sc + P, w: r.width / sc, h: r.height / sc });
+      const my = ++G.seq; let wait = 0;
+      G.bar = { x: c.clientWidth / 2 + P, y: c.clientHeight / 2 + P, hw: c.clientWidth / 2, hh: c.clientHeight / 2 };
+      // цвет страницы за баром и как выглядит сам бар (его стекло поверх страницы)
+      const num = x => (String(x).match(/[\d.]+/g) || []).map(Number);
+      const pg = num(getComputedStyle(document.body).backgroundColor), bb = num(getComputedStyle(c).backgroundColor);
+      const P3 = pg.length >= 3 && (pg[3] === undefined || pg[3] > 0) ? pg.slice(0, 3).map(v => v / 255) : (document.body.classList.contains('dark-theme') ? [0.04, 0.04, 0.05] : [0.96, 0.96, 0.97]);
+      const ba = bb.length > 3 ? bb[3] : 1;
+      G.pc = P3; G.bcl = bb.length >= 3 ? bb.slice(0, 3).map((v, n) => v / 255 * ba + P3[n] * (1 - ba)) : P3;
+      const upload = () => {
+        if (G.seq !== my) return;
+        const gl = G.gl; gl.bindTexture(gl.TEXTURE_2D, G.tex);
+        try { gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, G.src); }
+        catch (e) { fail(c, st); return; }   // браузер не дал взять картинку — прозрачная линза с синей копией
+        G.ready = true;
+        if (st.lensOn) frame(c, st);
+      };
+      items(c).forEach(it => {
+        const lab = it.querySelector('span'), svg = it.querySelector('svg');
+        if (lab) {
+          const q = getComputedStyle(lab), b = pos(lab.getBoundingClientRect());
+          ctx.font = `${q.fontWeight} ${q.fontSize} ${q.fontFamily}`; ctx.fillStyle = tint; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          ctx.fillText(lab.textContent, b.x + b.w / 2, b.y + b.h / 2 + 0.5);
+        }
+        if (svg) {
+          const b = pos(svg.getBoundingClientRect()), k = svg.cloneNode(true);
+          k.setAttribute('xmlns', 'http://www.w3.org/2000/svg'); k.setAttribute('width', b.w); k.setAttribute('height', b.h);
+          k.setAttribute('color', tint); k.style.color = tint;
+          const img = new Image(); wait++;
+          img.onload = () => { if (G.seq === my) ctx.drawImage(img, b.x, b.y, b.w, b.h); if (--wait === 0) upload(); };
+          img.onerror = () => { if (--wait === 0) upload(); };
+          img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(new XMLSerializer().serializeToString(k));
+        }
+      });
+      if (!wait) upload();
+    }
+    const f2 = v => v.toFixed(2);
+    const rr = (x, y, w, h, r) => `M${f2(x + r)} ${f2(y)}H${f2(x + w - r)}A${f2(r)} ${f2(r)} 0 0 1 ${f2(x + w)} ${f2(y + r)}V${f2(y + h - r)}A${f2(r)} ${f2(r)} 0 0 1 ${f2(x + w - r)} ${f2(y + h)}H${f2(x + r)}A${f2(r)} ${f2(r)} 0 0 1 ${f2(x)} ${f2(y + h - r)}V${f2(y + r)}A${f2(r)} ${f2(r)} 0 0 1 ${f2(x + r)} ${f2(y)}Z`;
+    function frame(c, st) {
+      const G = st.gl; if (!G || !G.ready || !st.lensOn) return;
+      const sx = st.lsx || 1, sy = st.lsy || 1;
+      const hw = st.w / 2 * sx, hh = st.h / 2 * sy, rad = Math.min(hw, hh), cx = st.x + st.w / 2, cy = st.y + st.h / 2;
+      const gl = G.gl, U = G.U;
+      gl.viewport(0, 0, G.cv.width, G.cv.height); gl.useProgram(G.prog);
+      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, G.tex); gl.uniform1i(U.t, 0);
+      gl.uniform2f(U.res, G.cv.width, G.cv.height); gl.uniform2f(U.c, cx + P, cy + P); gl.uniform2f(U.hs, hw, hh);
+      gl.uniform1f(U.r, rad); gl.uniform2f(U.bez, rad * 0.85, rad * 0.3); gl.uniform2f(U.str, rad * 0.5, rad * 0.12); gl.uniform1f(U.dpr, G.dpr || 1);
+      const B = G.bar; gl.uniform2f(U.bc, B.x, B.y); gl.uniform2f(U.bhs, B.hw, B.hh);
+      gl.uniform3f(U.pc, G.pc[0], G.pc[1], G.pc[2]); gl.uniform3f(U.bcl, G.bcl[0], G.bcl[1], G.bcl[2]);
+      gl.uniform1f(U.ch, document.body.classList.contains('dark-theme') ? 1 : 0.45);   // на светлом радуга тише, иначе розовеет
+      gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT); gl.drawArrays(gl.TRIANGLES, 0, 6);
+      // настоящие вкладки под линзой вырезаем: их видно только через линзу
+      items(c).forEach(it => {
+        const ox = it.offsetLeft, oy = it.offsetTop;
+        it.style.clipPath = it.style.webkitClipPath = `path(evenodd, "M0 0H${it.offsetWidth}V${it.offsetHeight}H0Z${rr(cx - hw - ox, cy - hh - oy, hw * 2, hh * 2, rad)}")`;
+      });
+    }
+    function fail(c, st) {
+      const G = st.gl; if (!G) return;
+      G.cv.remove(); off(c, st); st.gl = null;
+      st.knob.insertAdjacentHTML('beforeend', '<b class="lg-lens-core"><b class="lg-lens-mag"></b></b>');
+      st.mags = [...st.knob.querySelectorAll('.lg-lens-mag')];
+      magFill(c, st); draw(st);
+    }
+    function off(c, st) {
+      const G = st.gl; if (!G) return;
+      try { G.gl.clearColor(0, 0, 0, 0); G.gl.clear(G.gl.COLOR_BUFFER_BIT); } catch (e) { /* */ }
+      items(c).forEach(it => { it.style.removeProperty('clip-path'); it.style.removeProperty('-webkit-clip-path'); });
+    }
+    return { attach, paint, frame, off };
+  })();
+
   const geo = el => ({ x: el.offsetLeft, y: el.offsetTop, w: el.offsetWidth, h: el.offsetHeight });
 
   const ro = new ResizeObserver(list => list.forEach(e => {
     const c = e.target, st = c.__k;
-    if (!st || (st.cw === c.offsetWidth && st.ch === c.offsetHeight)) return;
+    if (!st) { sync(c); return; }   // был скрыт при запуске (например, бар до входа) — капля появляется, как только он показался
+    if (st.cw === c.offsetWidth && st.ch === c.offsetHeight) return;
     sync(c, true);
   }));
 
@@ -214,7 +363,14 @@ window.LGLens = (function () {
       st.knob.className = 'lg-knob';
       st.knob.setAttribute('aria-hidden', 'true');
       st.knob.innerHTML = '<i></i>';
+      // нижний бар: внутри линзы — копия вкладок синим, ровно поверх настоящих. Синеет ровно то, что под линзой,
+      // и цвет едет вместе с ней (половина подписи под линзой — синяя, вторая — обычная), как в Телеграме
+      if (isBar(c) && !st.gl && !BarGL.attach(c, st)) {   // WebGL есть — линза с настоящим преломлением, нет — синяя копия
+        st.knob.insertAdjacentHTML('beforeend', '<b class="lg-lens-core"><b class="lg-lens-mag"></b></b>');
+        st.mags = [...st.knob.querySelectorAll('.lg-lens-mag')];
+      }
       c.insertBefore(st.knob, c.firstChild);
+      st.bar = isBar(c);
       if (st.init) draw(st);
     }
     return st;
@@ -223,11 +379,39 @@ window.LGLens = (function () {
   function draw(st) {
     const sxv = Math.abs(st.vx) / 2600, syv = Math.abs(st.vy) / 2600;
     const sx = (1 + Math.min(0.24, sxv) - Math.min(0.1, syv * 0.6)) * st.p;
-    const sy = (1 + Math.min(0.24, syv) - Math.min(0.12, sxv * 0.7)) * st.p;
+    let sy = (1 + Math.min(0.24, syv) - Math.min(0.12, sxv * 0.7)) * st.p;
+    if (st.gl && st.p > 1) sy *= 1 + (st.p - 1) * 0.9;   // бар: линза выпирает над и под баром
     const k = st.knob.style;
     k.width = Math.max(0, st.w) + 'px';
     k.height = Math.max(0, st.h) + 'px';
     k.transform = `translate3d(${st.x.toFixed(2)}px, ${st.y.toFixed(2)}px, 0) scale(${sx.toFixed(4)}, ${sy.toFixed(4)})`;
+    if (st.gl) { st.lsx = sx; st.lsy = sy; if (st.lensOn && st.knob.parentNode) BarGL.frame(st.knob.parentNode, st); }
+    if (st.bar && window.LGTabSlide) {   // бар на телефоне: где линза между вкладками — там и страницы
+      const its = items(st.knob.parentNode || document.body); 
+      if (its.length > 1) { const a = its[0].offsetLeft, b = its[its.length - 1].offsetLeft; if (b > a) LGTabSlide.pos((st.x - a) / (b - a)); }
+    }
+    if (st.mags) {
+      // копия стоит там же, где настоящие вкладки; растяжение самой капли снимаем, увеличение — своё у каждого слоя
+      const ox = st.x + st.w / 2, oy = st.y + st.h / 2;
+      st.mags.forEach(m => {
+        m.style.transformOrigin = `${ox.toFixed(2)}px ${oy.toFixed(2)}px`;
+        m.style.transform = `translate(${(-st.x).toFixed(2)}px, ${(-st.y).toFixed(2)}px) scale(${(1 / sx).toFixed(4)}, ${(1 / sy).toFixed(4)})`;
+      });
+    }
+  }
+  function magFill(c, st) {
+    if (st.gl) { BarGL.paint(c, st); return; }
+    if (!st.mags) return;
+    st.mags.forEach(m => {
+      m.style.width = c.clientWidth + 'px'; m.style.height = c.clientHeight + 'px';
+      m.textContent = '';
+      items(c).forEach((it, n) => {
+        const k = it.cloneNode(true);
+        k.removeAttribute('id'); k.removeAttribute('role'); k.removeAttribute('aria-selected'); k.setAttribute('tabindex', '-1');
+        Object.assign(k.style, { left: it.offsetLeft + 'px', top: it.offsetTop + 'px', width: it.offsetWidth + 'px', height: it.offsetHeight + 'px' });
+        m.appendChild(k);
+      });
+    });
   }
 
   function run(c) {
@@ -243,6 +427,8 @@ window.LGLens = (function () {
         st[p] += st[v] * dt;
         if (Math.abs(t - st[p]) > (p === 'p' ? 0.002 : 0.25) || Math.abs(st[v]) > (p === 'p' ? 0.02 : 6)) moving = true;
       }
+      // бар: на переезде капля раздута, у цели — сдувается
+      if (st.travel && isBar(c) && !st.down && Math.abs(st.tx - st.x) < 6 && st.tp !== 1) { st.tp = 1; moving = true; }
       if (!moving) {
         for (const p of ['x', 'y', 'w', 'h', 'p']) { st[p] = st['t' + p]; st['v' + p] = 0; }
         draw(st); st.raf = 0; settle(c); return;
@@ -256,6 +442,7 @@ window.LGLens = (function () {
   // Капля доехала: если она «всплывала» на время переезда — опускаем и пускаем блик
   function settle(c) {
     const st = c.__k;
+    if (st.bar && window.LGTabSlide && !st.down) LGTabSlide.settle();
     if (st.travel && !st.down) {
       st.travel = false;
       lens(st, false);
@@ -269,17 +456,24 @@ window.LGLens = (function () {
   }
   function lens(st, on) {
     st.knob.classList.toggle('is-press', on);
+    if (st.gl && st.knob.parentNode) {
+      const c = st.knob.parentNode;
+      if (on && !st.lensOn) { st.lensOn = true; BarGL.paint(c, st); BarGL.frame(c, st); }
+      else if (!on && st.lensOn) { st.lensOn = false; BarGL.off(c, st); }
+    }
     if (st.knob.parentNode) st.knob.parentNode.classList.toggle('knob-up', on);   // капля поднята — пункты видны под ней
     if (on && window.LGLens && LGLens.filter && !document.body.classList.contains('glass-lite')) st.knob.style.setProperty('--knob-lens', LGLens.filter(Math.round(st.tw || st.w), Math.round(st.th || st.h), Math.round((st.th || st.h) / 2), 0.9));
   }
 
   function sync(c, resize) {
-    if (!c.isConnected || !c.offsetWidth) return;
+    if (!c.isConnected) return;
+    if (!c.offsetWidth) { if (!c.__k) ro.observe(c); return; }
     const st = ensure(c);
     const sel = c.querySelector(':scope > .selected');
     if (!sel) { st.knob.style.opacity = '0'; return; }
     st.knob.style.opacity = '';
     st.cw = c.offsetWidth; st.ch = c.offsetHeight;
+    magFill(c, st);
     const g = geo(sel);
     if (st.down && st.down.moved) { st.tw = g.w; st.th = g.h; return; }   // тянут — положение задаёт курсор
     const from = !st.init ? memo.get(keyOf(c)) : null;
@@ -296,7 +490,7 @@ window.LGLens = (function () {
       draw(st);
     } else {
       // Переезд по щелчку: капля на миг становится линзой, перетекает и опускается с бликом
-      if (dist > 8 && !st.down) { st.travel = true; lens(st, true); }
+      if (dist > 8 && !st.down) { st.travel = true; lens(st, true); if (isBar(c)) st.tp = 1.15; }
       run(c);
     }
     // Вкладки шире экрана (профиль на телефоне): выбранная всегда в поле зрения
@@ -316,7 +510,7 @@ window.LGLens = (function () {
         rows: new Set(items(c).map(x => x.offsetTop)).size > 1, t0: performance.now(), cx0: st.x + st.w / 2, far: 0 };
       try { c.setPointerCapture(e.pointerId); } catch (err) { /* не страшно */ }
       lens(st, true);
-      st.tp = 1.14; run(c);
+      st.tp = isBar(c) ? 1.2 : 1.14; run(c);   // в баре капля раздувается больше самого бара
     });
     c.addEventListener('pointermove', e => {
       const st = c.__k, d = st && st.down;
@@ -504,10 +698,59 @@ window.LGLens = (function () {
 
     // Вкладки на телефоне: «Расписание» и «Статистика»
     const tabs = document.querySelectorAll('.lg-tab');
+    /* Переход между вкладками, как в «Настройках» iOS: «Статистика» — целый экран со скруглёнными углами (без верхней
+       панели с профилем: она есть только у расписания) — въезжает справа поверх экрана расписания; экран расписания целиком (панель, бар
+       недель, дни) чуть уезжает влево и темнеет. Положение ведёт линза бара (модуль 3): тянешь линзу — экран едет
+       за пальцем с той же скоростью; отпустил или нажал на вкладку — доезжает пружиной вместе с линзой */
+    const grid = app && app.querySelector('.layout-grid'), side = app && app.querySelector('.sidebar-panel');
+    const topbar = app && app.querySelector('.lg-topbar');
+    const slide = { t: 0, on: false, dim: null, chrome: null };
+    const canSlide = () => window.matchMedia && matchMedia('(max-width: 760px)').matches && !matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const backEls = () => [topbar, ms, grid && grid.querySelector('.lg-weekbar')].filter(Boolean);
+    function slideApply(t) {
+      const w = innerWidth, k = Math.max(0, Math.min(1, t));
+      const back = `translate3d(${(-0.3 * w * k).toFixed(1)}px, 0, 0)`, front = `translate3d(${(w * (1 - k)).toFixed(1)}px, 0, 0)`;
+      backEls().forEach(el => { el.style.transform = back; });
+      if (side) side.style.transform = front;
+      if (slide.dim) slide.dim.style.opacity = k.toFixed(3);
+    }
+    function slideOn() {
+      if (slide.on || !app || !canSlide()) return;
+      slide.on = true;
+      if (window.PairMenu) PairMenu.close(true);
+      slide.dim = document.createElement('div'); slide.dim.className = 'lg-tab-dim'; slide.dim.setAttribute('aria-hidden', 'true');
+      app.appendChild(slide.dim);
+      app.classList.add('tab-slide');   // на время перехода верхняя панель видна: она едет вместе с экраном расписания
+    }
+    function slideOff() {
+      if (!slide.on) return;
+      slide.on = false; app.classList.remove('tab-slide');
+      [...backEls(), side].forEach(el => { if (el) { el.style.removeProperty('transform'); el.style.removeProperty('opacity'); } });
+      if (slide.dim) slide.dim.remove();
+      slide.dim = null;
+    }
+    window.LGTabSlide = {
+      pos(t) {
+        slide.t = t;
+        // страховка: линза остановилась на вкладке, а сигнал «доехала» не пришёл — завершаем сами
+        clearTimeout(slide.timer);
+        slide.timer = setTimeout(() => { const bar = app && app.querySelector('.lg-tabbar-inner'); if (!bar || !bar.classList.contains('is-drag')) window.LGTabSlide.settle(); }, 220);
+        const rest = app && app.dataset.tab === 'stats' ? 1 : 0;
+        if (!slide.on) { if (Math.abs(t - rest) < 0.002) return; slideOn(); if (!slide.on) return; }
+        slideApply(t);
+      },
+      settle() {
+        if (!slide.on || (slide.t > 0.002 && slide.t < 0.998)) return;
+        const want = slide.t > 0.5 ? 'stats' : 'schedule';
+        if (app.dataset.tab !== want) { app.dataset.tab = want; tabs.forEach(b => { const on = b.dataset.tab === want; b.classList.toggle('selected', on); b.setAttribute('aria-selected', on); }); }
+        slideOff();
+      }
+    };
     function setTab(t) {
       if (!app) return;
       const sc = t === 'stats' ? app.querySelector('.sidebar-panel') : ms;
       if (app.dataset.tab === t) { if (sc) sc.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+      if (!slide.on && canSlide()) { slideOn(); slideApply(app.dataset.tab === 'stats' ? 1 : 0); }   // страницы поедут вслед за линзой с первого кадра
       app.dataset.tab = t;
       tabs.forEach(b => { const on = b.dataset.tab === t; b.classList.toggle('selected', on); b.setAttribute('aria-selected', on); });
       if (window.PairMenu) PairMenu.close(true);
@@ -1013,7 +1256,12 @@ window.PairMenu = (function () {
     m.classList.remove('open');
     // убираем меню, только когда капля вернулась в кнопку (модуль 21)
     if (instant) { m.remove(); tidy(); }
-    else { const rm = () => ((window.LGMorph && LGMorph.busy(m)) || (window.LGLiquid && LGLiquid.busy(m))) ? setTimeout(rm, 40) : (m.remove(), tidy()); setTimeout(rm, 180); }
+    else {
+      // ждём, пока капля вернётся в кнопку, но не дольше 1,2 с: иначе на телефоне кнопка могла остаться в стекле
+      const t0 = performance.now();
+      const rm = () => ((window.LGMorph && LGMorph.busy(m)) || (window.LGLiquid && LGLiquid.busy(m))) && performance.now() - t0 < 1200 ? setTimeout(rm, 40) : (m.remove(), tidy());
+      setTimeout(rm, 180);
+    }
     document.removeEventListener('pointerdown', outside, true);
     document.removeEventListener('keydown', keys, true);
     const col = document.getElementById('mainScroll');
@@ -2056,6 +2304,33 @@ window.Onboarding = (function () {
   const ZOOM = new Set(['setupBackdrop']);   // окна, в которые превращается сама кнопка (пока подопытное — настройки)
   // капсула из нескольких кнопок (колокольчик | шестерёнка) — её кнопка сначала отделяется кругом
   const capOf = src => { const c = src && src.closest && src.closest('.lg-group'); return c && window.LGLiquid && LGLiquid.split && c.querySelectorAll('button').length > 1 ? c : null; };
+  /* Телефон: настройки и профиль — лист снизу, как в iOS. Лист выезжает не до самого верха, а экран под ним
+     отодвигается назад: чуть уменьшается, опускается и скругляет углы (видна его верхняя кромка над листом).
+     Экран двигается тем же расчётом, что и лист, поэтому они едут как одно целое */
+  const PUSH = new Set(['setupBackdrop', 'profileBackdrop']);
+  const pushOn = ov => phone() && PUSH.has(ov.id);
+  const safeTop = () => { const d = document.createElement('div'); d.style.cssText = 'position:fixed;top:0;height:0;padding-top:env(safe-area-inset-top,0px);visibility:hidden'; document.body.appendChild(d); const v = d.offsetHeight; d.remove(); return v; };
+  const frameEl = () => document.querySelector('.window-frame');
+  const root = document.documentElement;
+  // Только сдвиг, масштаб и прозрачность — их ведёт видеокарта. Скругление углов экрана не анимируем (это
+  // перерисовка всего экрана каждый кадр): поверх экрана лежит чёрная рамка со скруглёнными углами, она едет вместе
+  // с ним и проявляется прозрачностью (фон под экраном тоже чёрный)
+  function capsOf() {
+    let c = document.querySelector('body > .lg-push-caps');
+    if (!c) { c = document.createElement('div'); c.className = 'lg-push-caps'; c.setAttribute('aria-hidden', 'true'); document.body.appendChild(c); }
+    return c;
+  }
+  function pushOf() {
+    const app = frameEl(); if (!app) return null;
+    const y = Math.max(6, safeTop() - 8), caps = capsOf();
+    document.documentElement.style.setProperty('--push-y', y + 'px');
+    const k = t => Math.max(0, Math.min(1.02, t)), tf = t => `translateY(${(y * k(t)).toFixed(2)}px) scale(${(1 - 0.07 * k(t)).toFixed(4)})`;
+    return [
+      { el: app, frame: t => ({ transform: tf(t) }) },
+      { el: caps, frame: t => ({ transform: tf(t), opacity: Math.min(1, k(t) * 3).toFixed(3) }) }
+    ];
+  }
+  const extras = ov => { const a = [dimOf(ov)]; if (pushOn(ov)) { const x = pushOf(); if (x) a.push(...x); } return a; };
   const zoomOpts = (ov, sp) => ({ zoom: true, fromRect: sp.gearRect(), iconSrc: sp.gearIcon, fromColor: sp.color, noFade: true, extra: [dimOf(ov)], ov });
   const stop = st => { clearTimeout(st.timer); (st.anims || []).forEach(a => { try { a.cancel(); } catch (e) { /* уже закончилась */ } }); st.anims = []; };
   const now = el => { const cs = getComputedStyle(el); return { transform: cs.transform === 'none' ? 'none' : cs.transform, opacity: cs.opacity }; };
@@ -2123,6 +2398,7 @@ window.Onboarding = (function () {
     if (!wasClosing) st.eng = window.LGMorph;
     const eng = st.eng || window.LGMorph;
     if (!eng) { opened(ov, st); return; }
+    if (pushOn(ov)) root.classList.add('lg-pushed', 'lg-push-bg');   // в конце экран так и остаётся отодвинутым; под ним — чёрный фон
     // кнопка в общей капсуле (колокольчик | шестерёнка): капсула сначала разделяется на два круга (жидкое стекло),
     // и окно растёт уже из отделившегося круга
     const zsrc = st.find ? st.find() : null, zcap = ZOOM.has(ov.id) && !phone() && !wasClosing && !st.split ? capOf(zsrc) : null;
@@ -2146,7 +2422,7 @@ window.Onboarding = (function () {
       else { ov.classList.add('lg-presplit'); sp.gear(true); sp.to(1).then(go); }   // пока круг сливался с капсулой — снова отделяем
       return;
     }
-    eng.open(box, st.find ? st.find() : null, { slide: phone(), zoom: ZOOM.has(ov.id), extra: [dimOf(ov)], ov }).then(how => {
+    eng.open(box, st.find ? st.find() : null, { slide: phone(), zoom: ZOOM.has(ov.id), extra: extras(ov), ov }).then(how => {
       if (st.phase === 'opening' && how === 'opened') opened(ov, st);
     });
   }
@@ -2165,6 +2441,20 @@ window.Onboarding = (function () {
     if (quick || isAlert(ov)) {
       // Одно окно сменилось другим (профиль → «Динамика») или ушло подтверждение — старое просто гаснет
       if (quick) ov.classList.add('lg-closing-quick');
+      if (pushOn(ov) && root.classList.contains('lg-pushed')) {
+        setTimeout(() => {   // открылось другое окно: если и оно отодвигает экран — оставляем, иначе экран плавно возвращается
+          const next = document.querySelector('.modal-overlay.open');
+          if (next && pushOn(next)) return;
+          root.classList.remove('lg-pushed');
+          const x = pushOf(), unbg = () => { if (!root.classList.contains('lg-pushed')) root.classList.remove('lg-push-bg'); };
+          if (!x) { unbg(); return; }
+          try {
+            const o = { duration: 380, easing: 'cubic-bezier(0.2, 0.9, 0.3, 1)', fill: 'backwards' };
+            const a = x.map(e => e.el.animate([e.frame(1), e.frame(0)], o));
+            a[0].finished.then(unbg, unbg);
+          } catch (e) { unbg(); }
+        }, 0);
+      }
       const eng = st.eng || window.LGMorph;
       if (eng) eng.cancel(box);
       const from = now(box), dur = quick ? 160 : 200;
@@ -2192,7 +2482,12 @@ window.Onboarding = (function () {
       });
       return;
     }
-    eng.close(box, st.find ? st.find() : null, { slide: phone(), zoom: ZOOM.has(ov.id), extra: [dimOf(ov)], ov }).then(() => { if (st.phase === 'closing') hideOv(ov, st); });
+    const pushed = root.classList.contains('lg-pushed');
+    root.classList.remove('lg-pushed');   // экран возвращается вместе с уходящим листом (чёрный фон уходит, когда экран встал на место)
+    eng.close(box, st.find ? st.find() : null, { slide: phone(), zoom: ZOOM.has(ov.id), extra: extras(ov), ov }).then(() => {
+      if (pushed && !root.classList.contains('lg-pushed')) root.classList.remove('lg-push-bg');
+      if (st.phase === 'closing') hideOv(ov, st);
+    });
   }
 
   function start() {
@@ -2241,6 +2536,7 @@ window.LGMorph = (function () {
   const lerp = (a, b, t) => a + (b - a) * t;
   const easeOut = x => 1 - (1 - x) * (1 - x);
   const FRAME = 1000 / 60;
+  const touch = () => window.matchMedia && matchMedia('(hover: none)').matches;
 
   function rectOf(el) {
     if (!el || !el.isConnected) return null;
@@ -2360,6 +2656,7 @@ window.LGMorph = (function () {
     return d;
   }
   function build(st) {
+    if (st.bare) { st.blob = st.rim = null; st.box = { x: 0, y: 0 }; return; }
     const el = st.el, L = st.look, parent = el.parentNode, fixed = parent === document.body;
     const blob = layer('lg-morph-blob', L);
     blob.style.position = fixed ? 'fixed' : 'absolute';
@@ -2484,6 +2781,10 @@ window.LGMorph = (function () {
       const f = clamp((Math.sqrt(st.F.w * st.F.h) - 170) / 480, 0, 1);
       st.spring = { open: st.kind === 'slide' ? [0.5, 0.92] : st.kind === 'zoom' ? [0.46, 0.78] : [lerp(0.3, 0.5, f), 0.8], close: st.kind === 'slide' ? [0.38, 1] : st.kind === 'zoom' ? [0.36, 0.8] : [lerp(0.24, 0.38, f), 1] };
       st.extra = opts.extra || [];
+      // лист снизу (телефон): окно едет само, со своим фоном, размытием и тенью — без отдельного слоя-капли.
+      // Его форма не меняется, а лишний слой с большой тенью телефон перерисовывал бы в первый кадр
+      st.bare = st.kind === 'slide';
+      if (st.bare) el.classList.remove('lg-morphing');
       if (reduce()) { el.classList.remove('lg-morph', 'lg-morphing'); return null; }
       build(st);
       S.set(el, st);
@@ -2504,7 +2805,7 @@ window.LGMorph = (function () {
     st.traj = traj;
     const K = keyframes(st, traj), dur = Math.max(FRAME, (traj.length - 1) * FRAME);
     const o = { duration: dur, easing: 'linear', fill: 'both' };
-    const A = [el.animate(K.win, o), st.blob.animate(K.blob, o), st.blob.animate(K.blobR, o), st.rim.animate(K.rim, o)];
+    const A = st.bare ? [el.animate(K.win, o)] : [el.animate(K.win, o), st.blob.animate(K.blob, o), st.blob.animate(K.blobR, o), st.rim.animate(K.rim, o)];
     if (st.ico) A.push(st.ico.animate(K.ico, o));
     if (st.srcEl) st.srcEl.style.visibility = 'hidden';   // кнопка — это теперь окно (её значок несёт слой поверх)
     if (st.neck) A.push(st.neck.animate(K.neck, o), st.neck.animate(K.neckR, o));
@@ -2512,7 +2813,17 @@ window.LGMorph = (function () {
     st.anims = A;
     const my = A[0];
     my.finished.then(() => { if (st.anims[0] === my) finish(st, mode === 'open' ? 'opened' : 'closed'); }, () => { /* отменена — пошла в другую сторону */ });
-    st.guard = setTimeout(() => { if (st.anims[0] === my) finish(st, mode === 'open' ? 'opened' : 'closed'); }, dur + 600);   // страховка: окно приложения свернули и т. п.
+    const arm = () => { clearTimeout(st.guard); st.guard = setTimeout(() => { if (st.anims[0] === my) finish(st, mode === 'open' ? 'opened' : 'closed'); }, dur + 600); };   // страховка: окно приложения свернули и т. п.
+    if (touch()) {
+      // телефон: первый кадр (новые слои, отрисовка окна) бывает долгим. Часы анимации стоят, пока он не готов, —
+      // иначе к его показу анимация уже прошла бы треть пути и окно «прыгало». Стоим в начальном положении
+      const tok = st.tok = (st.tok || 0) + 1;
+      A.forEach(a => { try { a.pause(); } catch (e) { /* уже */ } });
+      let go = false;
+      const play = () => { if (go || st.tok !== tok || st.anims !== A) return; go = true; A.forEach(a => { try { a.play(); } catch (e) { /* уже */ } }); arm(); };
+      requestAnimationFrame(() => requestAnimationFrame(play));
+      setTimeout(play, 400);   // кадры не приходят (окно свернули) — всё равно доводим
+    } else arm();
     return st;
   }
 
@@ -2688,6 +2999,17 @@ window.LGLiquid = (function () {
       L.spec = { col: cs.getPropertyValue('--spec').trim() || 'rgba(255, 255, 255, 0.6)', x: rect.left + (isNaN(lx) ? rect.width / 2 : lx), y: rect.top + (isNaN(ly) ? 0 : ly), op: parseFloat(b.opacity) };
     }
     return L;
+  }
+  // как далеко тень выходит за свой край (сдвиг + размытие + разлив)
+  function shadowReach(s) {
+    if (!s || s === 'none') return 0;
+    const out = []; let d = 0, cur = '';
+    for (const ch of s) { if (ch === '(') d++; if (ch === ')') d--; if (ch === ',' && !d) { out.push(cur); cur = ''; } else cur += ch; }
+    out.push(cur);
+    return out.reduce((m, x) => {
+      const n = x.replace(/(rgba?\([^)]*\)|color\([^)]*\)|#[0-9a-f]+)/i, '').split(/\s+/).map(parseFloat).filter(v => !isNaN(v));
+      return Math.max(m, Math.max(Math.abs(n[0] || 0), Math.abs(n[1] || 0)) + (n[2] || 0) + Math.max(0, n[3] || 0));
+    }, 0);
   }
   function outerShadow(s) {
     if (!s || s === 'none') return 'none';
@@ -2888,17 +3210,20 @@ window.LGLiquid = (function () {
     // и набирает силу постепенно: в первый кадр (и последний при закрытии) форма — ровно кнопка, без вспухания
     const kk = Math.max(0.5, k * smooth(0, 0.35, g.e) * (1 - smooth(0.04, 0.24, g.p)));
     const merged = !!b && Math.hypot(gx, gy) < kk, go = 1;
+    // как выглядят настоящие кнопки — читаем до того, как что-то поменяли в этом кадре (иначе браузер пересчитывает стили дважды)
+    const liveNow = merged && st.live ? st.live.map(([el]) => { const q = getComputedStyle(el); return [q.backgroundColor, q.transform]; }) : null;
     st.cap.style.scale = b ? g.s.toFixed(4) : '0';
     st.cap.style.translate = b ? `${f2(b.dx)}px ${f2(b.dy)}px` : '0px 0px';
     st.cap.style.opacity = merged ? '0' : '';
     const ic = st.icons;
     ic.style.transform = b ? `translate(${f2(st.cr.left + b.dx)}px, ${f2(st.cr.top + b.dy)}px) scale(${g.s.toFixed(4)})` : 'scale(0)';
     ic.style.opacity = merged ? st.fade.toFixed(3) : '0';
-    if (merged && st.live) st.live.forEach(([el, c]) => { const q = getComputedStyle(el); c.style.backgroundColor = q.backgroundColor; c.style.transform = q.transform; });
+    if (liveNow) st.live.forEach(([, c], n) => { c.style.backgroundColor = liveNow[n][0]; c.style.transform = liveNow[n][1]; });
     // стекло жидкости: то же, что у капсулы, по мере роста плавно становится стеклом окна
     const m = smooth(0.18, 0.7, g.f), goo = st.goo;   // пока капля держится за кнопку — стекло кнопки
     const c = L.c0.map((v, i) => lerp(v, L.c1[i], m));
-    goo.style.backgroundColor = `rgba(${c[0].toFixed(1)}, ${c[1].toFixed(1)}, ${c[2].toFixed(1)}, ${c[3].toFixed(3)})`;
+    const gbg = `rgba(${Math.round(c[0])}, ${Math.round(c[1])}, ${Math.round(c[2])}, ${c[3].toFixed(3)})`;
+    if (st.gbg !== gbg) { goo.style.backgroundColor = gbg; st.gbg = gbg; }   // одинаковое значение не пишем: каждая смена — перерисовка
     let lensOn = false;
     if (L.b0 || L.b1) {
       const b0 = L.b0 || { b: 0, s: 1 }, b1 = L.b1 || { b: 0, s: 1 };
@@ -2907,7 +3232,9 @@ window.LGLiquid = (function () {
       lensOn = ls > 0.01;
       if (lensOn) st.lens.disp.setAttribute('scale', (st.lens.full * ls).toFixed(2));
       const capLens = !lensOn && merged && st.capLens;
-      goo.style.backdropFilter = goo.style.webkitBackdropFilter = `${lensOn ? `url(#${st.lens.id}) ` : capLens ? `url(#${st.capLens.id}) ` : ''}blur(${lerp(b0.b, b1.b, m).toFixed(1)}px) saturate(${lerp(b0.s, b1.s, m).toFixed(2)})`;
+      // размытие — шагами по полпикселя: разницы глазом не видно, а телефон пересобирает фильтр стекла в разы реже
+      const gbf = `${lensOn ? `url(#${st.lens.id}) ` : capLens ? `url(#${st.capLens.id}) ` : ''}blur(${(Math.round(lerp(b0.b, b1.b, m) * 2) / 2).toFixed(1)}px) saturate(${(Math.round(lerp(b0.s, b1.s, m) * 20) / 20).toFixed(2)})`;
+      if (st.gbf !== gbf) { goo.style.backdropFilter = goo.style.webkitBackdropFilter = gbf; st.gbf = gbf; }
     }
     goo.style.opacity = (go * st.fade).toFixed(3);   // тает — каждый слой сам по себе: прозрачный общий слой лишил бы каплю размытия фона
     st.rim.style.opacity = st.shw.style.opacity = st.fade < 1 ? st.fade.toFixed(3) : '';
@@ -2973,7 +3300,19 @@ window.LGLiquid = (function () {
     });
     // тени: у капли сначала как у капсулы, потом как у окна; у остатка капсулы — своя
     const F0 = st.F, h1 = st.h1, sw = smooth(0.1, 0.7, g.f);
-    st.shw.style.clipPath = merged ? `path(evenodd, "M-50 -50H${innerWidth + 50}V${innerHeight + 50}H-50Z${rrPath(b.x - b.hw, b.y - b.hh, b.hw * 2, b.hh * 2, b.r)}")` : 'none';
+    // вырез под кнопкой: обрезка — только вокруг капли и кнопки (с запасом на тень), а не на весь экран:
+    // её телефон перерисовывает каждый кадр, и чем она меньше, тем легче
+    if (merged) {
+      const M = Math.ceil(Math.max(st.reachC * Math.max(g.w, g.h) / st.h1, st.reachH * Math.max(g.w / F0.w, g.h / F0.h)) + 6);
+      const wx0 = Math.floor(Math.min(head.x - head.hw - M, b.x - b.hw)), wy0 = Math.floor(Math.min(head.y - head.hh - M, b.y - b.hh));
+      const wx1 = Math.ceil(Math.max(head.x + head.hw + M, b.x + b.hw)), wy1 = Math.ceil(Math.max(head.y + head.hh + M, b.y + b.hh));
+      const sw0 = st.shw.style;
+      sw0.left = wx0 + 'px'; sw0.top = wy0 + 'px'; sw0.width = (wx1 - wx0) + 'px'; sw0.height = (wy1 - wy0) + 'px';
+      sw0.clipPath = `path(evenodd, "M0 0H${wx1 - wx0}V${wy1 - wy0}H0Z${rrPath(b.x - b.hw - wx0, b.y - b.hh - wy0, b.hw * 2, b.hh * 2, b.r)}")`;
+    } else if (st.shw.style.clipPath !== 'none') {
+      const sw0 = st.shw.style;
+      sw0.clipPath = 'none'; sw0.left = sw0.top = '0px'; sw0.width = '100vw'; sw0.height = '100vh';
+    }
     stretch(st.shH, head.x - head.hw, head.y - head.hh, g.w / F0.w, g.h / F0.h);
     stretch(st.shC, head.x - head.hw, head.y - head.hh, g.w / h1, g.h / h1);
     st.shH.style.opacity = (go * sw).toFixed(3);
@@ -3018,7 +3357,9 @@ window.LGLiquid = (function () {
   function step(st, now) {
     st.raf = 0;
     // часы идут с первого показанного кадра; если кадр задержался, анимация замедляется, а не перескакивает
-    const dt = st.last == null ? 1 / 60 : clamp((now - st.last) / 1000, 0, 1 / 50);
+    // кадр задержался — анимация идёт с той же скоростью (на телефоне в энергосбережении кадров вдвое меньше),
+    // и только совсем долгий кадр (больше 1/30 с) замедляет её, а не перескакивает
+    const dt = st.last == null ? 1 / 60 : clamp((now - st.last) / 1000, 0, 1 / 30);
     st.last = now; st.dt = dt;
     const open = st.mode === 'open';
     const eT = open ? 1 : (st.p <= GATE_CLOSE ? 0 : 1);
@@ -3039,12 +3380,12 @@ window.LGLiquid = (function () {
     const done = open ? Math.abs(st.e - 1) < 0.003 && Math.abs(st.ve) < 0.05 && st.p === 1
       : st.e < 0.02 && st.p === 0;
     if (done) { st.e = st.p = open ? 1 : 0; st.ve = st.vp = 0; }
-    render(st);
+    try { render(st); } catch (err) { finish(st, open ? 'opened' : 'closed'); return; }   // что-то не поддерживается — без анимации, но и без зависания
     if (done) finish(st, open ? 'opened' : 'closed');
     else { st.raf = requestAnimationFrame(t => step(st, t)); arm(st); }
   }
   // страховка: окно приложения свернули и кадры не приходят — доводим до конца
-  function arm(st) { clearTimeout(st.guard); st.guard = setTimeout(() => { if (S.get(st.box) === st) { st.e = st.p = st.mode === 'open' ? 1 : 0; render(st); finish(st, st.mode === 'open' ? 'opened' : 'closed'); } }, 1500); }
+  function arm(st) { clearTimeout(st.guard); st.guard = setTimeout(() => { if (S.get(st.box) === st) { st.e = st.p = st.mode === 'open' ? 1 : 0; try { render(st); } catch (e) { /* без последнего кадра */ } finish(st, st.mode === 'open' ? 'opened' : 'closed'); } }, 1500); }
 
   const BOX_PROPS = ['transform', 'opacity', 'filter', 'clip-path', 'transform-origin', 'pointer-events'];
   function restoreCap(src) {
@@ -3144,6 +3485,7 @@ window.LGLiquid = (function () {
     st.shw = layer('lq-shwrap');
     st.shC = layer('lq-shadow', outerShadow(ccs.boxShadow)); sized(st.shC, st.h1, st.h1, st.h1 / 2);
     st.shH = layer('lq-shadow', outerShadow(bcs.boxShadow)); sized(st.shH, st.F.w, st.F.h, st.F.r);
+    st.reachC = shadowReach(outerShadow(ccs.boxShadow)); st.reachH = shadowReach(outerShadow(bcs.boxShadow));
     st.shw.append(st.shC, st.shH);
     st.goo = layer('lq-goo');
     // окно с преломлением у края (data-lens): та же линза, что у окна, едет вместе с каплей и нарастает к концу

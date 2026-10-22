@@ -3306,3 +3306,115 @@ body.dark-theme .lg-topbar :is(.profile-pill, .sc-head).lg-glass { box-shadow: v
 .modal-overlay.lg-presplit > .modal-content { opacity: 0 !important; pointer-events: none; }   /* не visibility: у части кнопок внутри своя видимость */
 /* пока окно растёт, оно не ловит курсор: под ним пролетает уменьшенное содержимое, и всплывали подсказки */
 .modal-overlay.lg-opening > .lg-morph { pointer-events: none; }
+
+/* ---------- 69. Телефон: после касания iOS оставляет кнопку «под курсором» (:hover), и «⋯» и ДЗ так и стояли
+   в стекле. Без мыши стекло у них — только пока действуют (открыто меню или список ДЗ) ---------- */
+@media (hover: none) {
+  :is(.pair-card .pair-actions, .day-actions, .lg-subjects > .panel-title-row) > .lg-glass:not(.active),
+  body.dark-theme :is(.pair-card .pair-actions, .day-actions, .lg-subjects > .panel-title-row) > .lg-glass:not(.active) {
+    background: transparent; box-shadow: none;
+    -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
+  }
+  :is(.pair-card .pair-actions, .day-actions, .lg-subjects > .panel-title-row) > .lg-glass:not(.active)::after,
+  :is(.pair-card .pair-actions, .day-actions, .lg-subjects > .panel-title-row) > .lg-glass:not(.active)::before { opacity: 0; }
+}
+
+/* ---------- 70. Нижний бар на телефоне, как в Телеграме: жемчужное стекло; в покое под вкладкой мягкая серая подложка,
+   под пальцем она раздувается больше бара и становится прозрачной линзой. Внутри линзы — копия вкладок синим ровно
+   поверх настоящих (glass.js, модуль 3): синеет то, что под линзой, и цвет едет вместе с ней ---------- */
+.lg-lens-gl, .lg-thumb > .lg-lens-gl { position: absolute; z-index: 3; pointer-events: none; }   /* не в потоке: иначе бар растёт вместе с холстом */
+.lg-lens-core { position: absolute; inset: 0; border-radius: inherit; overflow: hidden; pointer-events: none; opacity: 0; transition: opacity 0.12s ease; }
+.lg-knob.is-press > .lg-lens-core { opacity: 1; }
+.lg-lens-mag { position: absolute; left: 0; top: 0; }
+.lg-lens-mag > * { position: absolute !important; margin: 0 !important; transition: none !important; transform: none !important; color: var(--tint) !important; }
+@media (max-width: 760px) {
+  .lg-tabbar-inner.lg-glass {
+    --glass-blur: var(--pearl-blur); --glass-sat: var(--pearl-sat);
+    background: var(--pearl);
+    -webkit-backdrop-filter: blur(var(--pearl-blur)) saturate(var(--pearl-sat)); backdrop-filter: blur(var(--pearl-blur)) saturate(var(--pearl-sat));
+    box-shadow: var(--pearl-shadow), var(--pearl-glow);
+  }
+  body.dark-theme .lg-tabbar-inner.lg-glass { box-shadow: var(--pearl-shadow), var(--pearl-glow); }
+  .lg-tabbar-inner.lg-glass::after, body.dark-theme .lg-tabbar-inner.lg-glass::after { background: var(--pearl-rim); }
+  .lg-tabbar-inner .lg-knob:not(.is-press) { background: var(--pearl-sel); box-shadow: none; }
+  /* прозрачная линза, как в Телеграме: внутри ничего лишнего, только тонкая светлая кромка и мягкая тень;
+     изгиб, цветную кайму и тёмные полоски у края рисует WebGL (glass.js) */
+  .lg-tabbar-inner .lg-knob.is-press {
+    background: transparent;
+    -webkit-backdrop-filter: none; backdrop-filter: none;
+    box-shadow: 0 8px 20px -12px rgba(0, 0, 0, 0.25), inset 0 0 0 1px rgba(255, 255, 255, 0.75), inset 0 0 0 1.5px rgba(0, 0, 0, 0.06);
+  }
+  body.dark-theme .lg-tabbar-inner .lg-knob.is-press {
+    background: transparent;
+    box-shadow: 0 10px 24px -12px rgba(0, 0, 0, 0.6), inset 0 0 0 1px rgba(255, 255, 255, 0.26);
+  }
+  .lg-tabbar-inner .lg-knob.is-press > i::before { opacity: 0; }
+  .lg-tabbar-inner .lg-knob > i { z-index: 2; }
+  /* пока линза поднята, вкладки вне её — обычного цвета, синеет только то, что под линзой */
+  .lg-tabbar-inner.knob-up .lg-tab { color: var(--label); transition: none; transform: none; }   /* без «вдавливания» нажатой вкладки — иначе синяя копия ложится мимо */
+}
+
+/* ---------- 71. Телефон: переход «Расписание» ⇄ «Статистика», как в «Настройках» iOS (glass.js, модуль 4) ----------
+   «Статистика» на время перехода — целый экран со скруглёнными углами поверх экрана расписания; тот уезжает влево
+   целиком (вместе с верхней панелью) и темнеет. Нижний бар остаётся на месте */
+@media (max-width: 760px) {
+  #mainApp.tab-slide .layout-grid > #mainScroll { display: block !important; will-change: transform; }
+  #mainApp.tab-slide .lg-topbar { will-change: transform; }
+  #mainApp.tab-slide .layout-grid > .lg-weekbar { display: grid !important; will-change: transform; }
+  #mainApp.tab-slide .layout-grid > .sidebar-panel {
+    display: flex !important; position: fixed; inset: 0; z-index: 55; will-change: transform;
+    background: var(--bg); border-radius: 44px; box-shadow: -10px 0 36px -8px rgba(0, 0, 0, 0.2);
+  }
+  body.dark-theme #mainApp.tab-slide .layout-grid > .sidebar-panel { box-shadow: -10px 0 36px -8px rgba(0, 0, 0, 0.75); }
+  /* у «Статистики» нет верхней панели с профилем и уведомлениями — экран начинается с крупного заголовка */
+  #mainApp[data-tab="stats"]:not(.tab-slide) .lg-topbar { display: none; }
+  .layout-grid > .sidebar-panel { padding-top: calc(env(safe-area-inset-top, 0px) + 16px); }
+  /* экран под ним темнеет */
+  .lg-tab-dim { position: fixed; inset: 0; z-index: 54; pointer-events: none; opacity: 0; background: rgba(0, 0, 0, 0.12); }
+  body.dark-theme .lg-tab-dim { background: rgba(0, 0, 0, 0.5); }
+  /* доехала — фон страницы мягко уступает обоям (без вспышки) */
+  .layout-grid > .sidebar-panel { transition: background-color 0.3s ease, box-shadow 0.3s ease; }
+}
+
+/* ---------- 72. Телефон: окно уведомлений компактнее — под колокольчиком справа, а не на всю ширину ---------- */
+@media (max-width: 760px) {
+  .pf-notif, .pf-notif.lg-glass { left: auto; right: 12px; width: min(304px, calc(100vw - 24px)); border-radius: 24px; }
+  .pf-notif > .pf-pop-head { height: 44px; padding: 0 16px; }
+  .pf-notif > .pf-pop-head > .lg-pblur, .pf-notif > .pf-pop-head > .lg-pblur > i, .pf-notif > .pf-pop-head > .lg-pblur::before { border-radius: 24px 24px 0 0; }
+  .pf-notif .pf-pop-title { font-size: calc(15px * var(--ts)); }
+  .pf-notif .pf-pop-head button { font-size: calc(13px * var(--ts)); }
+  .pf-notif-list { max-height: min(360px, 52vh); padding: 44px 6px 6px; }
+  .pf-notif .pf-notif-item { gap: 10px; padding: 8px 10px; border-radius: 18px; }
+  .pf-notif-ico { width: 30px; height: 30px; }
+  .pf-notif-ico svg { width: 15px; height: 15px; }
+  .pf-notif-title { font-size: calc(14px * var(--ts)); }
+  .pf-notif-text { font-size: calc(12.5px * var(--ts)); line-height: 1.35; }
+  .pf-notif-time { font-size: calc(11.5px * var(--ts)); }
+}
+
+.lg-push-caps { display: none; }
+
+/* ---------- 73. Телефон: настройки и профиль — лист снизу, как в iOS (glass.js, модуль 19) ----------
+   Лист выезжает не до самого верха; экран под ним отодвигается назад — чуть меньше, ниже, со скруглёнными углами,
+   под ним чёрный фон. Сверху над листом видна кромка отодвинутого экрана */
+@media (max-width: 760px) {
+  .window-frame { transform-origin: 50% 0; }
+  html.lg-push-bg, html.lg-push-bg body { background: #000; }
+  html.lg-pushed .window-frame { transform: translateY(var(--push-y, 6px)) scale(0.93); }
+  /* скруглённые углы отодвинутого экрана: чёрная рамка поверх него, едет вместе с ним (фон под ним тоже чёрный).
+     Рамка заходит на край экрана на 1px — иначе по краю видна светлая ниточка сглаживания */
+  .lg-push-caps { display: block; position: fixed; left: 1px; top: 1px; width: calc(100% - 2px); height: calc(100dvh - 2px); z-index: 4000;
+    pointer-events: none; opacity: 0; visibility: hidden; transform-origin: 50% -1px; border-radius: 37px; box-shadow: 0 0 0 48px #000; }
+  html.lg-push-bg .lg-push-caps { visibility: visible; }
+  html.lg-pushed .lg-push-caps { opacity: 1; transform: translateY(var(--push-y, 6px)) scale(0.93); }
+  /* под таким листом экран только затемняется, без размытия (как в iOS): видно его кромку, и телефону легче */
+  html.lg-winfx :is(#setupBackdrop, #profileBackdrop)::before { -webkit-backdrop-filter: none; backdrop-filter: none; }
+  /* сам лист — во всю ширину и до низа экрана, скруглён сверху; низ содержимого не прячется под полоской «домой» */
+  html.lg-winfx #setupBackdrop, html.lg-winfx #profileBackdrop { padding: max(18px, calc(env(safe-area-inset-top, 0px) + 6px)) 0 0; }
+  html.lg-winfx #setupBackdrop > .modal-content, html.lg-winfx #profileBackdrop > .pf-modal {
+    height: calc(100dvh - max(18px, calc(env(safe-area-inset-top, 0px) + 6px))); max-height: none;
+    border-radius: 38px 38px 0 0;
+  }
+  html.lg-winfx #setupBackdrop .st-modal .lg-sheet-body { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 32px); }
+  html.lg-winfx #profileBackdrop .pf-v2 .pf-scroll { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 28px) !important; }
+}

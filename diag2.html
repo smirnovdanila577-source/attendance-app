@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Проверка 2</title>
+<style>html,body{margin:0;height:100%}iframe{border:0;width:100%;height:100%;display:block}</style>
+</head><body>
+<iframe id="f"></iframe>
+<script>
+// Открывает приложение внутри рамки и показывает поверх красным все ошибки, которые оно выдаёт при запуске
+(async () => {
+  const rep = `<script>(function(){var box;function show(t){if(!box){box=document.createElement('div');box.style.cssText='position:fixed;left:8px;right:8px;bottom:8px;z-index:2147483647;background:#c62828;color:#fff;font:13px/1.35 -apple-system,sans-serif;padding:10px;border-radius:10px;max-height:60vh;overflow:auto;white-space:pre-wrap';(document.body||document.documentElement).appendChild(box);}box.textContent+=t+'\\n\\n';}
+window.addEventListener('error',function(e){show('ОШИБКА: '+e.message+'\\n'+((e.filename||'').split('/').pop())+':'+e.lineno+':'+e.colno);},true);
+window.addEventListener('unhandledrejection',function(e){show('ОШИБКА (promise): '+(e.reason&&(e.reason.stack||e.reason.message)||e.reason));});
+setTimeout(function(){var v=[].slice.call(document.body?document.body.children:[]).filter(function(x){return getComputedStyle(x).display!=='none'}).map(function(x){return (x.id||x.className||x.tagName)+''}).join(', ');show('Через 4 с видно: '+v);},4000);})();<\/script>`;
+  let html = await (await fetch('index.html?t=' + Date.now(), { cache: 'no-store' })).text();
+  const base = '<base href="' + location.href.replace(/[^/]*$/, '') + '">';
+  html = html.replace(/<head[^>]*>/i, m => m + base + rep);
+  document.getElementById('f').srcdoc = html;
+})();
+</script>
+</body></html>
