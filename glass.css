@@ -3210,7 +3210,7 @@ body.dark-theme .pair-card .lg-more.lg-glass, body.dark-theme .day-actions > .lg
 .pair-card .lg-more.lg-glass::after, .day-actions > .lg-more.lg-glass::after, .lg-add-day.lg-glass::after,
 body.dark-theme .pair-card .lg-more.lg-glass::after, body.dark-theme .day-actions > .lg-more.lg-glass::after, body.dark-theme .lg-add-day.lg-glass::after { background: var(--pearl-rim); }
 
-/* ---------- 65. «⋯» и ДЗ у пары: в покое плоские значки, стеклянными становятся, только пока действуют
+/* ---------- 65. «⋯» и ДЗ у пары (а также «⋯» дня и «Предметов»): в покое плоские значки, стеклянными становятся, только пока действуют
    (из «⋯» вытекает меню, у ДЗ открыт список). Между ними — зазор, чтобы кружки не соприкасались ---------- */
 .pair-actions { gap: 8px; }
 .pair-actions .hw-btn.lg-glass {
@@ -3222,33 +3222,34 @@ body.dark-theme .pair-card .lg-more.lg-glass::after, body.dark-theme .day-action
 body.dark-theme .pair-actions .hw-btn.lg-glass { box-shadow: var(--pearl-shadow), var(--pearl-glow); }
 .pair-actions .hw-btn.lg-glass::after, body.dark-theme .pair-actions .hw-btn.lg-glass::after { background: var(--pearl-rim); }
 /* в покое — без стекла, как обычные значки; навели — стекло мягко проявляется, увели — гаснет */
-:is(.pair-card .pair-actions, .day-actions) > .lg-glass { transition: background 0.2s, color 0.2s, box-shadow 0.2s, opacity 0.2s, transform 0.35s var(--spring); }
+:is(.pair-card .pair-actions, .day-actions, .lg-subjects > .panel-title-row) > .lg-glass { transition: background 0.2s, color 0.2s, box-shadow 0.2s, opacity 0.2s, transform 0.35s var(--spring); }
 .pair-card:hover .pair-actions > .lg-more.lg-glass { transition-delay: 0s, 0s, 0s, 0.12s, 0s; }   /* «⋯» у строки — с той же задержкой, что раньше */
-:is(.pair-card .pair-actions, .day-actions) > .lg-glass:not(.active):not(:hover), body.dark-theme :is(.pair-card .pair-actions, .day-actions) > .lg-glass:not(.active):not(:hover) {
+:is(.pair-card .pair-actions, .day-actions, .lg-subjects > .panel-title-row) > .lg-glass:not(.active):not(:hover), body.dark-theme :is(.pair-card .pair-actions, .day-actions, .lg-subjects > .panel-title-row) > .lg-glass:not(.active):not(:hover) {
   background: transparent; box-shadow: none;
   -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
 }
-:is(.pair-card .pair-actions, .day-actions) > .lg-glass::after { transition: opacity 0.2s; }
-:is(.pair-card .pair-actions, .day-actions) > .lg-glass:not(.active):not(:hover)::after, :is(.pair-card .pair-actions, .day-actions) > .lg-glass:not(.active):not(:hover)::before { opacity: 0; }
+:is(.pair-card .pair-actions, .day-actions, .lg-subjects > .panel-title-row) > .lg-glass::after { transition: opacity 0.2s; }
+:is(.pair-card .pair-actions, .day-actions, .lg-subjects > .panel-title-row) > .lg-glass:not(.active):not(:hover)::after, :is(.pair-card .pair-actions, .day-actions, .lg-subjects > .panel-title-row) > .lg-glass:not(.active):not(:hover)::before { opacity: 0; }
 .pair-card .pair-actions > .lg-more.lg-glass:not(.active):not(:hover) { color: var(--label-3); }
-.day-actions > .lg-more.lg-glass:not(.active):not(:hover) { color: var(--label-2); }   /* у дня значок в покое — как раньше */
+.day-actions > .lg-more.lg-glass:not(.active):not(:hover),
+.lg-subjects > .panel-title-row > .lg-more.lg-glass:not(.active):not(:hover) { color: var(--label-2); }   /* у дня и в «Предметах» значок в покое — серый, как раньше */
 /* С мышью стекло не просто проявляется, а вырастает из середины кнопки пузырём с лёгкой пружинкой, увели — сжимается
    и гаснет. Растёт вся кнопка (--pa-s), а значок и счётчик ДЗ сжаты ровно обратно — стоят на месте и не меняются
    в размере. Счётчик сжимается вокруг середины кнопки (у него сдвиг top −2, right −3 у кнопки 32 px) */
 @property --pa-s { syntax: "<number>"; inherits: true; initial-value: 1; }
 @media (hover: hover) {
-  :is(.pair-card .pair-actions, .day-actions) > .lg-glass {
+  :is(.pair-card .pair-actions, .day-actions, .lg-subjects > .panel-title-row) > .lg-glass {
     --pa-s: 1; scale: var(--pa-s);
     transition: background 0.26s ease, color 0.2s, box-shadow 0.26s ease, opacity 0.2s, transform 0.35s var(--spring), --pa-s 0.5s var(--spring);
   }
   .pair-card:hover .pair-actions > .lg-more.lg-glass { transition-delay: 0s, 0s, 0s, 0.12s, 0s, 0s; }
-  :is(.pair-card .pair-actions, .day-actions) > .lg-glass:not(.active):not(:hover) { --pa-s: 0.62; }
-  :is(.pair-card .pair-actions, .day-actions) > .lg-glass > * { scale: calc(1 / var(--pa-s)); }
+  :is(.pair-card .pair-actions, .day-actions, .lg-subjects > .panel-title-row) > .lg-glass:not(.active):not(:hover) { --pa-s: 0.62; }
+  :is(.pair-card .pair-actions, .day-actions, .lg-subjects > .panel-title-row) > .lg-glass > * { scale: calc(1 / var(--pa-s)); }
   .pair-card .pair-actions > .lg-glass > .hw-badge { transform-origin: calc(100% - 19px) 18px; }
-  :is(.pair-card .pair-actions, .day-actions) > .lg-glass::after { transition: opacity 0.26s ease; }
+  :is(.pair-card .pair-actions, .day-actions, .lg-subjects > .panel-title-row) > .lg-glass::after { transition: opacity 0.26s ease; }
 }
 /* нажали — стекло сразу (из «⋯» тут же вытекает капля и берёт его вид); пружинка нажатия остаётся */
-:is(.pair-card .pair-actions, .day-actions) > .lg-glass.active { transition: transform 0.35s var(--spring); }
+:is(.pair-card .pair-actions, .day-actions, .lg-subjects > .panel-title-row) > .lg-glass.active { transition: transform 0.35s var(--spring); }
 
 /* ---------- 66. Капсула недель и выбор недели — жемчужное стекло, как у уведомлений; колонка недель вытекает из капсулы каплей ---------- */
 .lg-weekbar.lg-glass {
@@ -3295,3 +3296,13 @@ body.dark-theme .lg-weekbar.lg-glass { --wb-glass: rgba(44, 44, 48, 0.84); }
 }
 body.dark-theme .lg-topbar :is(.profile-pill, .sc-head).lg-glass { box-shadow: var(--pearl-shadow), var(--pearl-glow); }
 .lg-topbar :is(.profile-pill, .sc-head).lg-glass::after, body.dark-theme .lg-topbar :is(.profile-pill, .sc-head).lg-glass::after { background: var(--pearl-rim); }
+
+/* ---------- 68. Большие окна: кнопка сама становится окном, как в iOS 26 (glass.js, модуль 20, вид zoom) ---------- */
+/* значок кнопки летит в середине растущей формы: на открытии гаснет, на закрытии проявляется и садится на место кнопки */
+.lg-morph-ico { left: 0; top: 0; display: grid; place-items: center; pointer-events: none; transform-origin: 0 0; will-change: transform, opacity; }
+.lg-morph-ico > svg { display: block; }
+/* пока капсула разделяется (до того как из круга вырастет окно), окна и затемнения ещё нет */
+.modal-overlay.lg-presplit::before { opacity: 0 !important; }
+.modal-overlay.lg-presplit > .modal-content { opacity: 0 !important; pointer-events: none; }   /* не visibility: у части кнопок внутри своя видимость */
+/* пока окно растёт, оно не ловит курсор: под ним пролетает уменьшенное содержимое, и всплывали подсказки */
+.modal-overlay.lg-opening > .lg-morph { pointer-events: none; }
