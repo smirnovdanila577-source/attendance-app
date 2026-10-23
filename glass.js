@@ -230,8 +230,11 @@ window.LGLens = (function () {
       '  vec3 wP=(1.-inS)*inO, wB=inS*(1.-inO);',
       '  vec3 bgf=pc*wP+bcl*wB+under*(1.-wP-wB);',
       // у края стекло перерисовывает фон целиком (иначе «пустые» цвета давали чёрные пятна), в середине — прозрачно
-      '  float af=max(clamp(k*4.,0.,1.),max(max(wP.r+wB.r,wP.g+wB.g),wP.b+wB.b));',
-      '  vec3 fc=tc+(1.-ta)*af*bgf; float fa=max(max(ta.r,ta.g),ta.b); fa=fa+(1.-fa)*af;',
+      // края линзы прозрачные: сквозь них видно стекло бара под ней, а не заливка цветом (она давала светлые ореолы)
+      '  float af=0.;',
+      // у края три сдвинутые копии значка смешиваются целиком, без разделения на красный/зелёный/синий:
+      // синий значок не распадается на зелёный и синий, кайма — мягкая, в цвете самого значка
+      '  vec4 mx=(cr+cg+cb)/3.; vec3 fc=mx.rgb+(1.-mx.a)*af*bgf; float fa=mx.a+(1.-mx.a)*af;',
       '  gl_FragColor=vec4(fc,fa)*clamp(.5-d,0.,1.);',
       '}'].join('\n');
     function sh(gl, type, src) { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); return gl.getShaderParameter(s, gl.COMPILE_STATUS) ? s : null; }
@@ -285,8 +288,9 @@ window.LGLens = (function () {
       const P3 = pg.length >= 3 && (pg[3] === undefined || pg[3] > 0) ? pg.slice(0, 3).map(v => v / 255) : (document.body.classList.contains('dark-theme') ? [0.04, 0.04, 0.05] : [0.96, 0.96, 0.97]);
       const ba = bb.length > 3 ? bb[3] : 1;
       G.bcl = bb.length >= 3 ? bb.slice(0, 3).map((v, n) => v / 255 * ba + P3[n] * (1 - ba)) : P3;
-      // тёмная тема: «брови» у края линзы — почти цвет самого бара, а не чёрный фон страницы (иначе по краям чёрные ореолы)
-      G.pc = document.body.classList.contains('dark-theme') ? P3.map((v, n) => v + (G.bcl[n] - v) * 0.85) : P3;
+      // «брови» у края линзы — цвет самого бара, а не фон страницы: иначе по краям линзы светлые (в тёмной теме —
+      // чёрные) полосы, которых у стекла в Телеграме нет ни в светлой, ни в тёмной теме
+      G.pc = G.bcl.slice();
       const upload = () => {
         if (G.seq !== my) return;
         const gl = G.gl; gl.bindTexture(gl.TEXTURE_2D, G.tex);
