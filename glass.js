@@ -263,6 +263,13 @@ window.LGLens = (function () {
     function paint(c, st) {
       const G = st.gl; if (!G) return;
       const dpr = Math.min(3, window.devicePixelRatio || 1), W = c.clientWidth + 2 * P, H = c.clientHeight + 2 * P;
+      // ничего не поменялось (размер, цвета, вкладки) — картинка вкладок уже в видеокарте, перерисовывать незачем:
+      // так линза появляется под пальцем сразу, без задержки на первом кадре
+      const cs0 = getComputedStyle(c), dark = document.body.classList.contains('dark-theme');
+      const key = [W, H, dpr, cs0.getPropertyValue('--tint').trim(), cs0.backgroundColor, getComputedStyle(document.body).backgroundColor, dark,
+        ...items(c).map(it => it.offsetLeft + ':' + it.offsetTop + ':' + it.offsetWidth + ':' + it.textContent.trim())].join('|');
+      if (G.ready && G.key === key) return;
+      G.key = key;
       G.dpr = dpr;
       [G.cv, G.src].forEach(x => { x.width = Math.round(W * dpr); x.height = Math.round(H * dpr); });
       G.cv.style.width = W + 'px'; G.cv.style.height = H + 'px'; G.cv.style.left = -P + 'px'; G.cv.style.top = -P + 'px';
@@ -277,7 +284,9 @@ window.LGLens = (function () {
       const pg = num(getComputedStyle(document.body).backgroundColor), bb = num(getComputedStyle(c).backgroundColor);
       const P3 = pg.length >= 3 && (pg[3] === undefined || pg[3] > 0) ? pg.slice(0, 3).map(v => v / 255) : (document.body.classList.contains('dark-theme') ? [0.04, 0.04, 0.05] : [0.96, 0.96, 0.97]);
       const ba = bb.length > 3 ? bb[3] : 1;
-      G.pc = P3; G.bcl = bb.length >= 3 ? bb.slice(0, 3).map((v, n) => v / 255 * ba + P3[n] * (1 - ba)) : P3;
+      G.bcl = bb.length >= 3 ? bb.slice(0, 3).map((v, n) => v / 255 * ba + P3[n] * (1 - ba)) : P3;
+      // тёмная тема: «брови» у края линзы — почти цвет самого бара, а не чёрный фон страницы (иначе по краям чёрные ореолы)
+      G.pc = document.body.classList.contains('dark-theme') ? P3.map((v, n) => v + (G.bcl[n] - v) * 0.85) : P3;
       const upload = () => {
         if (G.seq !== my) return;
         const gl = G.gl; gl.bindTexture(gl.TEXTURE_2D, G.tex);
@@ -484,8 +493,12 @@ window.LGLens = (function () {
     const dist = Math.hypot(g.x - st.x, g.y - st.y) + Math.abs(g.w - st.w);
     st.tx = g.x; st.ty = g.y; st.tw = g.w; st.th = g.h;
     memo.set(keyOf(c), g);
+    // капля уже едет и цель не поменялась (перепроверка после перестройки страницы) — не обрываем её на ходу:
+    // иначе она замирала поднятой линзой, вкладки под ней оставались вырезанными и бар переставал слушаться
+    if (!resize && !reduce && dist < 1 && st.raf) return;
     if (resize || reduce || dist < 1) {
       cancelAnimationFrame(st.raf); st.raf = 0;
+      if (st.travel && !st.down) settle(c);   // переезд оборвали — доводим его до конца (линза опускается)
       Object.assign(st, g, { vx: 0, vy: 0, vw: 0, vh: 0 });
       draw(st);
     } else {
@@ -699,19 +712,16 @@ window.LGLens = (function () {
     // Вкладки на телефоне: «Расписание» и «Статистика»
     const tabs = document.querySelectorAll('.lg-tab');
     /* Переход между вкладками, как в «Настройках» iOS: «Статистика» — целый экран со скруглёнными углами (без верхней
-       панели с профилем: она есть только у расписания) — въезжает справа поверх экрана расписания; экран расписания целиком (панель, бар
-       недель, дни) чуть уезжает влево и темнеет. Положение ведёт линза бара (модуль 3): тянешь линзу — экран едет
-       за пальцем с той же скоростью; отпустил или нажал на вкладку — доезжает пружиной вместе с линзой */
+       панели с профилем: она есть только у расписания) — въезжает справа поверх экрана расписания; экран расписания
+       стоит на месте и только темнеет. Оба экрана всегда свёрстаны (скрытый — прозрачный или за краем), поэтому
+       переход начинается сразу, без пересчёта страницы. Положение ведёт линза бара (модуль 3): тянешь линзу — экран
+       едет за пальцем с той же скоростью; отпустил или нажал на вкладку — доезжает пружиной вместе с линзой */
     const grid = app && app.querySelector('.layout-grid'), side = app && app.querySelector('.sidebar-panel');
-    const topbar = app && app.querySelector('.lg-topbar');
-    const slide = { t: 0, on: false, dim: null, chrome: null };
+    const slide = { t: 0, on: false, dim: null, goal: null };
     const canSlide = () => window.matchMedia && matchMedia('(max-width: 760px)').matches && !matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const backEls = () => [topbar, ms, grid && grid.querySelector('.lg-weekbar')].filter(Boolean);
     function slideApply(t) {
       const w = innerWidth, k = Math.max(0, Math.min(1, t));
-      const back = `translate3d(${(-0.3 * w * k).toFixed(1)}px, 0, 0)`, front = `translate3d(${(w * (1 - k)).toFixed(1)}px, 0, 0)`;
-      backEls().forEach(el => { el.style.transform = back; });
-      if (side) side.style.transform = front;
+      if (side) side.style.transform = `translate3d(${(w * (1 - k)).toFixed(1)}px, 0, 0)`;
       if (slide.dim) slide.dim.style.opacity = k.toFixed(3);
     }
     function slideOn() {
@@ -724,8 +734,8 @@ window.LGLens = (function () {
     }
     function slideOff() {
       if (!slide.on) return;
-      slide.on = false; app.classList.remove('tab-slide');
-      [...backEls(), side].forEach(el => { if (el) { el.style.removeProperty('transform'); el.style.removeProperty('opacity'); } });
+      slide.on = false; slide.goal = null; app.classList.remove('tab-slide');
+      if (side) side.style.removeProperty('transform');
       if (slide.dim) slide.dim.remove();
       slide.dim = null;
     }
@@ -734,13 +744,15 @@ window.LGLens = (function () {
         slide.t = t;
         // страховка: линза остановилась на вкладке, а сигнал «доехала» не пришёл — завершаем сами
         clearTimeout(slide.timer);
-        slide.timer = setTimeout(() => { const bar = app && app.querySelector('.lg-tabbar-inner'); if (!bar || !bar.classList.contains('is-drag')) window.LGTabSlide.settle(); }, 220);
+        slide.timer = setTimeout(() => { const bar = app && app.querySelector('.lg-tabbar-inner'); if (!bar || !bar.classList.contains('is-drag')) window.LGTabSlide.settle(); }, 400);
         const rest = app && app.dataset.tab === 'stats' ? 1 : 0;
         if (!slide.on) { if (Math.abs(t - rest) < 0.002) return; slideOn(); if (!slide.on) return; }
         slideApply(t);
       },
       settle() {
         if (!slide.on || (slide.t > 0.002 && slide.t < 0.998)) return;
+        // нажали вкладку, а линза ещё не тронулась (первый кадр задержался): не откатываем выбор назад, ждём линзу
+        if (slide.goal != null && Math.abs(slide.t - slide.goal) > 0.5) return;
         const want = slide.t > 0.5 ? 'stats' : 'schedule';
         if (app.dataset.tab !== want) { app.dataset.tab = want; tabs.forEach(b => { const on = b.dataset.tab === want; b.classList.toggle('selected', on); b.setAttribute('aria-selected', on); }); }
         slideOff();
@@ -751,6 +763,12 @@ window.LGLens = (function () {
       const sc = t === 'stats' ? app.querySelector('.sidebar-panel') : ms;
       if (app.dataset.tab === t) { if (sc) sc.scrollTo({ top: 0, behavior: 'smooth' }); return; }
       if (!slide.on && canSlide()) { slideOn(); slideApply(app.dataset.tab === 'stats' ? 1 : 0); }   // страницы поедут вслед за линзой с первого кадра
+      if (slide.on) {
+        slide.goal = t === 'stats' ? 1 : 0;
+        // страховка: линза так и не поехала (бар спрятан и т. п.) — доводим переход сами
+        clearTimeout(slide.guard);
+        slide.guard = setTimeout(() => { if (slide.on && slide.goal != null && !(app.querySelector('.lg-tabbar-inner.is-drag'))) { slide.t = slide.goal; slideApply(slide.t); window.LGTabSlide.settle(); } }, 1600);
+      }
       app.dataset.tab = t;
       tabs.forEach(b => { const on = b.dataset.tab === t; b.classList.toggle('selected', on); b.setAttribute('aria-selected', on); });
       if (window.PairMenu) PairMenu.close(true);
@@ -2304,33 +2322,9 @@ window.Onboarding = (function () {
   const ZOOM = new Set(['setupBackdrop']);   // окна, в которые превращается сама кнопка (пока подопытное — настройки)
   // капсула из нескольких кнопок (колокольчик | шестерёнка) — её кнопка сначала отделяется кругом
   const capOf = src => { const c = src && src.closest && src.closest('.lg-group'); return c && window.LGLiquid && LGLiquid.split && c.querySelectorAll('button').length > 1 ? c : null; };
-  /* Телефон: настройки и профиль — лист снизу, как в iOS. Лист выезжает не до самого верха, а экран под ним
-     отодвигается назад: чуть уменьшается, опускается и скругляет углы (видна его верхняя кромка над листом).
-     Экран двигается тем же расчётом, что и лист, поэтому они едут как одно целое */
-  const PUSH = new Set(['setupBackdrop', 'profileBackdrop']);
-  const pushOn = ov => phone() && PUSH.has(ov.id);
-  const safeTop = () => { const d = document.createElement('div'); d.style.cssText = 'position:fixed;top:0;height:0;padding-top:env(safe-area-inset-top,0px);visibility:hidden'; document.body.appendChild(d); const v = d.offsetHeight; d.remove(); return v; };
-  const frameEl = () => document.querySelector('.window-frame');
-  const root = document.documentElement;
-  // Только сдвиг, масштаб и прозрачность — их ведёт видеокарта. Скругление углов экрана не анимируем (это
-  // перерисовка всего экрана каждый кадр): поверх экрана лежит чёрная рамка со скруглёнными углами, она едет вместе
-  // с ним и проявляется прозрачностью (фон под экраном тоже чёрный)
-  function capsOf() {
-    let c = document.querySelector('body > .lg-push-caps');
-    if (!c) { c = document.createElement('div'); c.className = 'lg-push-caps'; c.setAttribute('aria-hidden', 'true'); document.body.appendChild(c); }
-    return c;
-  }
-  function pushOf() {
-    const app = frameEl(); if (!app) return null;
-    const y = Math.max(6, safeTop() - 8), caps = capsOf();
-    document.documentElement.style.setProperty('--push-y', y + 'px');
-    const k = t => Math.max(0, Math.min(1.02, t)), tf = t => `translateY(${(y * k(t)).toFixed(2)}px) scale(${(1 - 0.07 * k(t)).toFixed(4)})`;
-    return [
-      { el: app, frame: t => ({ transform: tf(t) }) },
-      { el: caps, frame: t => ({ transform: tf(t), opacity: Math.min(1, k(t) * 3).toFixed(3) }) }
-    ];
-  }
-  const extras = ov => { const a = [dimOf(ov)]; if (pushOn(ov)) { const x = pushOf(); if (x) a.push(...x); } return a; };
+  /* Телефон: настройки и профиль — лист снизу, как в iOS: выезжает не до самого верха, экран под ним стоит на месте
+     и только темнеет. Лист можно взять за шапку и сдвинуть вниз пальцем (см. bindDrag ниже) */
+  const extras = ov => [dimOf(ov)];
   const zoomOpts = (ov, sp) => ({ zoom: true, fromRect: sp.gearRect(), iconSrc: sp.gearIcon, fromColor: sp.color, noFade: true, extra: [dimOf(ov)], ov });
   const stop = st => { clearTimeout(st.timer); (st.anims || []).forEach(a => { try { a.cancel(); } catch (e) { /* уже закончилась */ } }); st.anims = []; };
   const now = el => { const cs = getComputedStyle(el); return { transform: cs.transform === 'none' ? 'none' : cs.transform, opacity: cs.opacity }; };
@@ -2398,7 +2392,6 @@ window.Onboarding = (function () {
     if (!wasClosing) st.eng = window.LGMorph;
     const eng = st.eng || window.LGMorph;
     if (!eng) { opened(ov, st); return; }
-    if (pushOn(ov)) root.classList.add('lg-pushed', 'lg-push-bg');   // в конце экран так и остаётся отодвинутым; под ним — чёрный фон
     // кнопка в общей капсуле (колокольчик | шестерёнка): капсула сначала разделяется на два круга (жидкое стекло),
     // и окно растёт уже из отделившегося круга
     const zsrc = st.find ? st.find() : null, zcap = ZOOM.has(ov.id) && !phone() && !wasClosing && !st.split ? capOf(zsrc) : null;
@@ -2441,20 +2434,6 @@ window.Onboarding = (function () {
     if (quick || isAlert(ov)) {
       // Одно окно сменилось другим (профиль → «Динамика») или ушло подтверждение — старое просто гаснет
       if (quick) ov.classList.add('lg-closing-quick');
-      if (pushOn(ov) && root.classList.contains('lg-pushed')) {
-        setTimeout(() => {   // открылось другое окно: если и оно отодвигает экран — оставляем, иначе экран плавно возвращается
-          const next = document.querySelector('.modal-overlay.open');
-          if (next && pushOn(next)) return;
-          root.classList.remove('lg-pushed');
-          const x = pushOf(), unbg = () => { if (!root.classList.contains('lg-pushed')) root.classList.remove('lg-push-bg'); };
-          if (!x) { unbg(); return; }
-          try {
-            const o = { duration: 380, easing: 'cubic-bezier(0.2, 0.9, 0.3, 1)', fill: 'backwards' };
-            const a = x.map(e => e.el.animate([e.frame(1), e.frame(0)], o));
-            a[0].finished.then(unbg, unbg);
-          } catch (e) { unbg(); }
-        }, 0);
-      }
       const eng = st.eng || window.LGMorph;
       if (eng) eng.cancel(box);
       const from = now(box), dur = quick ? 160 : 200;
@@ -2482,15 +2461,90 @@ window.Onboarding = (function () {
       });
       return;
     }
-    const pushed = root.classList.contains('lg-pushed');
-    root.classList.remove('lg-pushed');   // экран возвращается вместе с уходящим листом (чёрный фон уходит, когда экран встал на место)
-    eng.close(box, st.find ? st.find() : null, { slide: phone(), zoom: ZOOM.has(ov.id), extra: extras(ov), ov }).then(() => {
-      if (pushed && !root.classList.contains('lg-pushed')) root.classList.remove('lg-push-bg');
+    // лист смахнули пальцем: уезжает с того места и с той скоростью, где его отпустили
+    const drag = ov.__drag; ov.__drag = null;
+    eng.close(box, st.find ? st.find() : null, { slide: phone(), zoom: ZOOM.has(ov.id), extra: extras(ov), ov, from: drag }).then(() => {
       if (st.phase === 'closing') hideOv(ov, st);
     });
   }
 
+  /* Телефон: лист настроек и профиля можно взять за шапку и вести пальцем вверх-вниз: он едет за пальцем, фон под
+     ним светлеет. Отпустил ниже трети высоты (или смахнул вниз) — лист уезжает с того же места и с той же скоростью,
+     иначе мягко возвращается на место. Вверх лист почти не тянется — как резина */
+  const DRAG = {
+    setupBackdrop: () => { if (typeof window.closeSettings === 'function') window.closeSettings(); },
+    profileBackdrop: () => { const b = document.querySelector('#profileBackdrop [data-act="close"]'); if (b) b.click(); else document.getElementById('profileBackdrop').classList.remove('open'); }
+  };
+  function bindDrag(ov) {
+    const box = content(ov), shut = DRAG[ov.id];
+    if (!box || !shut) return;
+    const headH = () => { const h = box.querySelector(':scope > .lg-sheet-head'); return h && h.offsetHeight ? h.offsetHeight : 64; };
+    const pos = y => (y >= 0 ? y : -14 * (1 - Math.exp(y / 50)));
+    let g = null;
+    const apply = () => {
+      const y = pos(g.dy);
+      box.style.transform = `translate3d(0, ${y.toFixed(2)}px, 0)`;
+      if (g.dim) g.dim.currentTime = 1000 * dimClamp((1 - Math.max(0, y) / g.D) * 1.5);
+    };
+    const clean = () => { ['transform', 'will-change', 'transition'].forEach(p => box.style.removeProperty(p)); };
+    ov.addEventListener('touchstart', e => {
+      g = null;
+      if (!phone() || e.touches.length !== 1 || box.__snap || !ov.classList.contains('open') || ov.classList.contains('lg-opening') || ov.classList.contains('lg-closing')) return;
+      const st = state.get(ov); if (st && st.phase && st.phase !== 'open') return;
+      const t = e.touches[0], r = box.getBoundingClientRect();
+      if (t.clientY < r.top || t.clientY > r.top + headH()) return;
+      if (e.target.closest && e.target.closest('input, textarea, select, .pf-tabs, .pf-pop')) return;
+      g = { x0: t.clientX, y0: t.clientY, dy: 0, on: false, raf: 0, D: innerHeight + 12 - r.top, h: r.height, hist: [[e.timeStamp, t.clientY]] };
+    }, { passive: true });
+    ov.addEventListener('touchmove', e => {
+      if (!g) return;
+      const t = e.touches[0], dx = t.clientX - g.x0, dy = t.clientY - g.y0;
+      if (!g.on) {
+        if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
+        if (Math.abs(dx) > Math.abs(dy)) { g = null; return; }
+        g.on = true; g.y0 = t.clientY;   // от места, где палец тронулся, — без скачка на порог
+        box.style.transition = 'none'; box.style.willChange = 'transform';
+        try { g.dim = ov.animate([{ opacity: 0 }, { opacity: 1 }], { pseudoElement: '::before', duration: 1000, fill: 'both' }); g.dim.pause(); g.dim.currentTime = 1000; } catch (err) { g.dim = null; }
+      }
+      e.preventDefault();
+      g.dy = t.clientY - g.y0;
+      g.hist.push([e.timeStamp, t.clientY]); if (g.hist.length > 6) g.hist.shift();
+      if (!g.raf) g.raf = requestAnimationFrame(() => { if (g && g.on) { g.raf = 0; apply(); } });
+    }, { passive: false });
+    const end = () => {
+      if (!g) return;
+      const d = g; g = null;
+      cancelAnimationFrame(d.raf);
+      if (!d.on) return;
+      if (window.LGEatClick) window.LGEatClick();   // это было перетаскивание, а не нажатие на кнопку в шапке
+      const h = d.hist, a = h[0], b = h[h.length - 1];
+      const v = a && b && b[0] > a[0] ? (b[1] - a[1]) / (b[0] - a[0]) * 1000 : 0;   // скорость пальца, px/с (вниз — плюс)
+      const y = Math.max(0, pos(d.dy));
+      if ((y > d.h * 0.3 && v > -300) || v > 900) {
+        ov.__drag = { x: 1 - y / d.D, v: -v / d.D };
+        shut();
+        clean();
+        if (d.dim) d.dim.cancel();   // дальше лист и фон ведёт анимация закрытия
+        if (ov.classList.contains('open')) ov.__drag = null;   // окно не закрылось — просто вернётся на место
+        return;
+      }
+      // назад на место
+      const cur = getComputedStyle(box).transform, k0 = d.dim ? d.dim.currentTime / 1000 : 1;
+      clean();
+      if (d.dim) d.dim.cancel();
+      const o = { duration: 420, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' };
+      try {
+        const an = box.animate([{ transform: cur }, { transform: 'none' }], o);
+        box.__snap = true; an.finished.then(() => { box.__snap = false; }, () => { box.__snap = false; });
+        ov.animate([{ opacity: k0 }, { opacity: 1 }], Object.assign({ pseudoElement: '::before' }, o));
+      } catch (err) { box.__snap = false; }
+    };
+    ov.addEventListener('touchend', end);
+    ov.addEventListener('touchcancel', end);
+  }
+
   function start() {
+    Object.keys(DRAG).forEach(id => { const ov = document.getElementById(id); if (ov) bindDrag(ov); });
     const seen = new WeakMap();
     const watch = ov => { if (!seen.has(ov)) { seen.set(ov, ov.classList.contains('open')); mo.observe(ov, { attributes: true, attributeFilter: ['class'] }); } };
     const mo = new MutationObserver(recs => {
@@ -2729,7 +2783,8 @@ window.LGMorph = (function () {
   function begin(el, src, mode, opts) {
     opts = opts || {};
     let st = S.get(el);
-    const from = st ? now(st) : { x: mode === 'open' ? 0 : 1, v: 0 };
+    // opts.from — лист отпустили пальцем на полпути: начинаем оттуда и с той же скоростью
+    const from = st ? now(st) : (opts.from && isFinite(opts.from.x) ? { x: clamp(opts.from.x, 0, 1.05), v: opts.from.v || 0 } : { x: mode === 'open' ? 0 : 1, v: 0 });
     if (st && st.mode === mode) return st;            // уже идёт в эту сторону
     if (!st) {
       const cs = getComputedStyle(el);
@@ -2779,7 +2834,7 @@ window.LGMorph = (function () {
       st.Ar = st.Ar || st.Fr;
       // длительность — по размеру: меню быстрее, большие окна дольше
       const f = clamp((Math.sqrt(st.F.w * st.F.h) - 170) / 480, 0, 1);
-      st.spring = { open: st.kind === 'slide' ? [0.5, 0.92] : st.kind === 'zoom' ? [0.46, 0.78] : [lerp(0.3, 0.5, f), 0.8], close: st.kind === 'slide' ? [0.38, 1] : st.kind === 'zoom' ? [0.36, 0.8] : [lerp(0.24, 0.38, f), 1] };
+      st.spring = { open: st.kind === 'slide' ? [0.62, 1] : st.kind === 'zoom' ? [0.46, 0.78] : [lerp(0.3, 0.5, f), 0.8], close: st.kind === 'slide' ? [0.38, 1] : st.kind === 'zoom' ? [0.36, 0.8] : [lerp(0.24, 0.38, f), 1] };
       st.extra = opts.extra || [];
       // лист снизу (телефон): окно едет само, со своим фоном, размытием и тенью — без отдельного слоя-капли.
       // Его форма не меняется, а лишний слой с большой тенью телефон перерисовывал бы в первый кадр

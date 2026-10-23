@@ -1435,11 +1435,12 @@ button.pf-row.pickable:hover { background: var(--fill-2); }
   .pair-title { font-size: calc(15px * var(--ts)); }
   .day-actions .lg-more { width: 36px; height: 36px; }
 
-  /* Вкладки: расписание и статистика */
-  #mainApp[data-tab="schedule"] .sidebar-panel { display: none; }
-  #mainApp[data-tab="stats"] .schedule-col,
-  #mainApp[data-tab="stats"] .lg-hero,
-  #mainApp[data-tab="stats"] .lg-weeknav { display: none; }
+  /* Вкладки: расписание и статистика. Оба экрана всегда свёрстаны — переключение без пересчёта страницы:
+     «Статистика» лежит поверх (fixed), на вкладке расписания она спрятана за правым краем; расписание под
+     «Статистикой» просто прозрачное (glass.js, модуль 4, и раздел 71) */
+  .layout-grid > .sidebar-panel { position: fixed; inset: 0; z-index: 55; will-change: transform; }
+  #mainApp:not([data-tab="stats"]):not(.tab-slide) .layout-grid > .sidebar-panel { visibility: hidden; transform: translate3d(100%, 0, 0); }
+  #mainApp[data-tab="stats"]:not(.tab-slide) :is(.schedule-col, .lg-hero, .lg-weeknav) { opacity: 0; }
   .sidebar-panel { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; gap: 14px; padding: 0 16px calc(env(safe-area-inset-bottom, 0px) + 112px); scrollbar-width: none; }
   .sidebar-panel::-webkit-scrollbar { display: none; }
   .sidebar-panel > * { flex-shrink: 0; }
@@ -1452,7 +1453,7 @@ button.pf-row.pickable:hover { background: var(--fill-2); }
     display: flex; justify-content: center; position: fixed; z-index: 60; left: 0; right: 0;
     bottom: calc(env(safe-area-inset-bottom, 0px) + 12px); pointer-events: none;
   }
-  .lg-tabbar-inner { display: flex; padding: 4px; border-radius: 999px; pointer-events: auto; }
+  .lg-tabbar-inner { display: flex; padding: 4px; border-radius: 999px; pointer-events: auto; touch-action: none; }   /* палец на баре не двигает страницу: нажатие не срывается */
   .lg-tabbar-inner .lg-knob:not(.is-press) { background: var(--fill); box-shadow: none; }
   .lg-tab {
     width: 112px; height: 54px; padding: 0; border: 0; border-radius: 999px; background: transparent; cursor: pointer;
@@ -1755,7 +1756,7 @@ body.glass-lite .lg-sched-blur > i { -webkit-backdrop-filter: none; backdrop-fil
 @media (max-width: 760px) {
   .layout-grid { position: relative; --wb-h: 52px; --wb-gap: 16px; }
   .lg-weekbar { position: absolute; top: 0; left: 12px; right: 12px; }
-  #mainApp[data-tab="stats"] .lg-weekbar { display: none; }
+  #mainApp[data-tab="stats"]:not(.tab-slide) .lg-weekbar { opacity: 0; }
   .lg-weekbar .lg-wn-btn { width: 40px; height: 40px; }
   .lg-weekbar .lg-today { padding: 0 12px; }
   .lg-wb-sub { font-size: calc(12px * var(--ts)); }
@@ -3328,12 +3329,16 @@ body.dark-theme .lg-topbar :is(.profile-pill, .sc-head).lg-glass { box-shadow: v
 .lg-lens-mag { position: absolute; left: 0; top: 0; }
 .lg-lens-mag > * { position: absolute !important; margin: 0 !important; transition: none !important; transform: none !important; color: var(--tint) !important; }
 @media (max-width: 760px) {
+  /* стекло бара — прозрачное, как в Телеграме: под ним видно, что лежит на странице, лишь слегка размыто
+     (не матовое). Тон и кромка — как у остального стекла */
   .lg-tabbar-inner.lg-glass {
-    --glass-blur: var(--pearl-blur); --glass-sat: var(--pearl-sat);
-    background: var(--pearl);
-    -webkit-backdrop-filter: blur(var(--pearl-blur)) saturate(var(--pearl-sat)); backdrop-filter: blur(var(--pearl-blur)) saturate(var(--pearl-sat));
+    --bar-tone: rgba(250, 250, 252, 0.5); --bar-blur: 5px; --bar-sat: 1.8;
+    --glass-blur: var(--bar-blur); --glass-sat: var(--bar-sat);
+    background: var(--bar-tone);
+    -webkit-backdrop-filter: blur(var(--bar-blur)) saturate(var(--bar-sat)); backdrop-filter: blur(var(--bar-blur)) saturate(var(--bar-sat));
     box-shadow: var(--pearl-shadow), var(--pearl-glow);
   }
+  body.dark-theme .lg-tabbar-inner.lg-glass { --bar-tone: rgba(26, 26, 29, 0.56); --bar-sat: 1.6; }
   body.dark-theme .lg-tabbar-inner.lg-glass { box-shadow: var(--pearl-shadow), var(--pearl-glow); }
   .lg-tabbar-inner.lg-glass::after, body.dark-theme .lg-tabbar-inner.lg-glass::after { background: var(--pearl-rim); }
   .lg-tabbar-inner .lg-knob:not(.is-press) { background: var(--pearl-sel); box-shadow: none; }
@@ -3355,25 +3360,21 @@ body.dark-theme .lg-topbar :is(.profile-pill, .sc-head).lg-glass { box-shadow: v
 }
 
 /* ---------- 71. Телефон: переход «Расписание» ⇄ «Статистика», как в «Настройках» iOS (glass.js, модуль 4) ----------
-   «Статистика» на время перехода — целый экран со скруглёнными углами поверх экрана расписания; тот уезжает влево
-   целиком (вместе с верхней панелью) и темнеет. Нижний бар остаётся на месте */
+   «Статистика» на время перехода — целый экран со скруглёнными углами поверх экрана расписания; тот стоит на месте
+   и только темнеет. Нижний бар остаётся на месте */
 @media (max-width: 760px) {
-  #mainApp.tab-slide .layout-grid > #mainScroll { display: block !important; will-change: transform; }
-  #mainApp.tab-slide .lg-topbar { will-change: transform; }
-  #mainApp.tab-slide .layout-grid > .lg-weekbar { display: grid !important; will-change: transform; }
   #mainApp.tab-slide .layout-grid > .sidebar-panel {
-    display: flex !important; position: fixed; inset: 0; z-index: 55; will-change: transform;
     background: var(--bg); border-radius: 44px; box-shadow: -10px 0 36px -8px rgba(0, 0, 0, 0.2);
   }
   body.dark-theme #mainApp.tab-slide .layout-grid > .sidebar-panel { box-shadow: -10px 0 36px -8px rgba(0, 0, 0, 0.75); }
   /* у «Статистики» нет верхней панели с профилем и уведомлениями — экран начинается с крупного заголовка */
-  #mainApp[data-tab="stats"]:not(.tab-slide) .lg-topbar { display: none; }
+  #mainApp[data-tab="stats"]:not(.tab-slide) .lg-topbar { opacity: 0; }
   .layout-grid > .sidebar-panel { padding-top: calc(env(safe-area-inset-top, 0px) + 16px); }
   /* экран под ним темнеет */
   .lg-tab-dim { position: fixed; inset: 0; z-index: 54; pointer-events: none; opacity: 0; background: rgba(0, 0, 0, 0.12); }
   body.dark-theme .lg-tab-dim { background: rgba(0, 0, 0, 0.5); }
   /* доехала — фон страницы мягко уступает обоям (без вспышки) */
-  .layout-grid > .sidebar-panel { transition: background-color 0.3s ease, box-shadow 0.3s ease; }
+  #mainApp:not(.tab-slide) .layout-grid > .sidebar-panel { transition: background-color 0.3s ease, box-shadow 0.3s ease; }   /* в начале перехода экран сразу плотный */
 }
 
 /* ---------- 72. Телефон: окно уведомлений компактнее — под колокольчиком справа, а не на всю ширину ---------- */
@@ -3392,22 +3393,10 @@ body.dark-theme .lg-topbar :is(.profile-pill, .sc-head).lg-glass { box-shadow: v
   .pf-notif-time { font-size: calc(11.5px * var(--ts)); }
 }
 
-.lg-push-caps { display: none; }
-
 /* ---------- 73. Телефон: настройки и профиль — лист снизу, как в iOS (glass.js, модуль 19) ----------
-   Лист выезжает не до самого верха; экран под ним отодвигается назад — чуть меньше, ниже, со скруглёнными углами,
-   под ним чёрный фон. Сверху над листом видна кромка отодвинутого экрана */
+   Лист выезжает не до самого верха; экран под ним стоит на месте и только темнеет. Лист можно вести пальцем за шапку */
 @media (max-width: 760px) {
-  .window-frame { transform-origin: 50% 0; }
-  html.lg-push-bg, html.lg-push-bg body { background: #000; }
-  html.lg-pushed .window-frame { transform: translateY(var(--push-y, 6px)) scale(0.93); }
-  /* скруглённые углы отодвинутого экрана: чёрная рамка поверх него, едет вместе с ним (фон под ним тоже чёрный).
-     Рамка заходит на край экрана на 1px — иначе по краю видна светлая ниточка сглаживания */
-  .lg-push-caps { display: block; position: fixed; left: 1px; top: 1px; width: calc(100% - 2px); height: calc(100dvh - 2px); z-index: 4000;
-    pointer-events: none; opacity: 0; visibility: hidden; transform-origin: 50% -1px; border-radius: 37px; box-shadow: 0 0 0 48px #000; }
-  html.lg-push-bg .lg-push-caps { visibility: visible; }
-  html.lg-pushed .lg-push-caps { opacity: 1; transform: translateY(var(--push-y, 6px)) scale(0.93); }
-  /* под таким листом экран только затемняется, без размытия (как в iOS): видно его кромку, и телефону легче */
+  /* под таким листом экран только затемняется, без размытия (как в iOS), — и телефону легче */
   html.lg-winfx :is(#setupBackdrop, #profileBackdrop)::before { -webkit-backdrop-filter: none; backdrop-filter: none; }
   /* сам лист — во всю ширину и до низа экрана, скруглён сверху; низ содержимого не прячется под полоской «домой» */
   html.lg-winfx #setupBackdrop, html.lg-winfx #profileBackdrop { padding: max(18px, calc(env(safe-area-inset-top, 0px) + 6px)) 0 0; }
